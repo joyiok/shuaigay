@@ -1,0 +1,21 @@
+{$DOMAIN}
+
+encode gzip zstd
+
+header {
+	Strict-Transport-Security "max-age=31536000"
+	X-Content-Type-Options "nosniff"
+	-Server
+}
+
+# 附件:Caddy 直接读盘伺服,不经过 Node
+handle /uploads/* {
+	root * /srv/uploads
+	file_server
+	header Cache-Control "public, max-age=31536000, immutable"
+}
+
+# 其余全部反代到 Next.js
+handle {
+	reverse_proxy app:3000
+}

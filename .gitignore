@@ -1,0 +1,24 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# 环境变量
+.env
+.env.local
+.env.production
+
+# 本地上传的附件(有 .gitkeep)
+uploads/*
+!uploads/.gitkeep
+
+# 本地备份仓库
+backups/
+
+# Playwright
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/

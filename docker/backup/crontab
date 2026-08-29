@@ -1,0 +1,4 @@
+# 每晚 03:30 自动备份(容器时区默认 UTC,按需调整)
+30 3 * * * sh /scripts/backup.sh >> /var/log/backup.log 2>&1
+# 每天检查磁盘水位,超过 80% 写警告日志(配合外部监控或登录查看)
+0 4 * * * df /srv/uploads /var/lib/postgresql/data | awk 'NR>1 && int($5) > 80 {print strftime("[%F %T]"), "磁盘水位警告:", $6, $5}' >> /var/log/backup.log

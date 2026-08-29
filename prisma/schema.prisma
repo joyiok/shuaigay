@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+
+  threads     Thread[]     @relation("ThreadAuthor")
+  posts       Post[]       @relation("PostAuthor")
+  sessions    Session[]
+  attachments Attachment[] @relation("AttachmentUploader")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Board {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  name        String
+  description String?
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  threads Thread[]
+
+  @@index([order])
+}
+
+model Thread {
+  id         String   @id @default(cuid())
+  boardId    String
+  authorId   String
+  title      String
+  pinned     Boolean  @default(false)
+  locked     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  // 列表按此字段游标分页,回复时更新
+  lastPostAt DateTime @default(now())
+
+  board  Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  author User   @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  posts  Post[]
+
+  @@index([boardId, lastPostAt])
+  @@index([pinned])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  threadId  String
+  authorId  String
+  // 只存 Markdown 原文,渲染在读取时做(写时渲染会把脏数据固化进库)
+  contentMd String
+  createdAt DateTime @default(now())
+
+  thread      Thread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  author      User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+
+  @@index([threadId, createdAt])
+}
+
+model Attachment {
+  id         String   @id @default(cuid())
+  postId     String
+  uploaderId String
+  // 服务端随机生成的相对路径,与用户上传的原始文件名无关
+  storedName String   @unique
+  fileName   String
+  // 入库前经过魔数嗅探,不是浏览器声明的类型
+  mimeType   String
+  sizeBytes  Int
+  createdAt  DateTime @default(now())
+
+  post     Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  uploader User @relation("AttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}

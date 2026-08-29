@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    # 宿主机 5432 可能被系统自带 PostgreSQL 占用,映射到 5433
+    ports:
+      - "${POSTGRES_HOST_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-forum}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forum_dev_password}
+      POSTGRES_DB: ${POSTGRES_DB:-forum}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-forum} -d ${POSTGRES_DB:-forum}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "900", "1"]
+    ports:
+      - "${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-forum}:${POSTGRES_PASSWORD:-forum_dev_password}@postgres:5432/${POSTGRES_DB:-forum}?schema=public
+      REDIS_URL: redis://redis:6379
+      STORAGE_DRIVER: local
+      UPLOAD_DIR: /srv/uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+    volumes:
+      - ./uploads:/srv/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./uploads:/srv/uploads:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    restart: unless-stopped
+
+  backup:
+    build: ./docker/backup
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:-forum}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-forum_dev_password}
+      PGDATABASE: ${POSTGRES_DB:-forum}
+      RESTIC_REPOSITORY: ${RESTIC_REPOSITORY:-/backups/restic}
+      RESTIC_PASSWORD: ${RESTIC_PASSWORD:-dev-only-restic-pass}
+      HEALTHCHECK_URL: ${HEALTHCHECK_URL:-}
+      B2_ACCOUNT_ID: ${B2_ACCOUNT_ID:-}
+      B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+    volumes:
+      - ./uploads:/srv/uploads:ro
+      - ./backups:/backups
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
