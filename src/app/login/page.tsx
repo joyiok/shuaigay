@@ -1,10 +1,12 @@
 import Link from "next/link";
 import { loginAction } from "@/app/actions/auth";
+import Turnstile from "@/components/Turnstile";
 
 const ERRORS: Record<string, string> = {
   invalid: "输入格式不对",
   wrong: "邮箱或密码不正确",
   ratelimited: "尝试太频繁,请稍后再试",
+  captcha_failed: "人机验证未通过，请重新验证后重试",
 };
 
 export default async function LoginPage({
@@ -38,6 +40,7 @@ export default async function LoginPage({
           placeholder="密码"
           style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
         />
+        <Turnstile resetSignal={error} />
         <button
           type="submit"
           style={{ width: "100%", background: "var(--brand)", color: "#fff", borderRadius: 6, height: 36, fontSize: 14, fontWeight: 600, border: "1px solid var(--brand)" }}

@@ -5,10 +5,28 @@ import { getCurrentUser } from "@/lib/auth";
 import { trackAndCountOnline } from "@/lib/online";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
+import MobileDrawer from "@/components/MobileDrawer";
+import FloatingNewThread from "@/components/FloatingNewThread";
+
+// 站点绝对地址:生产环境请通过 SITE_URL 环境变量注入,缺省时不影响相对 SEO 配置
+const siteUrl = process.env.SITE_URL;
 
 export const metadata: Metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: { default: "论坛", template: "%s · 论坛" },
   description: "自研论坛",
+  openGraph: {
+    type: "website",
+    siteName: "SHUAI GAY 论坛",
+    title: "SHUAI GAY 论坛",
+    description: "开放 · 克制 · 高效 —— 原创极简风格的论坛",
+    locale: "zh_CN",
+  },
+  twitter: {
+    card: "summary",
+    title: "SHUAI GAY 论坛",
+    description: "开放 · 克制 · 高效 —— 原创极简风格的论坛",
+  },
 };
 
 export default async function RootLayout({
@@ -44,6 +62,10 @@ export default async function RootLayout({
             <Link href="/" className="brand">
               <span className="brand-mark">SG</span> SHUAI GAY
             </Link>
+            <MobileDrawer
+              boards={boards.map((b) => ({ slug: b.slug, name: b.name }))}
+              user={user ? { username: user.username, role: user.role } : null}
+            />
             <nav className="forum-nav" aria-label="顶部版块">
               <Link href="/" className="forum-link active">
                 全部主题
@@ -54,15 +76,28 @@ export default async function RootLayout({
                 </Link>
               ))}
             </nav>
-            <Link href="/search" className="search-page-link" aria-label="搜索" title="搜索">
-              <span className="search-page-fake-input">搜索关键词</span>
-              <span className="search-page-fake-icon">
+            <form
+              action="/search"
+              method="get"
+              className="search-page-link"
+              role="search"
+              aria-label="搜索"
+            >
+              <input
+                type="search"
+                name="q"
+                placeholder="搜索关键词"
+                aria-label="搜索关键词"
+                className="search-page-fake-input"
+                autoComplete="off"
+              />
+              <button type="submit" className="search-page-fake-icon" aria-label="提交搜索" title="搜索">
                 <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
                   <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.6" />
                   <path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                 </svg>
-              </span>
-            </Link>
+              </button>
+            </form>
             <div className="nav-mine" style={{ display: "flex" }}>
               {user ? (
                 <>
@@ -70,17 +105,22 @@ export default async function RootLayout({
                     {user.username}
                   </Link>
                   {user.role === "ADMIN" && (
-                    <span
-                      style={{
-                        background: "var(--inverse)",
-                        color: "var(--inverse-text)",
-                        fontSize: 10,
-                        padding: "2px 6px",
-                        borderRadius: 999,
-                      }}
-                    >
-                      管理员
-                    </span>
+                    <>
+                      <Link href="/admin" style={{ color: "var(--text-muted)" }}>
+                        管理
+                      </Link>
+                      <span
+                        style={{
+                          background: "var(--inverse)",
+                          color: "var(--inverse-text)",
+                          fontSize: 10,
+                          padding: "2px 6px",
+                          borderRadius: 999,
+                        }}
+                      >
+                        管理员
+                      </span>
+                    </>
                   )}
                   {online !== null && (
                     <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{online} 人在线</span>
@@ -260,6 +300,8 @@ export default async function RootLayout({
             </aside>
           </div>
         </div>
+
+        <FloatingNewThread firstBoardSlug={boards[0]?.slug ?? null} />
 
         <footer className="footer">
           <div className="runtime-info">

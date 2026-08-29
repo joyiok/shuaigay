@@ -18,12 +18,17 @@ model User {
   username     String   @unique
   passwordHash String
   role         Role     @default(USER)
+  bio          String?  @default("")
+  points       Int      @default(0)
   createdAt    DateTime @default(now())
 
-  threads     Thread[]     @relation("ThreadAuthor")
-  posts       Post[]       @relation("PostAuthor")
-  sessions    Session[]
-  attachments Attachment[] @relation("AttachmentUploader")
+  threads       Thread[]       @relation("ThreadAuthor")
+  posts         Post[]         @relation("PostAuthor")
+  sessions      Session[]
+  attachments   Attachment[]   @relation("AttachmentUploader")
+  notifications Notification[]
+  reports       Report[]
+  invites       Invite[]       @relation("InviteOwner")
 }
 
 model Session {
@@ -100,4 +105,46 @@ model Attachment {
   uploader User @relation("AttachmentUploader", fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([postId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("system") // mention | reply | system | report
+  title     String
+  body      String?
+  link      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt])
+}
+
+model Report {
+  id         String   @id @default(cuid())
+  reporterId String
+  targetType String   // thread | post
+  targetId   String
+  reason     String
+  status     String   @default("pending") // pending | resolved | rejected
+  createdAt  DateTime @default(now())
+
+  reporter User @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+}
+
+model Invite {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  inviterId String
+  maxUses   Int      @default(5)
+  usedCount Int      @default(0)
+  createdAt DateTime @default(now())
+
+  inviter User @relation("InviteOwner", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  @@index([inviterId])
 }

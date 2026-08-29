@@ -9,7 +9,9 @@ import {
   canReply,
   isAdmin,
 } from "@/lib/permissions";
-import { checkRateLimit } from "@/lib/ratelimit";
+import { checkRateLimit, clientIp } from "@/lib/ratelimit";
+import { verifyTurnstile } from "@/lib/turnstile";
+import { containsSensitive } from "@/lib/sensitive";
 import {
   extensionForMime,
   getStorage,
@@ -18,6 +20,7 @@ import {
   type StorageDriver,
 } from "@/lib/storage";
 import { sniffMime } from "@/lib/filetype";
+import { collectMentionCandidates } from "@/lib/markdown";
 
 const titleSchema = z.string().trim().min(1).max(120);
 const contentSchema = z.string().trim().min(1).max(20_000);
@@ -94,6 +97,24 @@ async function persistFiles(
   }
 }
 
+/** 提及内容里截一段当通知正文 */
+function excerpt(raw: string): string {
+  return raw.replace(/\s+/g, " ").slice(0, 120);
+}
+
+/** 查被提及用户里真实存在且不是自己的 */
+async function findMentionedUsers(
+  content: string,
+  selfId: string,
+): Promise<{ id: string }[]> {
+  const names = collectMentionCandidates([content]);
+  if (!names.length) return [];
+  return db.user.findMany({
+    where: { username: { in: names }, id: { not: selfId } },
+    select: { id: true },
+  });
+}
+
 export async function createThreadAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -106,6 +127,20 @@ export async function createThreadAction(formData: FormData): Promise<void> {
   const board = await db.board.findUnique({ where: { slug: boardSlug } });
   if (!board) redirect("/?error=board_not_found");
 
+  const ip = await clientIp();
+  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
+    redirect(`/c/${board.slug}/new?error=captcha_failed`);
+  }
+  if (containsSensitive(title.data) || containsSensitive(content.data)) {
+    redirect(`/c/${board.slug}/new?error=sensitive`);
+  }
+  // 发帖限流:同一用户 / IP 每分钟 5 次
+  if (
+    !(await checkRateLimit(`thread:${user.id}`, 5, 60)) ||
+    !(await checkRateLimit(`thread:ip:${ip}`, 5, 60))
+  ) {
+    redirect(`/c/${board.slug}?error=ratelimited`);
+  }
   if (!(await checkRateLimit(`thread:${user.id}`, 5, 3600))) {
     redirect(`/c/${board.slug}?error=ratelimited`);
   }
@@ -119,23 +154,38 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     : [];
 
   // redirect 会抛 NEXT_REDIRECT,不能被 try 捕获,所以库操作和跳转分开
+  const mentionedUsers = await findMentionedUsers(content.data, user.id);
   let threadId: string;
   try {
-    const thread = await db.thread.create({
-      data: {
-        boardId: board.id,
-        authorId: user.id,
-        title: title.data,
-        posts: {
-          create: {
-            authorId: user.id,
-            contentMd: content.data,
-            attachments: attachmentRows.length
-              ? { create: attachmentRows }
-              : undefined,
+    const thread = await db.$transaction(async (tx) => {
+      const t = await tx.thread.create({
+        data: {
+          boardId: board.id,
+          authorId: user.id,
+          title: title.data,
+          posts: {
+            create: {
+              authorId: user.id,
+              contentMd: content.data,
+              attachments: attachmentRows.length
+                ? { create: attachmentRows }
+                : undefined,
+            },
           },
         },
-      },
+      });
+      if (mentionedUsers.length) {
+        await tx.notification.createMany({
+          data: mentionedUsers.map((u) => ({
+            userId: u.id,
+            type: "mention",
+            title: `${user.username} 在主题里提到了你`,
+            body: excerpt(content.data),
+            link: `/t/${t.id}`,
+          })),
+        });
+      }
+      return t;
     });
     threadId = thread.id;
   } catch (e) {
@@ -165,6 +215,20 @@ export async function replyAction(formData: FormData): Promise<void> {
   const content = contentSchema.safeParse(formData.get("content"));
   if (!content.success) redirect(`/t/${thread.id}?error=invalid`);
 
+  const ip = await clientIp();
+  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
+    redirect(`/t/${thread.id}?error=captcha_failed`);
+  }
+  if (containsSensitive(content.data)) {
+    redirect(`/t/${thread.id}?error=sensitive`);
+  }
+  // 回帖限流:同一用户 / IP 每分钟 10 次
+  if (
+    !(await checkRateLimit(`reply:${user.id}`, 10, 60)) ||
+    !(await checkRateLimit(`reply:ip:${ip}`, 10, 60))
+  ) {
+    redirect(`/t/${thread.id}?error=ratelimited`);
+  }
   if (!(await checkRateLimit(`reply:${user.id}`, 30, 3600))) {
     redirect(`/t/${thread.id}?error=ratelimited`);
   }
@@ -177,9 +241,17 @@ export async function replyAction(formData: FormData): Promise<void> {
     ? await persistFiles(storage, prepared, user.id)
     : [];
 
+  // 通知对象:楼主(非自己)+ 被提及者(非自己,且不是楼主时去重)
+  const mentionRows = await findMentionedUsers(content.data, user.id);
+  const notifyIds = new Map<string, "reply" | "mention">();
+  if (thread.authorId !== user.id) notifyIds.set(thread.authorId, "reply");
+  for (const u of mentionRows) {
+    if (!notifyIds.has(u.id)) notifyIds.set(u.id, "mention");
+  }
+
   try {
-    await db.$transaction([
-      db.post.create({
+    await db.$transaction(async (tx) => {
+      await tx.post.create({
         data: {
           threadId: thread.id,
           authorId: user.id,
@@ -188,12 +260,26 @@ export async function replyAction(formData: FormData): Promise<void> {
             ? { create: attachmentRows }
             : undefined,
         },
-      }),
-      db.thread.update({
+      });
+      await tx.thread.update({
         where: { id: thread.id },
         data: { lastPostAt: new Date() },
-      }),
-    ]);
+      });
+      if (notifyIds.size) {
+        await tx.notification.createMany({
+          data: [...notifyIds].map(([uid, type]) => ({
+            userId: uid,
+            type,
+            title:
+              type === "reply"
+                ? `${user.username} 回复了你的主题`
+                : `${user.username} 在回复里提到了你`,
+            body: excerpt(content.data),
+            link: `/t/${thread.id}`,
+          })),
+        });
+      }
+    });
   } catch (e) {
     await Promise.all(attachmentRows.map((r) => storage.remove(r.storedName)));
     throw e;

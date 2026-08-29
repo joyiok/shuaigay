@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "./db";
 import { decodeCursor, encodeCursor, type Cursor } from "./cursor";
+import { makeExcerpt } from "./excerpt";
 
 const threadInclude = {
   author: { select: { username: true } },
@@ -111,6 +112,148 @@ export async function listThreads(boardId: string, cursor: Cursor | null, pageSi
       ).map(toThreadListItem);
 
   return { pinned, items: items.map(toThreadListItem), nextCursor };
+}
+
+// —— 搜索 ——
+
+export interface ThreadSearchItem extends ThreadListItem {
+  boardSlug: string;
+  boardName: string;
+}
+
+export interface PostSearchItem {
+  id: string;
+  threadId: string;
+  threadTitle: string;
+  boardSlug: string;
+  boardName: string;
+  /** 命中关键词附近的纯文本摘录,由服务端截好 */
+  excerpt: string;
+  createdAt: Date;
+  authorName: string;
+  authorRole: string;
+}
+
+/**
+ * 主题搜索:标题 + 首帖正文,游标走 (lastPostAt, id) 复合排序,
+ * 限定版块时仍可命中 (boardId, lastPostAt) 索引,不用 OFFSET。
+ */
+export async function searchThreads(
+  q: string,
+  boardId: string | undefined,
+  cursor: Cursor | null,
+  pageSize = 20,
+) {
+  const rows = await db.thread.findMany({
+    where: {
+      ...(boardId ? { boardId } : {}),
+      AND: [
+        {
+          OR: [
+            { title: { contains: q, mode: "insensitive" } },
+            {
+              posts: {
+                some: { contentMd: { contains: q, mode: "insensitive" } },
+              },
+            },
+          ],
+        },
+        ...(cursor
+          ? [
+              {
+                OR: [
+                  { lastPostAt: { lt: new Date(cursor.t) } },
+                  { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
+    orderBy: [{ lastPostAt: "desc" }, { id: "desc" }],
+    take: pageSize + 1,
+    include: {
+      ...threadInclude,
+      board: { select: { slug: true, name: true } },
+    },
+  });
+
+  const hasMore = rows.length > pageSize;
+  const items = rows.slice(0, pageSize);
+  const last = items[items.length - 1];
+  const nextCursor: string | null =
+    hasMore && last
+      ? encodeCursor({ t: last.lastPostAt.toISOString(), id: last.id })
+      : null;
+
+  return {
+    items: items.map((t) => ({
+      ...toThreadListItem(t),
+      boardSlug: t.board.slug,
+      boardName: t.board.name,
+    })),
+    nextCursor,
+  };
+}
+
+/**
+ * 回复搜索:命中任意楼层正文,按 (createdAt, id) 倒序游标翻页。
+ */
+export async function searchPosts(
+  q: string,
+  boardId: string | undefined,
+  cursor: Cursor | null,
+  pageSize = 20,
+) {
+  const rows = await db.post.findMany({
+    where: {
+      contentMd: { contains: q, mode: "insensitive" },
+      ...(boardId ? { thread: { boardId } } : {}),
+      ...(cursor
+        ? {
+            OR: [
+              { createdAt: { lt: new Date(cursor.t) } },
+              { createdAt: new Date(cursor.t), id: { lt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: pageSize + 1,
+    include: {
+      author: { select: { username: true, role: true } },
+      thread: {
+        select: {
+          id: true,
+          title: true,
+          board: { select: { slug: true, name: true } },
+        },
+      },
+    },
+  });
+
+  const hasMore = rows.length > pageSize;
+  const items = rows.slice(0, pageSize);
+  const last = items[items.length - 1];
+  const nextCursor: string | null =
+    hasMore && last
+      ? encodeCursor({ t: last.createdAt.toISOString(), id: last.id })
+      : null;
+
+  return {
+    items: items.map((p) => ({
+      id: p.id,
+      threadId: p.thread.id,
+      threadTitle: p.thread.title,
+      boardSlug: p.thread.board.slug,
+      boardName: p.thread.board.name,
+      excerpt: makeExcerpt(p.contentMd, q),
+      createdAt: p.createdAt,
+      authorName: p.author.username,
+      authorRole: p.author.role,
+    })),
+    nextCursor,
+  };
 }
 
 export async function listPosts(threadId: string, cursor: Cursor | null, pageSize = 50) {

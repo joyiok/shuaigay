@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { listThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
+import InfiniteList from "@/components/InfiniteList";
 import type { ThreadListItem } from "@/lib/queries";
 
 const ERRORS: Record<string, string> = {
@@ -79,41 +80,37 @@ export default async function BoardPage({
         </div>
       </div>
 
-      <ul className="post-list">
-        {pinned.map((t) => (
-          <ThreadRow key={t.id} t={t} pinned />
-        ))}
-        {items.map((t) => (
-          <ThreadRow key={t.id} t={t} />
-        ))}
-        {pinned.length === 0 && items.length === 0 && (
-          <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13 }}>
-            还没有帖子，来发第一帖
-          </li>
-        )}
-      </ul>
+      {nextCursor ? (
+        <InfiniteList
+          variant="thread"
+          nextHref={`/c/${board.slug}?cursor=${nextCursor}`}
+          fetchUrl={`/api/threads?board=${board.slug}`}
+        >
+          {pinned.map((t) => (
+            <ThreadRow key={t.id} t={t} pinned />
+          ))}
+          {items.map((t) => (
+            <ThreadRow key={t.id} t={t} />
+          ))}
+        </InfiniteList>
+      ) : (
+        <ul className="post-list">
+          {pinned.map((t) => (
+            <ThreadRow key={t.id} t={t} pinned />
+          ))}
+          {items.map((t) => (
+            <ThreadRow key={t.id} t={t} />
+          ))}
+          {pinned.length === 0 && items.length === 0 && (
+            <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13 }}>
+              还没有帖子，来发第一帖
+            </li>
+          )}
+        </ul>
+      )}
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        {nextCursor ? (
-          <Link
-            href={`/c/${board.slug}?cursor=${nextCursor}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: 32,
-              padding: "0 14px",
-              border: "1px solid var(--line)",
-              borderRadius: 6,
-              background: "var(--panel)",
-              fontSize: 13,
-            }}
-          >
-            下一页 →
-          </Link>
-        ) : (
-          <span />
-        )}
-        {rawCursor && (
+      {rawCursor && (
+        <div style={{ textAlign: "center" }}>
           <Link
             href={`/c/${board.slug}`}
             style={{
@@ -129,8 +126,8 @@ export default async function BoardPage({
           >
             回第一页
           </Link>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
