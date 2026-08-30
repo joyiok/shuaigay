@@ -38,7 +38,7 @@ const ERRORS: Record<string, string> = {
   sensitive: "内容包含敏感词，请修改后重试",
 };
 
-/** SEO:标题用主题名,描述用首帖正文前 160 字(去掉 Markdown 符号) */
+/** SEO: 利于收录的标题与描述 */
 export async function generateMetadata({
   params,
 }: {
@@ -49,32 +49,42 @@ export async function generateMetadata({
     .findUnique({
       where: { id },
       include: {
-        board: { select: { name: true } },
+        board: { select: { name: true, slug: true } },
+        author: { select: { username: true } },
         posts: {
           orderBy: { createdAt: "asc" },
           take: 1,
           select: { contentMd: true },
         },
+        _count: { select: { posts: true } },
       },
     })
     .catch(() => null);
-  if (!thread) return { title: "主题不存在" };
+  if (!thread) return { title: "主题不存在 | SHUAI GAY" };
 
-  const description =
-    makeExcerpt(thread.posts[0]?.contentMd ?? "", "", 80) || thread.title;
+  const rawExcerpt = makeExcerpt(thread.posts[0]?.contentMd ?? "", "", 120);
+  const description = rawExcerpt || `${thread.title} — 来自 ${thread.board.name} 版块，SHUAI GAY 社区的讨论。`;
+  const title = `${thread.title} - ${thread.board.name} - SHUAI GAY 社区`;
+  const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
+  const url = `${siteUrl}/t/${id}`;
+  const keywords = [thread.title, thread.board.name, thread.author.username, "SHUAI GAY", "论坛", "社区"];
   return {
-    title: thread.title,
+    title,
     description,
+    keywords,
+    alternates: { canonical: url },
     openGraph: {
-      title: thread.title,
+      title,
       description,
       type: "article",
-      siteName: "SHUAI GAY 论坛",
+      url,
+      siteName: "SHUAI GAY 社区",
       locale: "zh_CN",
+      authors: [thread.author.username],
     },
     twitter: {
-      card: "summary",
-      title: thread.title,
+      card: "summary_large_image",
+      title,
       description,
     },
   };
@@ -131,14 +141,47 @@ export default async function ThreadPage({
   /** 引用按钮用到的楼层摘要:去空白、截断 */
   const excerpt = (md: string) => md.replace(/\s+/g, " ").trim().slice(0, 200);
 
+  const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
+  const canonical = `${siteUrl}/t/${thread.id}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "DiscussionForumPosting",
+    headline: thread.title,
+    description: makeExcerpt(items[0]?.contentMd ?? "", "", 120) || thread.title,
+    url: canonical,
+    datePublished: thread.createdAt.toISOString(),
+    dateModified: thread.lastPostAt?.toISOString() ?? thread.createdAt.toISOString(),
+    author: { "@type": "Person", name: thread.authorId },
+    isPartOf: { "@type": "DiscussionForumPosting", name: thread.board.name },
+    interactionStatistic: [
+      { "@type": "InteractionCounter", interactionType: "https://schema.org/ViewAction", userInteractionCount: (thread as unknown as { views: number }).views ?? 0 },
+      { "@type": "InteractionCounter", interactionType: "https://schema.org/CommentAction", userInteractionCount: items.length },
+    ],
+  };
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <div className="breadcrumb">
-        <Link href="/">首页</Link>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <link rel="canonical" href={canonical} />
+      <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link itemProp="item" href="/">
+            <span itemProp="name">首页</span>
+          </Link>
+          <meta itemProp="position" content="1" />
+        </span>
         <span>/</span>
-        <Link href={`/c/${thread.board.slug}`}>{thread.board.name}</Link>
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link itemProp="item" href={`/c/${thread.board.slug}`}>
+            <span itemProp="name">{thread.board.name}</span>
+          </Link>
+          <meta itemProp="position" content="2" />
+        </span>
         <span>/</span>
-        <span style={{ color: "var(--text)", fontWeight: 600 }}>主题</span>
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <span itemProp="name" style={{ color: "var(--text)", fontWeight: 600 }}>{thread.title}</span>
+          <meta itemProp="position" content="3" />
+        </span>
       </div>
 
       <div className="card" style={{ padding: 14 }}>
