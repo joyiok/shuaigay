@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { trackAndCountOnline } from "@/lib/online";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
+import { threadHref } from "@/lib/slug";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
@@ -267,7 +268,7 @@ export default async function RootLayout({
                       </Link>
                     ))}
                     {hotTopics.map((t: any) => (
-                      <Link key={t.id} href={`/t/${t.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <Link key={t.id} href={threadHref(t.id, t.title)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                         {t.title.slice(0, 8)}
                       </Link>
                     ))}

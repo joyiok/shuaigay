@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { threadHref } from "@/lib/slug";
 import { updateBioAction } from "@/app/actions/user";
 import AvatarUploader from "@/components/AvatarUploader";
 import EmptyState from "@/components/EmptyState";
@@ -273,7 +274,7 @@ export default async function UserPage({
                   <div className="post-title-row">
                     {t.pinned && <span className="topic-badge pinned">置顶</span>}
                     {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-                    <Link href={`/t/${t.id}`} className="post-title">
+                    <Link href={threadHref(t.id, t.title)} className="post-title">
                       {t.title}
                     </Link>
                   </div>
@@ -317,7 +318,7 @@ export default async function UserPage({
                   <div className="post-body">
                     <div className="post-title-row">
                       {isFirst && <span className="topic-badge">主题帖</span>}
-                      <Link href={`/t/${p.threadId}`} className="post-title" style={{ fontSize: 13 }}>
+                      <Link href={threadHref(p.threadId, p.thread.title)} className="post-title" style={{ fontSize: 13 }}>
                         {p.thread.title}
                       </Link>
                     </div>
@@ -340,7 +341,7 @@ export default async function UserPage({
                       <span style={{ color: "var(--text-subtle)" }}>{p.thread.board.name}</span>
                     </div>
                   </div>
-                  <Link href={`/t/${p.threadId}`} className="post-tag" style={{ fontSize: 11 }}>
+                  <Link href={threadHref(p.threadId, p.thread.title)} className="post-tag" style={{ fontSize: 11 }}>
                     查看
                   </Link>
                 </li>

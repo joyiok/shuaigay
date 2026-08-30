@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { listThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
+import { threadHref } from "@/lib/slug";
 import UserAvatar from "@/components/UserAvatar";
 import InfiniteList from "@/components/InfiniteList";
 import EmptyState from "@/components/EmptyState";
@@ -151,7 +152,7 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">置顶</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-          <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1 }}>
+          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1 }}>
             {t.title}
           </Link>
         </div>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDate } from "@/lib/format";
+import { threadHref } from "@/lib/slug";
 import { Highlight } from "@/components/Highlight";
 
 /**
@@ -174,7 +175,7 @@ function renderThreadRow(t: ThreadItem, query: string) {
               已锁
             </span>
           )}
-          <Link href={`/t/${t.id}`} className="post-title">
+          <Link href={threadHref(t.id, t.title)} className="post-title">
             <Highlight text={t.title} query={query} />
           </Link>
           {t.replyCount > 0 && (
@@ -189,7 +190,7 @@ function renderThreadRow(t: ThreadItem, query: string) {
           <span>{formatDate(new Date(t.lastPostAt))}</span>
         </div>
       </div>
-      <Link href={`/t/${t.id}`} className="post-tag">
+      <Link href={threadHref(t.id, t.title)} className="post-tag">
         查看
       </Link>
     </li>
@@ -209,7 +210,7 @@ function renderPostRow(p: PostItem, query: string) {
       </div>
       <div className="post-body">
         <div className="post-title-row">
-          <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-title">
+          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title">
             <Highlight text={p.threadTitle} query={query} />
           </Link>
           <span className="topic-badge" style={{ background: "var(--line-soft)" }}>
@@ -225,7 +226,7 @@ function renderPostRow(p: PostItem, query: string) {
           <span>{formatDate(new Date(p.createdAt))}</span>
         </div>
       </div>
-      <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-tag">
+      <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-tag">
         查看
       </Link>
     </li>

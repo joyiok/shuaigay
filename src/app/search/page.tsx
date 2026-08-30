@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { searchPosts, searchThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
+import { threadHref } from "@/lib/slug";
 import { Highlight } from "@/components/Highlight";
 import InfiniteList from "@/components/InfiniteList";
 import EmptyState from "@/components/EmptyState";
@@ -227,7 +228,7 @@ function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
               已锁
             </span>
           )}
-          <Link href={`/t/${t.id}`} className="post-title">
+          <Link href={threadHref(t.id, t.title)} className="post-title">
             <Highlight text={t.title} query={q} />
           </Link>
           {t.replyCount > 0 && (
@@ -251,7 +252,7 @@ function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
           <span>{formatDate(t.lastPostAt)}</span>
         </div>
       </div>
-      <Link href={`/t/${t.id}`} className="post-tag">
+      <Link href={threadHref(t.id, t.title)} className="post-tag">
         查看
       </Link>
     </li>
@@ -272,7 +273,7 @@ function PostRow({ p, q }: { p: PostSearchItem; q: string }) {
       </div>
       <div className="post-body">
         <div className="post-title-row">
-          <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-title">
+          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title">
             <Highlight text={p.threadTitle} query={q} />
           </Link>
           <span className="topic-badge" style={{ background: "var(--line-soft)" }}>
@@ -288,7 +289,7 @@ function PostRow({ p, q }: { p: PostSearchItem; q: string }) {
           <span>{formatDate(p.createdAt)}</span>
         </div>
       </div>
-      <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-tag">
+      <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-tag">
         查看
       </Link>
     </li>

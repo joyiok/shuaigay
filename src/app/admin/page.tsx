@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
 import { formatDate } from "@/lib/format";
+import { threadHref } from "@/lib/slug";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import {
@@ -201,7 +202,7 @@ async function ThreadsTab() {
       <ListCard>
         {threads.map((t) => (
           <Row key={t.id}>
-            <Link href={`/t/${t.id}`} style={{ fontWeight: 600, fontSize: 13, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <Link href={threadHref(t.id, t.title)} style={{ fontWeight: 600, fontSize: 13, maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {t.title}
             </Link>
             {t.pinned && <span className="topic-badge pinned">置顶</span>}
@@ -266,7 +267,7 @@ async function PostsTab() {
               {p.author.username.slice(0, 1).toUpperCase()}
             </div>
             <div style={{ minWidth: 0, flex: 1 }}>
-              <Link href={`/t/${p.thread.id}`} style={{ fontSize: 12, color: "var(--brand)" }}>
+              <Link href={threadHref(p.thread.id, p.thread.title)} style={{ fontSize: 12, color: "var(--brand)" }}>
                 {p.thread.title}
               </Link>
               <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 420 }}>
@@ -569,7 +570,7 @@ async function ReportsTab() {
               </span>
               <div style={{ minWidth: 0, maxWidth: 360 }}>
                 <Link
-                  href={`/t/${isThread ? r.targetId : postMap.get(r.targetId) ?? ""}`}
+                  href={threadHref(isThread ? r.targetId : postMap.get(r.targetId) ?? "", targetTitle ?? "")}
                   style={{ fontSize: 13, fontWeight: 600, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}
                 >
                   {targetTitle ?? "（内容已不存在）"}
