@@ -5,6 +5,7 @@ import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
 import { Highlight } from "@/components/Highlight";
 import InfiniteList from "@/components/InfiniteList";
+import EmptyState from "@/components/EmptyState";
 import type { PostSearchItem, ThreadSearchItem } from "@/lib/queries";
 
 export const metadata = {
@@ -154,12 +155,11 @@ export default async function SearchPage({
       </form>
 
       {!q ? (
-        <div className="card" style={{ padding: "36px 20px", textAlign: "center" }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>搜索论坛内容</p>
-          <p style={{ margin: "6px 0 0", color: "var(--text-subtle)", fontSize: 13 }}>
-            输入关键词，可同时检索主题标题、首帖正文与所有回复，支持按版块筛选。
-          </p>
-        </div>
+        <EmptyState
+          variant="search"
+          title="搜索论坛内容"
+          description="输入关键词，可同时检索主题标题、首帖正文与所有回复，支持按版块筛选。"
+        />
       ) : (
         <>
           <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>
@@ -176,12 +176,7 @@ export default async function SearchPage({
           </div>
 
           {total === 0 && !nextCursor ? (
-            <div className="card" style={{ padding: "36px 20px", textAlign: "center" }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>没有找到相关内容</p>
-              <p style={{ margin: "6px 0 0", color: "var(--text-subtle)", fontSize: 13 }}>
-                换个关键词试试，或减少版块筛选范围。
-              </p>
-            </div>
+            <EmptyState variant="search" />
           ) : (
             <>
               {nextCursor ? (
@@ -227,7 +222,14 @@ export default async function SearchPage({
 function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
   return (
     <li className="post-item">
-      <div className="post-avatar">{t.authorName.slice(0, 1).toUpperCase()}</div>
+      <div className="post-avatar" style={{ overflow: "hidden" }}>
+        {t.authorAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/avatar?file=${encodeURIComponent(t.authorAvatarUrl)}`} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          t.authorName.slice(0, 1).toUpperCase()
+        )}
+      </div>
       <div className="post-body">
         <div className="post-title-row">
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
@@ -271,7 +273,14 @@ function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
 function PostRow({ p, q }: { p: PostSearchItem; q: string }) {
   return (
     <li className="post-item">
-      <div className="post-avatar">{p.authorName.slice(0, 1).toUpperCase()}</div>
+      <div className="post-avatar" style={{ overflow: "hidden" }}>
+        {p.authorAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          p.authorName.slice(0, 1).toUpperCase()
+        )}
+      </div>
       <div className="post-body">
         <div className="post-title-row">
           <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-title">

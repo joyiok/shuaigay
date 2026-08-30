@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { createReport } from "@/lib/moderation";
+import { logger } from "@/lib/logger";
 
 const reportSchema = z.object({
   targetType: z.enum(["thread", "post"]),
@@ -34,10 +35,12 @@ export async function POST(req: Request) {
     parsed.data.reason,
   );
   if (!result.ok) {
+    logger.info("api.report.rejected", { userId: user.id, targetType: parsed.data.targetType, reason: result.error });
     return NextResponse.json(
       { error: result.error ?? "提交失败" },
       { status: result.status ?? 400 },
     );
   }
+  logger.info("api.report.created", { userId: user.id, targetType: parsed.data.targetType, targetId: parsed.data.targetId });
   return NextResponse.json({ ok: true });
 }

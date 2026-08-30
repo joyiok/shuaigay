@@ -8,9 +8,18 @@ import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import Lightbox from "@/components/Lightbox";
 import Composer from "@/components/Composer";
-import { canDeletePost, canReply, isAdmin } from "@/lib/permissions";
-import { deletePostAction, replyAction, toggleLockAction, togglePinAction } from "@/app/actions/threads";
+import ErrorState from "@/components/ErrorState";
+import { canDeletePost, canEditPost, canReply, isAdmin } from "@/lib/permissions";
+import type { Cursor } from "@/lib/cursor";
+import {
+  deletePostAction,
+  replyAction,
+  toggleLockAction,
+  togglePinAction,
+} from "@/app/actions/threads";
 import ReportButton from "@/components/report-button";
+import PostEditor from "@/components/PostEditor";
+import EditHistory from "@/components/EditHistory";
 import Turnstile from "@/components/Turnstile";
 import { formatDate, formatBytes } from "@/lib/format";
 import { makeExcerpt } from "@/lib/excerpt";
@@ -70,6 +79,18 @@ export async function generateMetadata({
   };
 }
 
+/** 主题页数据加载:合并在 try/catch 外侧,notFound 不被误吞 */
+async function loadThreadPage(id: string, cursor: Cursor | null) {
+  const thread = await db.thread.findUnique({
+    where: { id },
+    include: { board: { select: { slug: true, name: true } } },
+  });
+  if (!thread) return null;
+  const user = await getCurrentUser();
+  const { items, nextCursor } = await listPosts(thread.id, cursor);
+  return { thread, user, items, nextCursor };
+}
+
 export default async function ThreadPage({
   params,
   searchParams,
@@ -80,15 +101,17 @@ export default async function ThreadPage({
   const { id } = await params;
   const { cursor: rawCursor, error } = await searchParams;
 
-  const thread = await db.thread.findUnique({
-    where: { id },
-    include: { board: { select: { slug: true, name: true } } },
-  });
-  if (!thread) notFound();
+  let loaded: Awaited<ReturnType<typeof loadThreadPage>>;
+  try {
+    loaded = await loadThreadPage(id, decodeCursor(rawCursor));
+  } catch {
+    // 数据库暂不可用时展示可重试的错误卡片，而不是整页崩溃
+    return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
+  }
+  if (!loaded) notFound();
 
-  const user = await getCurrentUser();
+  const { thread, user, items, nextCursor } = loaded;
   const admin = isAdmin(user);
-  const { items, nextCursor } = await listPosts(thread.id, decodeCursor(rawCursor));
 
   // @提及:一次性查出本页所有候选用户名,只有真实存在的用户才渲染成链接
   const mentionCandidates = collectMentionCandidates(items.map((p) => p.contentMd));
@@ -175,6 +198,9 @@ export default async function ThreadPage({
               isFirstPost,
               threadLocked: thread.locked,
             });
+            const editable = canEditPost(user, p, {
+              threadLocked: thread.locked,
+            });
             return (
               <li
                 key={p.id}
@@ -187,8 +213,13 @@ export default async function ThreadPage({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                  <div className="post-avatar" style={{ width: 32, height: 32, fontSize: 12 }}>
-                    {p.authorName.slice(0, 1).toUpperCase()}
+                  <div className="post-avatar" style={{ width: 32, height: 32, fontSize: 12, overflow: "hidden" }}>
+                    {p.authorAvatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      p.authorName.slice(0, 1).toUpperCase()
+                    )}
                   </div>
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
                   {p.authorRole === "ADMIN" && (
@@ -196,7 +227,7 @@ export default async function ThreadPage({
                   )}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
                   <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>#{idx + 1}</span>
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <button
                       type="button"
                       className="post-quote-btn"
@@ -206,7 +237,8 @@ export default async function ThreadPage({
                     >
                       引用
                     </button>
-                    {user && user.id !== p.authorId && <ReportButton postId={p.id} />}
+                    {editable && <PostEditor postId={p.id} contentMd={p.contentMd} />}
+                    {(!user || user.id !== p.authorId) && <ReportButton postId={p.id} />}
                     {deletable && (
                       <form action={deletePostAction}>
                         <input type="hidden" name="postId" value={p.id} />
@@ -218,6 +250,17 @@ export default async function ThreadPage({
                   </div>
                 </div>
                 <div className="post-content" dangerouslySetInnerHTML={{ __html: linkMentions(renderMarkdown(p.contentMd), existingMentions) }} />
+                {p.edits.length > 0 && (
+                  <EditHistory
+                    edits={p.edits.map((e) => ({
+                      id: e.id,
+                      editorName: e.editorName,
+                      oldContentMd: e.oldContentMd,
+                      newContentMd: e.newContentMd,
+                      createdAt: e.createdAt.toISOString(),
+                    }))}
+                  />
+                )}
                 {p.attachments.length > 0 && (
                   <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, borderTop: "1px solid var(--line-soft)", paddingTop: 8, fontSize: 12 }}>
                     {p.attachments.map((a) => (

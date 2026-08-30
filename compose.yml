@@ -33,19 +33,36 @@ services:
 
   app:
     build: .
+    # SITE_URL 用于生成邮件链接与 sitemap,必须与 Caddy 的 DOMAIN 保持一致
+    # SMTP_URL 留空则邮件仅打印到容器日志,配置后真实发送(见 src/lib/email.ts)
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-forum}:${POSTGRES_PASSWORD:-forum_dev_password}@postgres:5432/${POSTGRES_DB:-forum}?schema=public
       REDIS_URL: redis://redis:6379
+      SITE_URL: ${SITE_URL:-https://${DOMAIN:-localhost}}
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
       STORAGE_DRIVER: local
       UPLOAD_DIR: /srv/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     volumes:
       - ./uploads:/srv/uploads
+    ports:
+      - "${APP_HOST_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      # 依赖 /api/health 存活探针;失败 3 次后 Docker 标记为 unhealthy
+      # node:bookworm-slim 镜像不带 wget/curl,用 node 内置 fetch 探活
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
     restart: unless-stopped
 
   caddy:
@@ -55,13 +72,15 @@ services:
       - "443:443"
     environment:
       DOMAIN: ${DOMAIN:-:80}
+      SITE_URL: ${SITE_URL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./uploads:/srv/uploads:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     restart: unless-stopped
 
   backup:

@@ -30,6 +30,16 @@ async function main() {
     });
   }
 
+  // 敏感词默认种子(若表为空)
+  const wordCount = await db.sensitiveWord.count();
+  if (wordCount === 0) {
+    const defaults = ["傻逼", "傻b", "草泥马", "操你妈", "妈逼", "狗娘养", "去死吧", "婊子", "nmsl", "cnm"];
+    for (const w of defaults) {
+      await db.sensitiveWord.upsert({ where: { word: w }, update: {}, create: { word: w } });
+    }
+    console.log(`seed 敏感词 ${defaults.length} 个`);
+  }
+
   console.log(`seed 完成:管理员 ${adminEmail} + 默认版块`);
 }
 

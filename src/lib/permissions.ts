@@ -42,6 +42,16 @@ export function canDeletePost(
   return post.authorId === user.id && !opts.isFirstPost && !opts.threadLocked;
 }
 
+/** 编辑帖子:本人且主题未锁;锁定的主题谁都不能改 */
+export function canEditPost(
+  user: UserLike | null,
+  post: PostLike,
+  opts: { threadLocked: boolean },
+): boolean {
+  if (!user) return false;
+  return post.authorId === user.id && !opts.threadLocked;
+}
+
 export function canModerate(user: UserLike | null): boolean {
   return isAdmin(user);
 }

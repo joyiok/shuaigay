@@ -1,16 +1,28 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { generateInviteAction } from "@/app/actions/user";
 import CopyButton from "@/components/CopyButton";
+import EmptyState from "@/components/EmptyState";
+import AuthRequired from "@/components/AuthRequired";
 
 const MAX_INVITES = 5;
 
 export default async function InvitePage() {
   const user = await getCurrentUser();
-  if (!user) redirect("/login");
+  if (!user) {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        <div className="breadcrumb">
+          <Link href="/">首页</Link>
+          <span>/</span>
+          <span style={{ color: "var(--text)", fontWeight: 600 }}>我的邀请</span>
+        </div>
+        <AuthRequired title="请先登录查看邀请码" description="邀请码与积分挂钩，登录后可生成、分享并查看使用情况。" next="/invite" />
+      </div>
+    );
+  }
 
   const invites = await db.invite.findMany({
     where: { inviterId: user.id },
@@ -67,9 +79,7 @@ export default async function InvitePage() {
       </div>
 
       {invites.length === 0 ? (
-        <div className="card" style={{ padding: "32px 14px", textAlign: "center", color: "var(--text-subtle)", fontSize: 13 }}>
-          还没有邀请码,点「生成新码」开始邀请
-        </div>
+        <EmptyState variant="invite" />
       ) : (
         <ul className="post-list">
           {invites.map((inv) => {

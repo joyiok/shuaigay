@@ -1,4 +1,4 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { createThreadAction } from "@/app/actions/threads";
@@ -6,6 +6,7 @@ import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import Composer from "@/components/Composer";
 import Turnstile from "@/components/Turnstile";
 import Link from "next/link";
+import AuthRequired from "@/components/AuthRequired";
 
 const ERRORS: Record<string, string> = {
   invalid: "标题或内容格式不对",
@@ -27,10 +28,22 @@ export default async function NewThreadPage({
   const { error } = await searchParams;
 
   const user = await getCurrentUser();
-  if (!user) redirect(`/login?next=${encodeURIComponent(`/c/${slug}/new`)}`);
-
   const board = await db.board.findUnique({ where: { slug } });
   if (!board) notFound();
+  if (!user) {
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        <div className="breadcrumb">
+          <Link href="/">首页</Link>
+          <span>/</span>
+          <Link href={`/c/${board.slug}`}>{board.name}</Link>
+          <span>/</span>
+          <span style={{ color: "var(--text)", fontWeight: 600 }}>发新帖</span>
+        </div>
+        <AuthRequired title="请先登录后发帖" description="登录后才能在版块发布新主题，支持 Markdown、@提及与附件。" next={`/c/${slug}/new`} />
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: "grid", gap: 12 }}>

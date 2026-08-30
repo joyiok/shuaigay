@@ -20,6 +20,7 @@ interface ThreadItem {
   locked?: boolean;
   replyCount: number;
   authorName: string;
+  authorAvatarUrl?: string | null;
   lastPostAt: string;
   boardSlug?: string;
   boardName?: string;
@@ -34,6 +35,7 @@ interface PostItem {
   excerpt: string;
   createdAt: string;
   authorName: string;
+  authorAvatarUrl?: string | null;
 }
 
 /** 去掉 href 里已有的 cursor 参数,之后每次翻页重新拼接 */
@@ -156,7 +158,14 @@ export default function InfiniteList({
 function renderThreadRow(t: ThreadItem, query: string) {
   return (
     <li key={t.id} className="post-item">
-      <div className="post-avatar">{t.authorName.slice(0, 1).toUpperCase()}</div>
+      <div className="post-avatar" style={{ overflow: "hidden" }}>
+        {t.authorAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/avatar?file=${encodeURIComponent(t.authorAvatarUrl)}`} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          t.authorName.slice(0, 1).toUpperCase()
+        )}
+      </div>
       <div className="post-body">
         <div className="post-title-row">
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
@@ -190,7 +199,14 @@ function renderThreadRow(t: ThreadItem, query: string) {
 function renderPostRow(p: PostItem, query: string) {
   return (
     <li key={p.id} className="post-item">
-      <div className="post-avatar">{p.authorName.slice(0, 1).toUpperCase()}</div>
+      <div className="post-avatar" style={{ overflow: "hidden" }}>
+        {p.authorAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          p.authorName.slice(0, 1).toUpperCase()
+        )}
+      </div>
       <div className="post-body">
         <div className="post-title-row">
           <Link href={`/t/${p.threadId}#post-${p.id}`} className="post-title">

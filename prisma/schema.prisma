@@ -12,6 +12,11 @@ enum Role {
   ADMIN
 }
 
+enum VerificationTokenType {
+  VERIFY_EMAIL
+  RESET_PASSWORD
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -20,15 +25,59 @@ model User {
   role         Role     @default(USER)
   bio          String?  @default("")
   points       Int      @default(0)
+  // 邮箱验证:注册后发验证邮件,点击链接置 true。未验证只影响提示,不影响发帖
+  emailVerified Boolean  @default(false)
+  // 头像 storage 相对路径(storedName);未设置时全站回退到首字母占位
+  avatarUrl    String?
   createdAt    DateTime @default(now())
 
-  threads       Thread[]       @relation("ThreadAuthor")
-  posts         Post[]         @relation("PostAuthor")
-  sessions      Session[]
-  attachments   Attachment[]   @relation("AttachmentUploader")
-  notifications Notification[]
-  reports       Report[]
-  invites       Invite[]       @relation("InviteOwner")
+  threads           Thread[]           @relation("ThreadAuthor")
+  posts             Post[]             @relation("PostAuthor")
+  edits             PostEdit[]         @relation("PostEditor")
+  sentMessages      DirectMessage[]    @relation("DirectMessageSender")
+  receivedMessages  DirectMessage[]    @relation("DirectMessageReceiver")
+  sessions          Session[]
+  attachments       Attachment[]       @relation("AttachmentUploader")
+  notifications     Notification[]
+  reports           Report[]
+  invites           Invite[]           @relation("InviteOwner")
+  verificationTokens VerificationToken[]
+  bans              Ban[]
+  auditLogs          AuditLog[]         @relation("AuditActor")
+}
+
+/** 邮箱验证 / 找回密码的一次性令牌:库里只存哈希,明文只在邮件链接里出现一次 */
+model VerificationToken {
+  id        String                 @id @default(cuid())
+  userId    String
+  tokenHash String                 @unique
+  type      VerificationTokenType
+  expiresAt DateTime
+  createdAt DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, type])
+}
+
+/** 封禁记录:expiresAt 为空 = 永久封禁;解封是把生效中的封禁置为已过期,留档可查 */
+model Ban {
+  id        String    @id @default(cuid())
+  userId    String
+  reason    String
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+/** 敏感词表:管理后台增删,内存缓存 1 分钟 */
+model SensitiveWord {
+  id        String   @id @default(cuid())
+  word      String   @unique
+  createdAt DateTime @default(now())
 }
 
 model Session {
@@ -85,8 +134,40 @@ model Post {
   thread      Thread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author      User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   attachments Attachment[]
+  edits       PostEdit[]
 
   @@index([threadId, createdAt])
+}
+
+/** 帖子编辑历史:每次编辑落一条,旧/新原文都留档 */
+model PostEdit {
+  id           String   @id @default(cuid())
+  postId       String
+  editorId     String
+  oldContentMd String
+  newContentMd String
+  createdAt    DateTime @default(now())
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  editor User @relation("PostEditor", fields: [editorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+}
+
+/** 私信(极简版):无会话模型,直接按收发双方查询 */
+model DirectMessage {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  contentMd  String
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("DirectMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, createdAt])
+  @@index([receiverId, read, createdAt])
 }
 
 model Attachment {
@@ -147,4 +228,20 @@ model Invite {
   inviter User @relation("InviteOwner", fields: [inviterId], references: [id], onDelete: Cascade)
 
   @@index([inviterId])
+}
+
+/// 管理后台操作审计:每个 admin action 成功后写一条,后台「审计日志」Tab 展示最近 50 条
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String
+  action     String // toggle_pin | toggle_lock | delete_thread | delete_post | set_role | add_points | create_board | delete_board | move_board | review_report
+  targetType String // thread | post | user | board | report
+  targetId   String?
+  detail     String?
+  createdAt  DateTime @default(now())
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
 }

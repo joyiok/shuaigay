@@ -25,9 +25,11 @@ interface DrawerUser {
 export default function MobileDrawer({
   boards,
   user,
+  unreadCount = 0,
 }: {
   boards: BoardLink[];
   user: DrawerUser | null;
+  unreadCount?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -102,7 +104,27 @@ export default function MobileDrawer({
                   </Link>
                 ))}
                 {boards.length === 0 && (
-                  <span className="mobile-drawer-link" style={{ color: "var(--text-subtle)", fontSize: 12 }}>
+                  <span
+                    className="mobile-drawer-link"
+                    style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        width: 20,
+                        height: 20,
+                        borderRadius: 999,
+                        background: "#f1f5f9",
+                        border: "1px solid #e2e8f0",
+                        display: "inline-grid",
+                        placeItems: "center",
+                        color: "#0f172a",
+                      }}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none">
+                        <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" />
+                      </svg>
+                    </span>
                     暂无版块
                   </span>
                 )}
@@ -130,6 +152,27 @@ export default function MobileDrawer({
                           }}
                         >
                           管理员
+                        </span>
+                      )}
+                    </Link>
+                    <Link href="/messages" className="mobile-drawer-link" onClick={close}>
+                      私信
+                      {unreadCount > 0 && (
+                        <span
+                          style={{
+                            marginLeft: "auto",
+                            background: "var(--danger)",
+                            color: "#fff",
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: "1px 6px",
+                            borderRadius: 999,
+                            minWidth: 16,
+                            textAlign: "center",
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
                         </span>
                       )}
                     </Link>

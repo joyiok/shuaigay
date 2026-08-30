@@ -76,6 +76,7 @@ export default async function RegisterPage({
           {inviteCode ? "接受邀请,注册" : "注册"}
         </button>
       </form>
+      <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 8, textAlign: "center" }}>注册后将发送验证邮件，请及时查收并完成验证。</p>
       <p style={{ color: "var(--text-muted)", fontSize: 13, marginTop: 12, textAlign: "center" }}>
         已有账号? <Link href="/login" style={{ color: "var(--brand)" }}>登录</Link>
       </p>

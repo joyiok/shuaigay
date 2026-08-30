@@ -53,11 +53,21 @@ export default async function RootLayout({
     db.post.count().catch(() => 0),
   ]);
 
+  // 私信未读数（顶部红点）
+  let unreadCount = 0;
+  if (user) {
+    try {
+      unreadCount = await db.directMessage.count({
+        where: { receiverId: user.id, read: false },
+      });
+    } catch {}
+  }
+
   return (
     <html lang="zh-CN">
       <body>
         {/* 顶部栏 - 原创极简风格 */}
-        <div className="site-header top">
+        <header className="site-header top">
           <div className="bar">
             <Link href="/" className="brand">
               <span className="brand-mark">SG</span> SHUAI GAY
@@ -65,6 +75,7 @@ export default async function RootLayout({
             <MobileDrawer
               boards={boards.map((b) => ({ slug: b.slug, name: b.name }))}
               user={user ? { username: user.username, role: user.role } : null}
+              unreadCount={unreadCount}
             />
             <nav className="forum-nav" aria-label="顶部版块">
               <Link href="/" className="forum-link active">
@@ -101,6 +112,33 @@ export default async function RootLayout({
             <div className="nav-mine" style={{ display: "flex" }}>
               {user ? (
                 <>
+                  <Link
+                    href="/messages"
+                    style={{ position: "relative", display: "inline-flex", alignItems: "center", color: "var(--text-muted)" }}
+                  >
+                    私信
+                    {unreadCount > 0 && (
+                      <span
+                        style={{
+                          marginLeft: 4,
+                          background: "var(--danger)",
+                          color: "#fff",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: "1px 5px",
+                          borderRadius: 999,
+                          minWidth: 16,
+                          textAlign: "center",
+                          lineHeight: 1.4,
+                          display: "inline-flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </Link>
                   <Link href={`/?u=${encodeURIComponent(user.username)}`} style={{ fontWeight: 600 }}>
                     {user.username}
                   </Link>
@@ -155,7 +193,7 @@ export default async function RootLayout({
               )}
             </div>
           </div>
-        </div>
+        </header>
 
         <div className="wrap">
           <div className="forum-layout forum-layout-has-sidebar">
@@ -172,8 +210,17 @@ export default async function RootLayout({
                   {user ? (
                     <>
                       <div className="user-header">
-                        <div className="user-avatar-big">
-                          {user.username.slice(0, 1).toUpperCase()}
+                        <div className="user-avatar-big" style={{ overflow: "hidden" }}>
+                          {user.avatarUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={`/api/avatar?file=${encodeURIComponent(user.avatarUrl)}`}
+                              alt={user.username}
+                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                            />
+                          ) : (
+                            user.username.slice(0, 1).toUpperCase()
+                          )}
                         </div>
                         <div>
                           <div className="user-name">{user.username}</div>
@@ -229,8 +276,28 @@ export default async function RootLayout({
                       </li>
                     ))}
                     {boards.length === 0 && (
-                      <li>
-                        <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>暂无版块</span>
+                      <li style={{ padding: "8px 0" }}>
+                        <span style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                          <span
+                            aria-hidden="true"
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 999,
+                              background: "#f1f5f9",
+                              border: "1px solid #e2e8f0",
+                              display: "inline-grid",
+                              placeItems: "center",
+                              color: "#0f172a",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
+                              <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" />
+                            </svg>
+                          </span>
+                          暂无版块
+                        </span>
                       </li>
                     )}
                   </ul>
@@ -290,6 +357,19 @@ export default async function RootLayout({
                       </Link>
                     </li>
                     <li>
+                      <Link href="/messages">
+                        <span>私信</span>
+                        {unreadCount > 0 && (
+                          <span
+                            className="count"
+                            style={{ background: "var(--danger)", color: "#fff" }}
+                          >
+                            {unreadCount}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                    <li>
                       <Link href="/login">
                         <span>登录 / 注册</span>
                       </Link>
@@ -304,9 +384,7 @@ export default async function RootLayout({
         <FloatingNewThread firstBoardSlug={boards[0]?.slug ?? null} />
 
         <footer className="footer">
-          <div className="runtime-info">
-            © 2026 SHUAI GAY · 原创极简设计 · 开放 · 克制 · 高效 · {threadCount} 主题
-          </div>
+          <div className="runtime-info">© 2026 SHUAI GAY</div>
         </footer>
       </body>
     </html>

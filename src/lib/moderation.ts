@@ -6,6 +6,7 @@ import { db } from "./db";
 import { checkRateLimit } from "./ratelimit";
 import { getStorage } from "./storage";
 import { containsSensitive } from "./sensitive";
+import { logger } from "./logger";
 
 export const REPORT_REASON_MIN = 5;
 export const REPORT_REASON_MAX = 500;
@@ -102,7 +103,8 @@ export async function createReport(
   ) {
     return { ok: false, error: "举报理由需在 5~500 字之间", status: 400 };
   }
-  if (containsSensitive(trimmed)) {
+  if (await containsSensitive(trimmed)) {
+    logger.info("moderation.blocked_sensitive", { reporterId, targetType });
     return { ok: false, error: "举报理由包含敏感词，请修改后重试", status: 400 };
   }
   if (targetType !== "thread" && targetType !== "post") {

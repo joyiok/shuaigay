@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { listThreads, searchPosts, searchThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
+import { logger } from "@/lib/logger";
 
 /**
  * 无限滚动数据接口(纯 JSON,给 InfiniteList 用):
@@ -54,6 +55,7 @@ export async function GET(req: NextRequest) {
     items: unknown[];
     nextCursor: string | null;
   };
+  logger.info("api.threads.list", { board: boardSlug ?? "all", q: q ? q.slice(0, 20) : "", items: (payload.items as unknown[]).length });
   return NextResponse.json(payload, {
     headers: { "Cache-Control": "no-store" },
   });

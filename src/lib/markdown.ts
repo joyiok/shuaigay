@@ -41,7 +41,7 @@ export function renderMarkdown(md: string): string {
 
 /** @ 前一字符允许出现的边界字符(中文标点、空格、markdown 符号等),避免误伤邮箱/仓库路径 */
 const MENTION_BOUNDARY =
-  "[\\s,.;:!?，。；：！？、()\\[\\]{}\"'“”‘’<>《》【】*_#~=+|/\\\\-]";
+  "[\\s,.;:!?，。；：！？、()（）\\[\\]{}\"'“”‘’<>《》【】*_#~=+|/\\\\-]";
 const MENTION_RE = new RegExp(
   `(^|${MENTION_BOUNDARY})@([a-zA-Z0-9_-]{3,20})(?![a-zA-Z0-9_-])`,
   "g",

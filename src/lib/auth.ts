@@ -12,6 +12,7 @@ export type SessionUser = {
   username: string;
   email: string;
   role: "USER" | "ADMIN";
+  avatarUrl: string | null;
 };
 
 function hashToken(token: string): string {
@@ -75,6 +76,7 @@ export const getCurrentUser = cache(
       username: session.user.username,
       email: session.user.email,
       role: session.user.role,
+      avatarUrl: (session.user as unknown as { avatarUrl?: string | null }).avatarUrl ?? null,
     };
   },
 );

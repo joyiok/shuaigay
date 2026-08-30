@@ -1,3 +1,13 @@
+# Caddyfile — 反向代理 + 附件直出 + 自动 HTTPS
+# 说明:
+#  - {$DOMAIN} 由 compose.yml 注入,生产环境填真实域名如 "forum.example.com",
+#    Caddy 会自动向 Let's Encrypt 申请证书并续期,无需手工配置 443。
+#  - 本地开发保持 DOMAIN=:80,此时不启用 HTTPS。
+#  - SITE_URL 是 Next.js 生成 sitemap / 邮件链接的基地址,务必与 DOMAIN 保持一致,
+#    例如 DOMAIN=forum.example.com 时 SITE_URL=https://forum.example.com
+#    否则邮件中的验证链接、sitemap 里的 URL 会指向错误域名。
+#  - 附件 /uploads/* 由 Caddy 直接 file_server,不经过 Node,节省 1 次反代开销。
+
 {$DOMAIN}
 
 encode gzip zstd
@@ -13,6 +23,11 @@ handle /uploads/* {
 	root * /srv/uploads
 	file_server
 	header Cache-Control "public, max-age=31536000, immutable"
+}
+
+# 健康检查端点直通,便于外部监控直接命中
+handle /api/health* {
+	reverse_proxy app:3000
 }
 
 # 其余全部反代到 Next.js

@@ -120,4 +120,43 @@ describe.skipIf(!shouldRun)("论坛数据层(需要数据库)", () => {
     const seen = new Set([...page1.items, ...page2.items].map((t) => t.id));
     expect(seen.size).toBe(25);
   });
+
+  it("封禁生命周期:临时/永久封禁、生效中查询、解封与过期自动失效", async () => {
+    const b = await import("@/lib/ban");
+    const user = await db!.user.create({
+      data: {
+        email: `b@${suffix}.test`,
+        username: `b_${suffix}`,
+        passwordHash: "x",
+      },
+    });
+
+    // 初始未封
+    expect((await b.isUserBanned(user.id)).banned).toBe(false);
+
+    // 临时封禁 1 小时
+    await b.banUser(user.id, "测试封禁", 1);
+    expect((await b.isUserBanned(user.id)).banned).toBe(true);
+
+    // 叠加永久封禁后,以最新(永久)为准
+    await b.banUser(user.id, "叠加永久", null);
+    const stacked = await b.isUserBanned(user.id);
+    expect(stacked.banned).toBe(true);
+    expect(stacked.ban?.expiresAt).toBeNull();
+
+    // listActiveBans 只返回每条链上最新且生效中的封禁
+    const map = await b.listActiveBans([user.id]);
+    expect(map.get(user.id)?.reason).toBe("叠加永久");
+
+    // 解封 = 把生效中的封禁置为过期,留档可查
+    await b.unbanUser(user.id);
+    expect((await b.isUserBanned(user.id)).banned).toBe(false);
+
+    // 已过期的旧记录不视为封禁
+    const past = new Date(Date.now() - 60_000);
+    await db!.ban.create({ data: { userId: user.id, reason: "过期", expiresAt: past } });
+    expect((await b.isUserBanned(user.id)).banned).toBe(false);
+
+    await db!.ban.deleteMany({ where: { userId: user.id } });
+  });
 });

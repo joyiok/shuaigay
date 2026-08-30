@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import { formatBytes } from "@/lib/format";
+import { renderMarkdown } from "@/lib/markdown";
 
 const EMOJIS = ["😀", "😂", "😆", "😎", "🤔", "😍", "😭", "🔥"];
 
@@ -24,6 +25,7 @@ interface ComposerProps {
  * - @提及自动补全
  * - 表情面板
  * - 「引用」按钮委托:点击楼层上的 .post-quote-btn 把 > 引用插入光标处
+ * - 预览 Tab:左侧 textarea，右侧用 renderMarkdown 实时渲染（防抖 200ms），复用 post-content 样式
  */
 export default function Composer({
   placeholder,
@@ -38,6 +40,21 @@ export default function Composer({
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [fileError, setFileError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [tab, setTab] = useState<"edit" | "preview">("edit");
+  const [text, setText] = useState("");
+  const [previewHtml, setPreviewHtml] = useState("");
+
+  // 防抖 200ms 渲染预览
+  useEffect(() => {
+    const id = setTimeout(() => {
+      try {
+        setPreviewHtml(renderMarkdown(text));
+      } catch {
+        setPreviewHtml(text);
+      }
+    }, 200);
+    return () => clearTimeout(id);
+  }, [text]);
 
   // 图片缩略图:objectURL 生命周期随 files 走
   useEffect(() => {
@@ -92,7 +109,7 @@ export default function Composer({
   }
 
   /** 在光标处插入文本;block 表示需要上下换行的块内容(引用) */
-  function insertAtCursor(text: string, block = false) {
+  function insertAtCursor(insert: string, block = false) {
     const ta = taRef.current;
     if (!ta) return;
     const start = ta.selectionStart ?? ta.value.length;
@@ -102,12 +119,13 @@ export default function Composer({
     const needLead = block && before.length > 0 && !/\s$/.test(before);
     const needTail = block && after.length > 0 && !/^\s/.test(after);
     ta.setRangeText(
-      (needLead ? "\n\n" : "") + text + (needTail ? "\n\n" : ""),
+      (needLead ? "\n\n" : "") + insert + (needTail ? "\n\n" : ""),
       start,
       end,
       "end",
     );
     ta.focus();
+    setText(ta.value);
     // 让 @提及补全重新扫描光标位置
     ta.dispatchEvent(new Event("input", { bubbles: true }));
   }
@@ -120,40 +138,124 @@ export default function Composer({
       if (!btn) return;
       const author = btn.dataset.author?.trim();
       const floor = btn.dataset.floor?.trim();
-      const text = btn.dataset.text?.trim();
-      if (!author || !text) return;
-      insertAtCursor(`> **@${author}** · 第 ${floor} 楼：\n> ${text}`, true);
+      const taText = btn.dataset.text?.trim();
+      if (!author || !taText) return;
+      insertAtCursor(`> **@${author}** · 第 ${floor} 楼：\n> ${taText}`, true);
     };
     document.addEventListener("click", onClick);
     return () => document.removeEventListener("click", onClick);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const textareaStyle: React.CSSProperties = {
+    width: "100%",
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+    padding: "10px 12px",
+    fontFamily: monospace ? "ui-monospace, monospace" : "inherit",
+    fontSize: 13,
+    outline: "none",
+    lineHeight: 1.6,
+    resize: "vertical",
+    minHeight: 90,
+  };
+
   return (
     <>
-      <div style={{ position: "relative" }}>
-        <textarea
-          ref={taRef}
-          name="content"
-          required
-          rows={rows}
-          placeholder={placeholder}
-          onPaste={handlePaste}
+      {/* 预览 Tab */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <button
+          type="button"
+          onClick={() => setTab("edit")}
           style={{
-            width: "100%",
+            height: 28,
+            padding: "0 12px",
+            borderRadius: 999,
             border: "1px solid var(--line)",
-            borderRadius: 6,
-            padding: "10px 12px",
-            fontFamily: monospace ? "ui-monospace, monospace" : "inherit",
-            fontSize: 13,
-            outline: "none",
-            lineHeight: 1.6,
-            resize: "vertical",
-            minHeight: 90,
+            background: tab === "edit" ? "var(--brand)" : "var(--panel)",
+            color: tab === "edit" ? "#fff" : "var(--text-muted)",
+            fontSize: 12,
+            fontWeight: tab === "edit" ? 700 : 500,
+            cursor: "pointer",
           }}
-        />
-        <MentionAutocomplete textareaRef={taRef} />
+        >
+          编辑
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("preview")}
+          style={{
+            height: 28,
+            padding: "0 12px",
+            borderRadius: 999,
+            border: "1px solid var(--line)",
+            background: tab === "preview" ? "var(--brand)" : "var(--panel)",
+            color: tab === "preview" ? "#fff" : "var(--text-muted)",
+            fontSize: 12,
+            fontWeight: tab === "preview" ? 700 : 500,
+            cursor: "pointer",
+          }}
+        >
+          预览
+        </button>
       </div>
+
+      {tab === "edit" ? (
+        <div style={{ position: "relative" }}>
+          <textarea
+            ref={taRef}
+            name="content"
+            required
+            rows={rows}
+            placeholder={placeholder}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onPaste={handlePaste}
+            style={textareaStyle}
+          />
+          <MentionAutocomplete textareaRef={taRef} />
+        </div>
+      ) : (
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 12,
+            alignItems: "start",
+          }}
+        >
+          <div style={{ position: "relative" }}>
+            <textarea
+              ref={taRef}
+              name="content"
+              required
+              rows={rows}
+              placeholder={placeholder}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onPaste={handlePaste}
+              style={{ ...textareaStyle, minHeight: 180 }}
+            />
+            <MentionAutocomplete textareaRef={taRef} />
+          </div>
+          <div
+            className="post-content"
+            style={{
+              border: "1px solid var(--line)",
+              borderRadius: 6,
+              padding: "10px 12px",
+              background: "var(--panel)",
+              minHeight: 180,
+              maxHeight: 400,
+              overflowY: "auto",
+              lineHeight: 1.6,
+            }}
+            dangerouslySetInnerHTML={{
+              __html: previewHtml || '<p style="color:var(--text-subtle)">暂无内容</p>',
+            }}
+          />
+        </div>
+      )}
 
       {/* 工具栏:附件 / 表情 */}
       <div

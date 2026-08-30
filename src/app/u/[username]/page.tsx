@@ -4,11 +4,19 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { updateBioAction } from "@/app/actions/user";
+import AvatarUploader from "@/components/AvatarUploader";
+import EmptyState from "@/components/EmptyState";
+import AuthRequired from "@/components/AuthRequired";
 
 type Tab = "topics" | "replies";
 
 function excerpt(raw: string): string {
   return raw.replace(/[#*_`>[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
+function avatarSrc(stored: string | null | undefined): string | null {
+  if (!stored) return null;
+  return `/api/avatar?file=${encodeURIComponent(stored)}`;
 }
 
 export default async function UserPage({
@@ -82,6 +90,7 @@ export default async function UserPage({
   }
 
   const avatarLetter = user.username.slice(0, 1).toUpperCase();
+  const avSrc = avatarSrc(user.avatarUrl);
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -94,8 +103,13 @@ export default async function UserPage({
       {/* 资料卡 */}
       <div className="card" style={{ padding: 18 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
-          <div className="user-avatar-big" style={{ width: 56, height: 56, fontSize: 20 }}>
-            {avatarLetter}
+          <div className="user-avatar-big" style={{ width: 56, height: 56, fontSize: 20, overflow: "hidden" }}>
+            {avSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={avSrc} alt={user.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            ) : (
+              avatarLetter
+            )}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -111,6 +125,25 @@ export default async function UserPage({
                   style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600 }}
                 >
                   我的邀请 →
+                </Link>
+              )}
+              {!isSelf && me && (
+                <Link
+                  href={`/messages/${encodeURIComponent(user.username)}`}
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 600,
+                    height: 28,
+                    padding: "0 12px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    background: "var(--brand)",
+                    color: "#fff",
+                    borderRadius: 999,
+                    border: "1px solid var(--brand)",
+                  }}
+                >
+                  发私信
                 </Link>
               )}
             </div>
@@ -143,8 +176,16 @@ export default async function UserPage({
           </div>
         </div>
 
-        {/* 本人可编辑 bio */}
+        {/* 本人可更换头像 */}
         {isSelf && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line-soft)" }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8 }}>头像设置</div>
+            <AvatarUploader username={user.username} initialUrl={avSrc} />
+          </div>
+        )}
+
+        {/* 本人可编辑 bio / 未登录提示 */}
+        {isSelf ? (
           <form
             action={updateBioAction}
             style={{
@@ -192,7 +233,11 @@ export default async function UserPage({
               </button>
             </div>
           </form>
-        )}
+        ) : !me ? (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
+            <AuthRequired title="登录后可编辑个人简介" description="当前为访客身份，登录后可修改头像、简介等个人信息。" next={`/u/${encodeURIComponent(user.username)}`} />
+          </div>
+        ) : null}
       </div>
 
       {/* Tab 切换 */}
@@ -210,87 +255,99 @@ export default async function UserPage({
 
       {/* 主题列表 */}
       {tab === "topics" && (
-        <ul className="post-list">
-          {threads.map((t) => (
-            <li key={t.id} className="post-item">
-              <div className="post-avatar">{avatarLetter}</div>
-              <div className="post-body">
-                <div className="post-title-row">
-                  {t.pinned && <span className="topic-badge pinned">置顶</span>}
-                  {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-                  <Link href={`/t/${t.id}`} className="post-title">
-                    {t.title}
-                  </Link>
+        threads.length === 0 ? (
+          <EmptyState variant="post" title="还没有发过主题" description="这个用户还没有发布任何主题，稍后再来看看。" actionLabel="去逛逛" actionHref="/" />
+        ) : (
+          <ul className="post-list">
+            {threads.map((t) => (
+              <li key={t.id} className="post-item">
+                <div className="post-avatar" style={{ overflow: "hidden" }}>
+                  {avSrc ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avSrc} alt={user.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                  ) : (
+                    avatarLetter
+                  )}
                 </div>
-                <div className="post-meta">
-                  <span>
-                    <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
-                    </svg>
-                    {Math.max(0, t._count.posts - 1)} 回复
-                  </span>
-                  <span>{formatDate(t.lastPostAt)}</span>
+                <div className="post-body">
+                  <div className="post-title-row">
+                    {t.pinned && <span className="topic-badge pinned">置顶</span>}
+                    {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+                    <Link href={`/t/${t.id}`} className="post-title">
+                      {t.title}
+                    </Link>
+                  </div>
+                  <div className="post-meta">
+                    <span>
+                      <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                      </svg>
+                      {Math.max(0, t._count.posts - 1)} 回复
+                    </span>
+                    <span>{formatDate(t.lastPostAt)}</span>
+                  </div>
                 </div>
-              </div>
-              <Link href={`/c/${t.board.slug}`} className="post-tag">
-                {t.board.name}
-              </Link>
-            </li>
-          ))}
-          {threads.length === 0 && (
-            <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13 }}>
-              还没有发过主题
-            </li>
-          )}
-        </ul>
+                <Link href={`/c/${t.board.slug}`} className="post-tag">
+                  {t.board.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )
       )}
 
       {/* 回复列表 */}
       {tab === "replies" && (
-        <ul className="post-list">
-          {posts.map((p) => {
-            const isFirst = firstPostIds.has(p.id);
-            return (
-              <li key={p.id} className="post-item" style={{ minHeight: 0 }}>
-                <div className="post-avatar">{avatarLetter}</div>
-                <div className="post-body">
-                  <div className="post-title-row">
-                    {isFirst && <span className="topic-badge">主题帖</span>}
-                    <Link href={`/t/${p.threadId}`} className="post-title" style={{ fontSize: 13 }}>
-                      {p.thread.title}
-                    </Link>
+        posts.length === 0 ? (
+          <EmptyState variant="post" title="还没有回复过" description="这个用户还没有发表任何回复，去主题里逛逛吧。" actionLabel="查看主题" actionHref="/" />
+        ) : (
+          <ul className="post-list">
+            {posts.map((p) => {
+              const isFirst = firstPostIds.has(p.id);
+              return (
+                <li key={p.id} className="post-item" style={{ minHeight: 0 }}>
+                  <div className="post-avatar" style={{ overflow: "hidden" }}>
+                    {avSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={avSrc} alt={user.username} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    ) : (
+                      avatarLetter
+                    )}
                   </div>
-                  <p
-                    style={{
-                      margin: "4px 0 0",
-                      color: "var(--text-muted)",
-                      fontSize: 12,
-                      lineHeight: 1.6,
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
-                      overflow: "hidden",
-                    }}
-                  >
-                    {excerpt(p.contentMd) || "(空)"}
-                  </p>
-                  <div className="post-meta" style={{ fontSize: 11, marginTop: 3 }}>
-                    <span>{formatDate(p.createdAt)}</span>
-                    <span style={{ color: "var(--text-subtle)" }}>{p.thread.board.name}</span>
+                  <div className="post-body">
+                    <div className="post-title-row">
+                      {isFirst && <span className="topic-badge">主题帖</span>}
+                      <Link href={`/t/${p.threadId}`} className="post-title" style={{ fontSize: 13 }}>
+                        {p.thread.title}
+                      </Link>
+                    </div>
+                    <p
+                      style={{
+                        margin: "4px 0 0",
+                        color: "var(--text-muted)",
+                        fontSize: 12,
+                        lineHeight: 1.6,
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
+                      {excerpt(p.contentMd) || "(空)"}
+                    </p>
+                    <div className="post-meta" style={{ fontSize: 11, marginTop: 3 }}>
+                      <span>{formatDate(p.createdAt)}</span>
+                      <span style={{ color: "var(--text-subtle)" }}>{p.thread.board.name}</span>
+                    </div>
                   </div>
-                </div>
-                <Link href={`/t/${p.threadId}`} className="post-tag" style={{ fontSize: 11 }}>
-                  查看
-                </Link>
-              </li>
-            );
-          })}
-          {posts.length === 0 && (
-            <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13 }}>
-              还没有回复过
-            </li>
-          )}
-        </ul>
+                  <Link href={`/t/${p.threadId}`} className="post-tag" style={{ fontSize: 11 }}>
+                    查看
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        )
       )}
     </div>
   );

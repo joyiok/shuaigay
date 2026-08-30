@@ -12,6 +12,10 @@ import {
 } from "@/lib/auth";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { consumeInvite } from "@/lib/invite";
+import { createVerificationToken, sendVerificationEmail, sendPasswordResetEmail, consumeVerificationToken } from "@/lib/email";
+import { logger } from "@/lib/logger";
+import { isUserBanned } from "@/lib/ban";
 
 // 用户不存在时也做一次同价哈希比较,防止时序侧信道探测邮箱是否已注册
 const DUMMY_HASH = bcrypt.hashSync("timing-equalizer", 12);
@@ -26,11 +30,14 @@ const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
   username: z.string().regex(/^[a-zA-Z0-9_-]{3,20}$/),
   password: z.string().min(8).max(72),
-  // 邀请码是 8 位十六进制,宽松校验,格式不对直接当无效
   invite: z.string().trim().regex(/^[a-zA-Z0-9]{4,32}$/).optional(),
 });
 
 const INVITE_BONUS_POINTS = 10;
+
+// 限流阈值:生产用默认值(注册 5/时,登录 20/10分);本地调试或 e2e 反复跑可经 .env 调大
+const REGISTER_RATE_LIMIT = Number(process.env.RATE_LIMIT_REGISTER) || 5;
+const LOGIN_RATE_LIMIT = Number(process.env.RATE_LIMIT_LOGIN) || 20;
 
 export async function registerAction(formData: FormData): Promise<void> {
   const parsed = registerSchema.safeParse({
@@ -46,7 +53,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
     redirect("/register?error=captcha_failed");
   }
-  if (!(await checkRateLimit(`register:${ip}`, 5, 3600))) {
+  if (!(await checkRateLimit(`register:${ip}`, REGISTER_RATE_LIMIT, 3600))) {
     redirect("/register?error=ratelimited");
   }
 
@@ -62,14 +69,13 @@ export async function registerAction(formData: FormData): Promise<void> {
     );
   }
 
-  // 校验邀请码:存在且未超限;用条件更新原子占座,防并发超发
-  const invite = inviteCode
+  const inviteExists = inviteCode
     ? await db.invite.findUnique({
         where: { code: inviteCode },
-        select: { id: true, inviterId: true, maxUses: true, usedCount: true },
+        select: { id: true },
       })
     : null;
-  if (inviteCode && !invite) {
+  if (inviteCode && !inviteExists) {
     redirect(`/register?invite=${encodeURIComponent(inviteCode)}&error=invite_invalid`);
   }
 
@@ -80,32 +86,38 @@ export async function registerAction(formData: FormData): Promise<void> {
       const u = await tx.user.create({
         data: { email, username, passwordHash },
       });
-      if (invite) {
-        // usedCount < maxUses 才真的消耗,失败返回 0 条 -> 已被抢完
-        const consumed = await tx.invite.updateMany({
-          where: { id: invite.id, usedCount: { lt: invite.maxUses } },
-          data: { usedCount: { increment: 1 } },
-        });
-        if (consumed.count === 0) {
+      if (inviteCode) {
+        const inviterId = await consumeInvite(tx, inviteCode);
+        if (!inviterId) {
           throw Object.assign(new Error("invite_used_up"), {
             code: "INVITE_USED_UP",
           });
         }
-        // 邀请人 +10 积分
         await tx.user.update({
-          where: { id: invite.inviterId },
+          where: { id: inviterId },
           data: { points: { increment: INVITE_BONUS_POINTS } },
         });
       }
       return u;
     });
   } catch (e) {
-    // 邀请码恰好被抢完:事务回滚(新用户不落库),回注册页提示
     if (typeof e === "object" && e !== null && (e as { code?: string }).code === "INVITE_USED_UP") {
       redirect(`/register?invite=${encodeURIComponent(inviteCode ?? "")}&error=invite_invalid`);
     }
     throw e;
   }
+
+  logger.info("auth.register", { userId: user.id, email, username, ip });
+
+  // 发送验证邮件(失败不阻断注册)
+  try {
+    const raw = await createVerificationToken(user.id, "VERIFY_EMAIL", 24);
+    await sendVerificationEmail(email, raw);
+    logger.info("auth.verification_sent", { userId: user.id, email });
+  } catch (e) {
+    logger.warn("auth.verification_failed", { userId: user.id, error: String(e) });
+  }
+
   await createSession(user.id);
   redirect("/");
 }
@@ -127,7 +139,7 @@ export async function loginAction(formData: FormData): Promise<void> {
   if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
     redirect("/login?error=captcha_failed");
   }
-  if (!(await checkRateLimit(`login:${ip}`, 20, 600))) {
+  if (!(await checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT, 600))) {
     redirect("/login?error=ratelimited");
   }
 
@@ -135,13 +147,103 @@ export async function loginAction(formData: FormData): Promise<void> {
   const ok = user
     ? await verifyPassword(password, user.passwordHash)
     : await verifyPassword(password, DUMMY_HASH);
-  if (!ok || !user) redirect("/login?error=wrong");
+  if (!ok || !user) {
+    logger.info("auth.login_failed", { email, ip });
+    redirect("/login?error=wrong");
+  }
 
+  // 封禁检查:被封用户登录时拒绝
+  const ban = await isUserBanned(user.id);
+  if (ban.banned) {
+    logger.warn("auth.login_banned", { userId: user.id, email, reason: ban.ban?.reason });
+    redirect("/login?error=banned");
+  }
+
+  logger.info("auth.login", { userId: user.id, email, ip });
   await createSession(user.id);
   redirect(safeNext(formData.get("next")));
 }
 
 export async function logoutAction(): Promise<void> {
   await destroySession();
+  logger.info("auth.logout", {});
   redirect("/");
+}
+
+/* -------- 找回密码 -------- */
+
+const forgotSchema = z.object({
+  email: z.string().trim().toLowerCase().email().max(200),
+});
+
+export async function requestPasswordResetAction(formData: FormData): Promise<void> {
+  const parsed = forgotSchema.safeParse({ email: formData.get("email") });
+  if (!parsed.success) redirect("/forgot?error=invalid");
+  const { email } = parsed.data;
+  const ip = await clientIp();
+  if (!(await checkRateLimit(`forgot:${ip}`, 5, 3600))) {
+    redirect("/forgot?error=ratelimited");
+  }
+  const user = await db.user.findUnique({ where: { email } });
+  // 始终提示已发送,防止邮箱枚举
+  if (user) {
+    try {
+      const raw = await createVerificationToken(user.id, "RESET_PASSWORD", 1);
+      await sendPasswordResetEmail(email, raw);
+      logger.info("auth.reset_requested", { userId: user.id, email, ip });
+    } catch (e) {
+      logger.warn("auth.reset_failed", { email, error: String(e) });
+    }
+  } else {
+    logger.info("auth.reset_requested_no_user", { email, ip });
+  }
+  redirect("/forgot?sent=1");
+}
+
+const resetSchema = z.object({
+  token: z.string().min(10).max(200),
+  password: z.string().min(8).max(72),
+});
+
+export async function resetPasswordAction(formData: FormData): Promise<void> {
+  const parsed = resetSchema.safeParse({
+    token: formData.get("token"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) redirect("/reset?error=invalid");
+  const { token, password } = parsed.data;
+  const res = await consumeVerificationToken(token, "RESET_PASSWORD");
+  if (!res) redirect("/reset?error=token_invalid");
+  const passwordHash = await hashPassword(password);
+  await db.user.update({ where: { id: res.userId }, data: { passwordHash } });
+  // 使旧会话失效,可选:删除所有 session
+  await db.session.deleteMany({ where: { userId: res.userId } });
+  logger.info("auth.password_reset", { userId: res.userId });
+  redirect("/login?reset=1");
+}
+
+export async function verifyEmailAction(formData: FormData): Promise<void> {
+  const token = String(formData.get("token") ?? "");
+  if (!token) redirect("/verify-email?error=invalid");
+  const res = await consumeVerificationToken(token, "VERIFY_EMAIL");
+  if (!res) redirect("/verify-email?error=token_invalid");
+  await db.user.update({ where: { id: res.userId }, data: { emailVerified: true } });
+  logger.info("auth.email_verified", { userId: res.userId });
+  redirect("/verify-email?ok=1");
+}
+
+export async function resendVerificationAction(): Promise<void> {
+  // 需要登录态才能重发
+  const { getCurrentUser } = await import("@/lib/auth");
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const dbUser = await db.user.findUnique({ where: { id: user.id }, select: { email: true, emailVerified: true } });
+  if (!dbUser) redirect("/login");
+  if (dbUser.emailVerified) redirect("/?verified=already");
+  const ip = await clientIp();
+  if (!(await checkRateLimit(`resend:${user.id}`, 3, 3600))) redirect("/verify-email?error=ratelimited");
+  const raw = await createVerificationToken(user.id, "VERIFY_EMAIL", 24);
+  await sendVerificationEmail(dbUser.email, raw);
+  logger.info("auth.verification_resent", { userId: user.id });
+  redirect("/verify-email?sent=1");
 }

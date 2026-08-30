@@ -1,10 +1,11 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { db } from "@/lib/db";
+import { getStorage } from "@/lib/storage";
 
 /**
- * 开发环境和"没有前置反代"场景下的附件出口。
- * 生产环境 Caddy 会直接在 /uploads/* 上伺服文件,根本到不了这里。
+ * 附件出口（开发环境直接由 Next 伺服；生产 Caddy 会在 /uploads/* 上静态伺服，请求通常不到这里）。
+ * 兼容 local 与 s3：优先走 storage 驱动的 read（S3 必备），本地再 fallback 到磁盘读取。
  */
 export async function GET(
   _req: Request,
@@ -22,24 +23,36 @@ export async function GET(
   const att = await db.attachment.findUnique({ where: { storedName } });
   if (!att) return new Response("not found", { status: 404 });
 
-  const root = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
-  const full = path.resolve(root, storedName);
-  if (!full.startsWith(root + path.sep)) {
-    return new Response("forbidden", { status: 403 });
+  const storage = getStorage();
+  let data: Buffer | null = null;
+
+  // S3 优先通过驱动读取，成功则直接返回
+  if (storage.read) {
+    try {
+      data = await storage.read(storedName);
+    } catch {}
+  }
+  // 本地 fallback：直接读盘（兼容旧逻辑与未迁移附件）
+  if (!data) {
+    const root = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
+    const full = path.resolve(root, storedName);
+    if (!full.startsWith(root + path.sep)) {
+      return new Response("forbidden", { status: 403 });
+    }
+    try {
+      data = await readFile(full);
+    } catch {
+      return new Response("not found", { status: 404 });
+    }
   }
 
-  try {
-    const data = await readFile(full);
-    return new Response(new Uint8Array(data), {
-      headers: {
-        "Content-Type": att.mimeType,
-        "Content-Length": String(att.sizeBytes),
-        "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(att.fileName)}`,
-        "Cache-Control": "public, max-age=31536000, immutable",
-        "X-Content-Type-Options": "nosniff",
-      },
-    });
-  } catch {
-    return new Response("not found", { status: 404 });
-  }
+  return new Response(new Uint8Array(data), {
+    headers: {
+      "Content-Type": att.mimeType,
+      "Content-Length": String(att.sizeBytes),
+      "Content-Disposition": `inline; filename*=UTF-8''${encodeURIComponent(att.fileName)}`,
+      "Cache-Control": "public, max-age=31536000, immutable",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }

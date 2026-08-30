@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 type UiState =
   | { kind: "idle" }
   | { kind: "busy" }
-  | { kind: "done"; ok: boolean; text: string };
+  | { kind: "done"; ok: boolean; text: string; needsAuth?: boolean };
 
 /** 帖子旁的「举报」按钮:原生 dialog 弹出简易表单,提交到 /api/reports */
 export default function ReportButton({ postId }: { postId: string }) {
@@ -32,10 +32,12 @@ export default function ReportButton({ postId }: { postId: string }) {
         body: JSON.stringify({ targetType: "post", targetId: postId, reason }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const needsAuth = res.status === 401;
       setState({
         kind: "done",
         ok: res.ok,
-        text: res.ok ? "已提交，等待管理员审核" : data.error ?? "提交失败，请稍后再试",
+        text: res.ok ? "已提交，等待管理员审核" : needsAuth ? "请先登录后再举报" : data.error ?? "提交失败，请稍后再试",
+        needsAuth,
       });
     } catch {
       setState({ kind: "done", ok: false, text: "网络异常，请稍后再试" });
@@ -91,9 +93,10 @@ export default function ReportButton({ postId }: { postId: string }) {
           />
 
           {state.kind === "done" && (
-            <p
+            <div
               style={{
-                margin: 0,
+                display: "grid",
+                gap: 8,
                 fontSize: 13,
                 borderRadius: 6,
                 padding: "8px 12px",
@@ -101,8 +104,46 @@ export default function ReportButton({ postId }: { postId: string }) {
                 color: state.ok ? "var(--success)" : "var(--danger)",
               }}
             >
-              {state.text}
-            </p>
+              <p style={{ margin: 0 }}>{state.text}</p>
+              {state.needsAuth && (
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  <a
+                    href="/login"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      height: 28,
+                      padding: "0 12px",
+                      background: "#0f172a",
+                      color: "#fff",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 700,
+                      border: "1px solid #0f172a",
+                    }}
+                  >
+                    去登录
+                  </a>
+                  <a
+                    href="/register"
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      height: 28,
+                      padding: "0 12px",
+                      background: "#fff",
+                      color: "#0f172a",
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      border: "1px solid #e2e8f0",
+                    }}
+                  >
+                    去注册
+                  </a>
+                </div>
+              )}
+            </div>
           )}
 
           <div
