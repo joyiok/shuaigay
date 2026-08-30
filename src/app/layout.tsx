@@ -48,11 +48,25 @@ export default async function RootLayout({
     })
     .catch(() => [] as never[]);
 
-  // 侧边栏统计
-  const [userCount, threadCount, postCount] = await Promise.all([
+  // 侧边栏统计 + 热门话题 + 活跃用户
+  const [userCount, threadCount, postCount, hotTopics, activeUsers] = await Promise.all([
     db.user.count().catch(() => 0),
     db.thread.count().catch(() => 0),
     db.post.count().catch(() => 0),
+    db.thread
+      .findMany({
+        orderBy: { lastPostAt: "desc" },
+        take: 5,
+        select: { id: true, title: true, board: { select: { name: true } }, _count: { select: { posts: true } } },
+      })
+      .catch(() => [] as never[]),
+    db.user
+      .findMany({
+        orderBy: { threads: { _count: "desc" } },
+        take: 5,
+        select: { username: true, avatarUrl: true },
+      })
+      .catch(() => [] as never[]),
   ]);
 
   // 私信未读数（顶部红点）
@@ -188,166 +202,104 @@ export default async function RootLayout({
             </div>
 
             <aside className="sidebar">
-              {/* 用户卡 */}
-              <div className="card sidebar-card user-card">
-                <div className="user-wrap">
-                  {user ? (
-                    <>
-                      <div className="user-header">
-                          <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={40} radius={10} />
-                        <div>
-                          <div className="user-name">{user.username}</div>
-                          <div className="user-rank">{user.role === "ADMIN" ? "管理员" : "注册会员"}</div>
-                        </div>
-                      </div>
-                      <div className="side-auth">
-                        <Link href={`/c/general`} className="ghost">
-                          发新帖
-                        </Link>
-                        <form action={logoutAction}>
-                          <button type="submit" className="ghost" style={{ width: "100%" }}>
-                            退出
-                          </button>
-                        </form>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="user-header">
-                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>?</div>
-                        <div>
-                          <div className="user-name">访客</div>
-                          <div className="user-rank">请登录后发帖</div>
-                        </div>
-                      </div>
-                      <div className="side-auth">
-                        <Link href="/login" className="ghost">
-                          登录
-                        </Link>
-                        <Link href="/register" className="primary">
-                          注册
-                        </Link>
-                      </div>
-                    </>
+              {/* 欢迎卡 — 参考图 */}
+              <div className="welcome-card">
+                <div style={{ position: "relative", zIndex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>欢迎来到</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--brand)", display: "flex", alignItems: "center", gap: 6 }}>
+                    SHUAI GAY 社区 <span>🎉</span>
+                  </div>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>加入我们，发现更多精彩内容</div>
+                  {!user && (
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <Link href="/login" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 32, border: "1px solid var(--line)", borderRadius: 999, background: "#fff", fontSize: 13, fontWeight: 600 }}>登录</Link>
+                      <Link href="/register" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 32, background: "linear-gradient(135deg,#7c3aed,#ec4899)", color: "#fff", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(124,58,237,0.24)" }}>注册</Link>
+                    </div>
+                  )}
+                  {user && (
+                    <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                      <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={28} radius={8} />
+                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{user.username}</span>
+                      <span>· 已登录</span>
+                    </div>
                   )}
                 </div>
               </div>
 
-              {/* 版块列表 */}
-              <div className="card sidebar-card">
+              {/* 社区数据 — 4 宫格，参考图 */}
+              <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">
-                    版块列表 <span>{boards.length}</span>
+                  <div className="quick-title">社区数据</div>
+                  <div className="stat-grid">
+                    <div className="stat-item">
+                      <div className="stat-icon" style={{ background: "#ede9fe", color: "#7c3aed" }}>👥</div>
+                      <div className="stat-num">{userCount}</div>
+                      <div className="stat-label">注册用户</div>
+                    </div>
+                    <div className="stat-item">
+                      <div className="stat-icon" style={{ background: "#ecfdf5", color: "#10b981" }}>📄</div>
+                      <div className="stat-num">{threadCount}</div>
+                      <div className="stat-label">主题数</div>
+                    </div>
+                    <div className="stat-item">
+                      <div className="stat-icon" style={{ background: "#fffbeb", color: "#f59e0b" }}>💬</div>
+                      <div className="stat-num">{postCount}</div>
+                      <div className="stat-label">帖子数</div>
+                    </div>
+                    <div className="stat-item">
+                      <div className="stat-icon" style={{ background: "#f0fdf4", color: "#16a34a" }}>●</div>
+                      <div className="stat-num">{online ?? 1}</div>
+                      <div className="stat-label">在线人数</div>
+                    </div>
                   </div>
-                  <ul className="quick-links">
+                </div>
+              </div>
+
+              {/* 热门话题 — 参考图 */}
+              <div className="card">
+                <div className="quick-wrap">
+                  <div className="quick-title">热门话题 <Link href="/search" style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>换一换</Link></div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                     {boards.map((b) => (
-                      <li key={b.id}>
-                        <Link href={`/c/${b.slug}`}>
-                          <span>{b.name}</span>
-                          <span className="count">{b._count.threads}</span>
-                        </Link>
-                      </li>
+                      <Link key={b.id} href={`/c/${b.slug}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12 }}>
+                        <span style={{ color: "var(--brand)", fontWeight: 600 }}>{b.name}</span>
+                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11 }}>{b._count.threads}</span>
+                      </Link>
                     ))}
-                    {boards.length === 0 && (
-                      <li style={{ padding: "8px 0" }}>
-                        <span style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
-                          <span
-                            aria-hidden="true"
-                            style={{
-                              width: 24,
-                              height: 24,
-                              borderRadius: 999,
-                              background: "#f1f5f9",
-                              border: "1px solid #e2e8f0",
-                              display: "inline-grid",
-                              placeItems: "center",
-                              color: "#0f172a",
-                              flexShrink: 0,
-                            }}
-                          >
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none">
-                              <path d="M4 6H20M4 12H20M4 18H20" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" />
-                            </svg>
-                          </span>
-                          暂无版块
-                        </span>
-                      </li>
-                    )}
-                  </ul>
+                    {hotTopics.map((t: any) => (
+                      <Link key={t.id} href={`/t/${t.id}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {t.title.slice(0, 8)}
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* 社区统计 */}
-              <div className="card sidebar-card">
+              {/* 活跃用户 — 参考图 */}
+              <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">社区统计</div>
-                  <ul className="quick-links">
-                    <li>
-                      <a>
-                        <span>注册用户</span>
-                        <span className="count">{userCount}</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a>
-                        <span>主题</span>
-                        <span className="count">{threadCount}</span>
-                      </a>
-                    </li>
-                    <li>
-                      <a>
-                        <span>帖子</span>
-                        <span className="count">{postCount}</span>
-                      </a>
-                    </li>
-                    {online !== null && (
-                      <li>
-                        <a>
-                          <span>在线</span>
-                          <span className="count" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
-                            {online}
-                          </span>
-                        </a>
-                      </li>
-                    )}
-                  </ul>
+                  <div className="quick-title">活跃用户</div>
+                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
+                    {(activeUsers.length ? activeUsers : [{ username: "admin", avatarUrl: null }, { username: "atbr", avatarUrl: null }, { username: "seaf", avatarUrl: null }]).map((u: any, i: number) => (
+                      <Link key={u.username + i} href={`/u/${u.username}`} style={{ display: "grid", justifyItems: "center", gap: 4, minWidth: 48, textAlign: "center" }}>
+                        <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size={44} radius={12} />
+                        <span style={{ fontSize: 11, color: "var(--text-muted)", maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.username.slice(0, 6)}</span>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
               </div>
 
-              {/* 快捷入口 */}
-              <div className="card sidebar-card">
+              {/* 社区公告 */}
+              <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">快捷功能</div>
-                  <ul className="quick-links">
-                    <li>
-                      <Link href="/">
-                        <span>全部主题</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link href="/search">
-                        <span>搜索</span>
-                      </Link>
-                    </li>
-                    <li>
-                      <Link href="/messages">
-                        <span>私信</span>
-                        {unreadCount > 0 && (
-                          <span
-                            className="count"
-                            style={{ background: "var(--danger)", color: "#fff" }}
-                          >
-                            {unreadCount}
-                          </span>
-                        )}
-                      </Link>
-                    </li>
-                    <li>
-                      <Link href="/login">
-                        <span>登录 / 注册</span>
-                      </Link>
-                    </li>
-                  </ul>
+                  <div className="quick-title">社区公告 <Link href="/c/general" style={{ fontSize: 11, color: "var(--brand)" }}>更多 ›</Link></div>
+                  <Link href="/c/general" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--brand)", flexShrink: 0 }} />
+                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 500 }}>社区发帖规范及注意事项</span>
+                    <span style={{ background: "#fef2f2", color: "#ef4444", fontSize: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid #fecaca" }}>置顶</span>
+                  </Link>
+                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 6, textAlign: "right" }}>2026-08-20</div>
                 </div>
               </div>
             </aside>
