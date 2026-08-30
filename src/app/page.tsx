@@ -126,49 +126,35 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
         )}
       </div>
       <div className="post-body">
-        <div className="post-title-row">
+        <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">置顶</span>}
-          <Link href={`/t/${t.id}`} className="post-title">
+          <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1 }}>
             {t.title}
           </Link>
-          <span className="topic-pages" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        </div>
+        <div className="post-meta" style={{ gap: 10, marginTop: 6 }}>
+          <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{t.authorName}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-subtle)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
                 <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
               </svg>
               {t.views ?? 0}
             </span>
-            <span>· {t.replyCount} 回复</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              </svg>
+              {t.replyCount}
+            </span>
           </span>
-        </div>
-        <div className="post-meta">
-          <span>
-            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.7" />
-              <path d="M4 21c1.8-4 4.5-6 8-6s6.2 2 8 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
-            </svg>
-            {t.authorName}
-          </span>
-          <Link href={`/c/${t.boardSlug}`} style={{ color: "var(--text-subtle)" }}>
-            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.7" />
-              <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+          <Link href={`/c/${t.boardSlug}`} style={{ color: "var(--text-subtle)", fontSize: 12 }}>
             {t.boardName}
           </Link>
-          <span>
-            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
-              <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-            {formatDate(t.lastPostAt)}
-          </span>
+          <span style={{ color: "var(--text-subtle)" }}>{formatDate(t.lastPostAt)}</span>
         </div>
       </div>
-      <Link href={`/c/${t.boardSlug}`} className="post-tag">
-        {t.boardName}
-      </Link>
     </li>
   );
 }
