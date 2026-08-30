@@ -16,24 +16,9 @@ export default function ReportButton({ postId }: { postId: string }) {
   function openDialog() {
     setState({ kind: "idle" });
     setOpen(true);
-    // 兼容原生 dialog 的 showModal，同时用 React open 状态兜底
-    requestAnimationFrame(() => {
-      const d = dialogRef.current;
-      if (!d) return;
-      try {
-        if (!d.open && typeof d.showModal === "function") d.showModal();
-      } catch {
-        d.setAttribute("open", "");
-      }
-      d.removeAttribute("hidden");
-    });
   }
   function closeDialog() {
     setOpen(false);
-    const d = dialogRef.current;
-    if (d?.open) {
-      try { d.close(); } catch { d.removeAttribute("open"); }
-    }
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
