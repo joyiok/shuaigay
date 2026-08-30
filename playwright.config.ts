@@ -8,11 +8,11 @@ export default defineConfig({
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3100",
   },
-  // 已有服务在跑就直接复用;否则自动 next start
+  // 已有服务在跑就直接复用;否则自动 node standalone（output: standalone 时 next start 不可用）
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "npm run start -- -p 3100",
+        command: "PORT=3100 node .next/standalone/server.js",
         url: "http://localhost:3100",
         timeout: 120_000,
         reuseExistingServer: !process.env.CI,

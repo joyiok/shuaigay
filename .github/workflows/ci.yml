@@ -31,6 +31,12 @@ jobs:
       REDIS_URL: redis://localhost:6379
       UPLOAD_DIR: /tmp/forum-uploads
       STORAGE_DRIVER: local
+      # e2e 套件会连续注册 8+ 账号，默认 5/小时会误限流，CI 放宽
+      RATE_LIMIT_REGISTER: "100"
+      RATE_LIMIT_LOGIN: "100"
+      RATE_LIMIT_THREAD: "100"
+      RATE_LIMIT_REPLY: "100"
+      RATE_LIMIT_EDIT: "100"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
