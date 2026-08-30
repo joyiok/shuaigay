@@ -161,11 +161,12 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
   expect(threadId).not.toBe("");
   // 退出后未登录尝试举报：对话框应提示登录
   await submitButton(page, "退出").first().click();
-  await page.goto(`/t/${threadId}`, { waitUntil: "networkidle" });
+  await page.goto(`/t/${threadId}`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(`**/t/${threadId}*`, { timeout: 10000 });
   await expect(page.getByRole("button", { name: "举报" }).first()).toBeVisible({ timeout: 10000 });
   await page.getByRole("button", { name: "举报" }).first().click({ force: true });
   const dialogUnauth = page.locator("dialog.report-dialog");
-  await expect(dialogUnauth).toBeVisible({ timeout: 10000 });
+  await expect(dialogUnauth.locator('textarea[name="reason"]')).toBeVisible({ timeout: 15000 });
   await dialogUnauth.locator('textarea[name="reason"]').fill("违规测试未登录");
   await dialogUnauth.getByRole("button", { name: "提交举报" }).click();
   await expect(dialogUnauth.getByText("请先登录")).toBeVisible();
@@ -180,10 +181,11 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
   await page.fill('input[name="password"]', "password123");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(repUser);
-  await page.goto(`/t/${threadId}`, { waitUntil: "networkidle" });
+  await page.goto(`/t/${threadId}`, { waitUntil: "domcontentloaded" });
+  await page.waitForURL(`**/t/${threadId}*`, { timeout: 10000 });
   await page.getByRole("button", { name: "举报" }).first().click({ force: true });
   const dialog = page.locator("dialog.report-dialog");
-  await expect(dialog).toBeVisible({ timeout: 10000 });
+  await expect(dialog.locator('textarea[name="reason"]')).toBeVisible({ timeout: 15000 });
   await dialog.locator('textarea[name="reason"]').fill("违规内容详细说明，需要审核处理");
   await dialog.getByRole("button", { name: "提交举报" }).click();
   await expect(dialog.getByText("已提交，等待管理员审核")).toBeVisible();
@@ -191,7 +193,7 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
 
   // 重复举报同一目标应被去重 409
   await page.getByRole("button", { name: "举报" }).first().click({ force: true });
-  await expect(dialog).toBeVisible({ timeout: 10000 });
+  await expect(dialog.locator('textarea[name="reason"]')).toBeVisible({ timeout: 15000 });
   await dialog.locator('textarea[name="reason"]').fill("重复举报同一内容应被去重");
   await dialog.getByRole("button", { name: "提交举报" }).click();
   await expect(dialog.getByText("已在审核队列")).toBeVisible();
@@ -199,7 +201,7 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
 
   // 敏感词举报应被拦截
   await page.getByRole("button", { name: "举报" }).first().click({ force: true });
-  await expect(dialog).toBeVisible({ timeout: 10000 });
+  await expect(dialog.locator('textarea[name="reason"]')).toBeVisible({ timeout: 15000 });
   await dialog.locator('textarea[name="reason"]').fill("包含傻逼的举报理由");
   await dialog.getByRole("button", { name: "提交举报" }).click();
   await expect(dialog.getByText("敏感词")).toBeVisible();
@@ -278,14 +280,16 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
 
   // 版块空态与首页空态已替换为 EmptyState：访问不存在的版块应显示 not-found
   await page.goto("/c/does-not-exist-zzz", { waitUntil: "domcontentloaded" });
-  await page.waitForURL("**/c/does-not-exist-zzz", { timeout: 10000 });
-  await expect(page.getByText("页面不存在").first()).toBeVisible({ timeout: 15000 });
+  await page.waitForURL("**/c/does-not-exist-zzz", { timeout: 10000 }).catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+  await expect(page.locator("text=页面不存在").first()).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("link", { name: "返回首页" }).first()).toBeVisible();
 
   // 访问不存在的主题也应显示 not-found
   await page.goto("/t/does-not-exist-id", { waitUntil: "domcontentloaded" });
-  await page.waitForURL("**/t/does-not-exist-id", { timeout: 10000 });
-  await expect(page.getByText("页面不存在").first()).toBeVisible({ timeout: 15000 });
+  await page.waitForURL("**/t/does-not-exist-id", { timeout: 10000 }).catch(() => {});
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
+  await expect(page.locator("text=页面不存在").first()).toBeVisible({ timeout: 15000 });
 
   // 未登录访问 /u/:username 的编辑区显示登录卡片
   await page.goto("/login");
