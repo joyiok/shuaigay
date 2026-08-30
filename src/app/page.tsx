@@ -147,7 +147,7 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
   const bg = getAvatarColor(t.authorName);
   const badge = boardBadge(t.boardName);
   return (
-    <li className="post-item" style={{ gap: 12 }}>
+    <li className="post-item" style={{ gap: 12, position: "relative" }}>
       <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0, overflow: "hidden" }}>
         {t.authorAvatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -157,12 +157,12 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
         )}
       </div>
       <div className="post-body">
-        <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
+        <div className="post-title-row" style={{ gap: 8, alignItems: "center", paddingRight: 72 }}>
           <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             {t.title}
           </Link>
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
-          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, marginLeft: "auto", flexShrink: 0 }}>
+          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, position: "absolute", right: 14, top: 12, flexShrink: 0 }}>
             {t.boardName}
           </span>
         </div>
