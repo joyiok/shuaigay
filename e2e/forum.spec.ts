@@ -275,12 +275,14 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
 
   // 版块空态与首页空态已替换为 EmptyState：访问不存在的版块应显示 not-found
   await page.goto("/c/does-not-exist-zzz");
-  await expect(page.getByText("页面不存在")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: "页面不存在" })).toBeVisible({ timeout: 10000 });
   await expect(page.getByRole("link", { name: "返回首页" })).toBeVisible();
 
   // 访问不存在的主题也应显示 not-found
   await page.goto("/t/does-not-exist-id");
-  await expect(page.getByText("页面不存在")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("heading", { name: "页面不存在" })).toBeVisible({ timeout: 10000 });
 
   // 未登录访问 /u/:username 的编辑区显示登录卡片
   await page.goto("/login");
