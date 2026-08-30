@@ -1,144 +1,167 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
+import { listAllThreads } from "@/lib/queries";
+import { decodeCursor } from "@/lib/cursor";
+import { formatDate } from "@/lib/format";
 
-export default async function HomePage() {
-  const [boards, userCount, threadCount, postCount, latestThreads] = await Promise.all([
-    db.board.findMany({
-      orderBy: { order: "asc" },
-      include: { _count: { select: { threads: true } } },
-    }),
-    db.user.count(),
-    db.thread.count(),
-    db.post.count(),
-    db.thread
-      .findMany({
-        orderBy: { lastPostAt: "desc" },
-        take: 8,
-        include: { author: { select: { username: true } }, board: { select: { slug: true, name: true } }, _count: { select: { posts: true } } },
-      })
-      .catch(() => []),
-  ]);
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ cursor?: string }>;
+}) {
+  const { cursor: rawCursor } = await searchParams;
+  const { pinned, items, nextCursor } = await listAllThreads(decodeCursor(rawCursor), 20);
+
+  // 兼容旧逻辑：若数据库为空，仍展示友好空态（EmptyState 在 layout 侧边栏已展示版块）
+  const isEmpty = pinned.length === 0 && items.length === 0;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      {/* 顶部筛选 */}
+      {/* 顶部筛选 - 全站时间线 */}
       <div className="topic-toolbar">
         <div className="tab-bar">
-          <Link href="/" className="tab active">
+          <Link href="/" className={`tab ${!rawCursor ? "active" : ""}`}>
             全部
           </Link>
           <Link href="/?sort=recent" className="tab">
             最新
           </Link>
-          <Link href="/?sort=hot" className="tab">
-            热门
+          <Link href="/search" className="tab">
+            搜索
           </Link>
         </div>
         <Link
-          href={boards[0] ? `/c/${boards[0].slug}/new` : "/"}
+          href="/c/general/new"
           style={{
             display: "inline-flex",
             alignItems: "center",
-            height: 30,
+            height: 32,
             padding: "0 14px",
             background: "var(--brand)",
             color: "#fff",
-            borderRadius: 6,
+            borderRadius: 999,
             fontSize: 13,
             fontWeight: 600,
+            flexShrink: 0,
           }}
         >
           发新帖
         </Link>
       </div>
 
-      {/* 版块 */}
-      <div className="card" style={{ overflow: "hidden" }}>
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line)", display: "flex", alignItems: "center", gap: 8 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>版块</h2>
-          <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{boards.length} 个版块</span>
-        </div>
-        <ul className="post-list" style={{ border: "none", borderRadius: 0 }}>
-          {boards.map((b) => (
-            <li key={b.id} className="post-item">
-              <div className="post-avatar" style={{ background: "var(--brand-soft)", color: "var(--brand)" }}>
-                {b.name.slice(0, 1)}
-              </div>
-              <div className="post-body">
-                <div className="post-title-row">
-                  <Link href={`/c/${b.slug}`} className="post-title">
-                    {b.name}
-                  </Link>
-                  {b.description && (
-                    <span style={{ color: "var(--text-subtle)", fontSize: 12, marginLeft: 6, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {b.description}
-                    </span>
-                  )}
-                </div>
-                <div className="post-meta">
-                  <span>
-                    <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.7" />
-                      <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                    </svg>
-                    {b._count.threads} 主题
-                  </span>
-                  <span style={{ color: "var(--text-subtle)" }}>{b.slug}</span>
-                </div>
-              </div>
-              <Link href={`/c/${b.slug}`} className="post-tag">
-                进入
-              </Link>
-            </li>
-          ))}
-          {boards.length === 0 && (
-            <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)" }}>
-              暂无版块
-            </li>
-          )}
-        </ul>
+      {/* 全站帖子 - 只有点板块才过滤，首页永远展示全部 */}
+      <ul className="post-list">
+        {pinned.map((t) => (
+          <ThreadRow key={t.id} t={t} pinned />
+        ))}
+        {items.map((t) => (
+          <ThreadRow key={t.id} t={t} />
+        ))}
+        {isEmpty && (
+          <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13, flexDirection: "column", alignItems: "center", gap: 6, padding: "24px 14px" }}>
+            <div style={{ fontWeight: 600, color: "var(--text)" }}>还没有帖子</div>
+            <div style={{ fontSize: 12 }}>去板块发第一帖，首页会自动聚合全站内容</div>
+            <Link href="/c/general" style={{ marginTop: 6, display: "inline-flex", height: 30, padding: "0 12px", border: "1px solid var(--line)", borderRadius: 999, background: "var(--panel)", fontSize: 12 }}>
+              去版块看看 →
+            </Link>
+          </li>
+        )}
+      </ul>
+
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+        {nextCursor ? (
+          <Link
+            href={`/?cursor=${nextCursor}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              height: 32,
+              padding: "0 14px",
+              border: "1px solid var(--line)",
+              borderRadius: 999,
+              background: "var(--panel)",
+              fontSize: 13,
+            }}
+          >
+            下一页 →
+          </Link>
+        ) : (
+          <span />
+        )}
+        {rawCursor && (
+          <Link
+            href="/"
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              height: 32,
+              padding: "0 14px",
+              border: "1px solid var(--line)",
+              borderRadius: 999,
+              background: "var(--panel)",
+              fontSize: 13,
+            }}
+          >
+            回首页
+          </Link>
+        )}
       </div>
 
-      {/* 最新主题预览 */}
-      {latestThreads.length > 0 && (
-        <div className="card">
-          <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div className="quick-title" style={{ margin: 0 }}>
-              最新主题 <span>近 8 条</span>
-            </div>
-          </div>
-          <ul className="post-list" style={{ border: "none", borderRadius: 0 }}>
-            {latestThreads.map((t: any) => (
-              <li key={t.id} className="post-item" style={{ minHeight: 52, padding: "10px 14px" }}>
-                <div className="post-avatar" style={{ width: 32, height: 32, fontSize: 12 }}>
-                  {t.author.username.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="post-body">
-                  <div className="post-title-row">
-                    <Link href={`/t/${t.id}`} className="post-title" style={{ fontSize: 13 }}>
-                      {t.title}
-                    </Link>
-                    <span className="topic-pages">
-                      <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>{t._count.posts - 1} 回复</span>
-                    </span>
-                  </div>
-                  <div className="post-meta" style={{ fontSize: 11, marginTop: 2 }}>
-                    <span>{t.author.username}</span>
-                    <span style={{ color: "var(--text-subtle)" }}>· {t.board.name}</span>
-                  </div>
-                </div>
-                <Link href={`/c/${t.board.slug}`} className="post-tag" style={{ fontSize: 11 }}>
-                  {t.board.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div style={{ textAlign: "center", color: "var(--text-subtle)", fontSize: 12, padding: "4px 0" }}>
-        注册用户 {userCount} · 主题 {threadCount} · 帖子 {postCount}
+      <div style={{ textAlign: "center", color: "var(--text-subtle)", fontSize: 11, padding: "2px 0 8px" }}>
+        首页聚合全站主题 · 点击左侧版块仅看该版块
       </div>
     </div>
+  );
+}
+
+function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
+  const avatarLetter = (t.authorName || "?").slice(0, 1).toUpperCase();
+  return (
+    <li className="post-item">
+      <div className="post-avatar" style={{ overflow: "hidden" }}>
+        {t.authorAvatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={t.authorAvatarUrl} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          avatarLetter
+        )}
+      </div>
+      <div className="post-body">
+        <div className="post-title-row">
+          {pinned && <span className="topic-badge pinned">置顶</span>}
+          <Link href={`/t/${t.id}`} className="post-title">
+            {t.title}
+          </Link>
+          <span className="topic-pages" style={{ fontSize: 11 }}>
+            {t.replyCount > 0 ? `${t.replyCount} 回复` : "0 回复"}
+          </span>
+        </div>
+        <div className="post-meta">
+          <span>
+            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="8" r="4" stroke="currentColor" strokeWidth="1.7" />
+              <path d="M4 21c1.8-4 4.5-6 8-6s6.2 2 8 6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+            </svg>
+            {t.authorName}
+          </span>
+          <Link href={`/c/${t.boardSlug}`} style={{ color: "var(--text-subtle)" }}>
+            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="1.7" />
+              <path d="M8 9h8M8 13h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            {t.boardName}
+          </Link>
+          <span>
+            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M12 7v5l3 2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            {formatDate(t.lastPostAt)}
+          </span>
+        </div>
+      </div>
+      <Link href={`/c/${t.boardSlug}`} className="post-tag">
+        {t.boardName}
+      </Link>
+    </li>
   );
 }

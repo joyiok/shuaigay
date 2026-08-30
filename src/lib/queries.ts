@@ -4,14 +4,20 @@ import { decodeCursor, encodeCursor, type Cursor } from "./cursor";
 import { makeExcerpt } from "./excerpt";
 
 const threadInclude = {
-  author: { select: { username: true } },
+  author: { select: { username: true, avatarUrl: true } },
   _count: { select: { posts: true } },
-};
+} satisfies Prisma.ThreadInclude;
 
 const postInclude = {
-  author: { select: { username: true, role: true } },
+  author: { select: { username: true, role: true, avatarUrl: true } },
   attachments: true,
-};
+  // 编辑历史:只取最近 20 条,展开时够用
+  edits: {
+    orderBy: { createdAt: "desc" as const },
+    take: 20,
+    include: { editor: { select: { username: true } } },
+  },
+} satisfies Prisma.PostInclude;
 
 type ThreadRow = Prisma.ThreadGetPayload<{ include: typeof threadInclude }>;
 type PostRow = Prisma.PostGetPayload<{ include: typeof postInclude }>;
@@ -24,7 +30,16 @@ export interface ThreadListItem {
   createdAt: Date;
   lastPostAt: Date;
   authorName: string;
+  authorAvatarUrl: string | null;
   replyCount: number;
+}
+
+export interface PostEditListItem {
+  id: string;
+  editorName: string;
+  oldContentMd: string;
+  newContentMd: string;
+  createdAt: Date;
 }
 
 export interface PostListItem {
@@ -34,7 +49,9 @@ export interface PostListItem {
   authorId: string;
   authorName: string;
   authorRole: string;
+  authorAvatarUrl: string | null;
   attachments: { id: string; storedName: string; fileName: string; mimeType: string; sizeBytes: number }[];
+  edits: PostEditListItem[];
 }
 
 function toThreadListItem(t: ThreadRow): ThreadListItem {
@@ -46,6 +63,7 @@ function toThreadListItem(t: ThreadRow): ThreadListItem {
     createdAt: t.createdAt,
     lastPostAt: t.lastPostAt,
     authorName: t.author.username,
+    authorAvatarUrl: (t.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
     replyCount: Math.max(0, t._count.posts - 1),
   };
 }
@@ -58,12 +76,20 @@ function toPostListItem(p: PostRow): PostListItem {
     authorId: p.authorId,
     authorName: p.author.username,
     authorRole: p.author.role,
+    authorAvatarUrl: (p.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
     attachments: p.attachments.map((a) => ({
       id: a.id,
       storedName: a.storedName,
       fileName: a.fileName,
       mimeType: a.mimeType,
       sizeBytes: a.sizeBytes,
+    })),
+    edits: p.edits.map((e) => ({
+      id: e.id,
+      editorName: e.editor.username,
+      oldContentMd: e.oldContentMd,
+      newContentMd: e.newContentMd,
+      createdAt: e.createdAt,
     })),
   };
 }
@@ -86,7 +112,7 @@ export async function listThreads(boardId: string, cursor: Cursor | null, pageSi
           }
         : {}),
     },
-    orderBy: [{ lastPostAt: "desc" }, { id: "desc" }],
+    orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
     include: threadInclude,
   });
@@ -105,7 +131,7 @@ export async function listThreads(boardId: string, cursor: Cursor | null, pageSi
     : (
         await db.thread.findMany({
           where: { boardId, pinned: true },
-          orderBy: { lastPostAt: "desc" },
+          orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: threadInclude,
         })
@@ -132,6 +158,7 @@ export interface PostSearchItem {
   createdAt: Date;
   authorName: string;
   authorRole: string;
+  authorAvatarUrl: string | null;
 }
 
 /**
@@ -170,7 +197,7 @@ export async function searchThreads(
           : []),
       ],
     },
-    orderBy: [{ lastPostAt: "desc" }, { id: "desc" }],
+    orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
     include: {
       ...threadInclude,
@@ -218,10 +245,10 @@ export async function searchPosts(
           }
         : {}),
     },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
     include: {
-      author: { select: { username: true, role: true } },
+      author: { select: { username: true, role: true, avatarUrl: true } },
       thread: {
         select: {
           id: true,
@@ -251,6 +278,53 @@ export async function searchPosts(
       createdAt: p.createdAt,
       authorName: p.author.username,
       authorRole: p.author.role,
+      authorAvatarUrl: (p.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
+    })),
+    nextCursor,
+  };
+}
+
+export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
+  const rows = await db.thread.findMany({
+    where: {
+      pinned: false,
+      ...(cursor
+        ? {
+            OR: [
+              { lastPostAt: { lt: new Date(cursor.t) } },
+              { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
+            ],
+          }
+        : {}),
+    },
+    orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
+    take: pageSize + 1,
+    include: { ...threadInclude, board: { select: { slug: true, name: true } } },
+  });
+  const hasMore = rows.length > pageSize;
+  const items = rows.slice(0, pageSize);
+  const last = items[items.length - 1] as unknown as ThreadRow & { board: { slug: string; name: string } };
+  const nextCursor: string | null = hasMore && last ? encodeCursor({ t: last.lastPostAt.toISOString(), id: last.id }) : null;
+  const pinned = cursor
+    ? []
+    : (
+        await db.thread.findMany({
+          where: { pinned: true },
+          orderBy: { lastPostAt: "desc" as const },
+          take: 20,
+          include: { ...threadInclude, board: { select: { slug: true, name: true } } },
+        })
+      ).map((t) => ({
+        ...toThreadListItem(t),
+        boardSlug: (t as unknown as { board: { slug: string } }).board.slug,
+        boardName: (t as unknown as { board: { name: string } }).board.name,
+      }));
+  return {
+    pinned,
+    items: items.map((t) => ({
+      ...toThreadListItem(t),
+      boardSlug: (t as unknown as { board: { slug: string } }).board.slug,
+      boardName: (t as unknown as { board: { name: string } }).board.name,
     })),
     nextCursor,
   };
@@ -269,7 +343,7 @@ export async function listPosts(threadId: string, cursor: Cursor | null, pageSiz
           }
         : {}),
     },
-    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
     take: pageSize + 1,
     include: postInclude,
   });
