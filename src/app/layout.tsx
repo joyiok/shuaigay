@@ -70,7 +70,7 @@ export default async function RootLayout({
         <header className="site-header top">
           <div className="bar">
             <Link href="/" className="brand">
-              <span className="brand-mark">SG</span> SHUAI GAY
+              <span className="brand-mark">SG</span> SHUAI <i>GAY</i>
             </Link>
             <MobileDrawer
               boards={boards.map((b) => ({ slug: b.slug, name: b.name }))}
@@ -139,7 +139,7 @@ export default async function RootLayout({
                       </span>
                     )}
                   </Link>
-                  <Link href={`/?u=${encodeURIComponent(user.username)}`} style={{ fontWeight: 600 }}>
+                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 600 }}>
                     {user.username}
                   </Link>
                   {user.role === "ADMIN" && (
@@ -182,8 +182,8 @@ export default async function RootLayout({
                     style={{
                       background: "var(--brand)",
                       color: "#fff",
-                      padding: "4px 12px",
-                      borderRadius: 6,
+                      padding: "4px 14px",
+                      borderRadius: 999,
                       fontWeight: 600,
                     }}
                   >

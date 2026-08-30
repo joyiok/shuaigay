@@ -135,7 +135,7 @@ export default function MobileDrawer({
                 {user ? (
                   <>
                     <Link
-                      href={`/?u=${encodeURIComponent(user.username)}`}
+                      href={`/u/${encodeURIComponent(user.username)}`}
                       className="mobile-drawer-link"
                       onClick={close}
                     >
