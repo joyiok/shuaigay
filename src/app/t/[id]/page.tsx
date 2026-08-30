@@ -25,6 +25,7 @@ import UserAvatar from "@/components/UserAvatar";
 import { formatDate, formatBytes } from "@/lib/format";
 import { makeExcerpt } from "@/lib/excerpt";
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
+import { parseThreadId, slugify, threadHref } from "@/lib/slug";
 
 const ERRORS: Record<string, string> = {
   invalid: "内容格式不对",
@@ -44,7 +45,8 @@ export async function generateMetadata({
 }: {
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
-  const { id } = await params;
+  const { id: raw } = await params;
+  const id = parseThreadId(raw);
   const thread = await db.thread
     .findUnique({
       where: { id },
@@ -66,7 +68,7 @@ export async function generateMetadata({
   const description = rawExcerpt || `${thread.title} — 来自 ${thread.board.name} 版块，SHUAI GAY 社区的讨论。`;
   const title = `${thread.title} - ${thread.board.name} - SHUAI GAY 社区`;
   const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
-  const url = `${siteUrl}/t/${id}`;
+  const url = `${siteUrl}${threadHref(id, thread.title)}`;
   const keywords = [thread.title, thread.board.name, thread.author.username, "SHUAI GAY", "论坛", "社区"];
   return {
     title,
@@ -91,7 +93,8 @@ export async function generateMetadata({
 }
 
 /** 主题页数据加载:合并在 try/catch 外侧,notFound 不被误吞 */
-async function loadThreadPage(id: string, cursor: Cursor | null) {
+async function loadThreadPage(rawId: string, cursor: Cursor | null) {
+  const id = parseThreadId(rawId);
   const thread = await db.thread.findUnique({
     where: { id },
     include: { board: { select: { slug: true, name: true } } },
@@ -142,7 +145,7 @@ export default async function ThreadPage({
   const excerpt = (md: string) => md.replace(/\s+/g, " ").trim().slice(0, 200);
 
   const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
-  const canonical = `${siteUrl}/t/${thread.id}`;
+  const canonical = `${siteUrl}${threadHref(thread.id, thread.title)}`;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "DiscussionForumPosting",
@@ -331,7 +334,7 @@ export default async function ThreadPage({
       {nextCursor && (
         <div style={{ textAlign: "center" }}>
           <Link
-            href={`/t/${thread.id}?cursor=${nextCursor}`}
+            href={`${threadHref(thread.id, thread.title)}?cursor=${nextCursor}`}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -372,7 +375,7 @@ export default async function ThreadPage({
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>主题已锁定，无法回复。</p>
         ) : (
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
-            <Link href={`/login?next=${encodeURIComponent(`/t/${thread.id}`)}`} style={{ color: "var(--brand)" }}>
+            <Link href={`/login?next=${encodeURIComponent(threadHref(thread.id, thread.title))}`} style={{ color: "var(--brand)" }}>
               登录
             </Link>{" "}
             后回复

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { threadHref } from "@/lib/slug";
 
 interface SuggestItem {
   id: string;
@@ -140,11 +141,10 @@ export default function SearchAutocomplete({
   }
 
   function handleSuggestClick(item: SuggestItem) {
-    // 点击联想直接跳主题，同时把标题记入历史，方便下次一键填入
     const next = saveHistory(item.title);
     setHistory(next);
     setOpen(false);
-    router.push(`/t/${item.id}`);
+    router.push(threadHref(item.id, item.title));
   }
 
   function clearHistory() {

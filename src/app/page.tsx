@@ -3,6 +3,7 @@ import { listAllThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
 import UserAvatar from "@/components/UserAvatar";
+import { threadHref } from "@/lib/slug";
 
 const avatarColors = ["#ef4444", "#10b981", "#f59e0b", "#7c3aed", "#ec4899", "#06b6d4", "#8b5cf6", "#f97316"] as const;
 function getAvatarColor(name: string): string {
@@ -158,7 +159,7 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
       </div>
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8, alignItems: "center", paddingRight: 72 }}>
-          <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
+          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             {t.title}
           </Link>
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
