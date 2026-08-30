@@ -12,18 +12,28 @@ export default function ReportButton({ postId }: { postId: string }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<UiState>({ kind: "idle" });
 
+  const [open, setOpen] = useState(false);
   function openDialog() {
     setState({ kind: "idle" });
+    setOpen(true);
+    // 兼容原生 dialog 的 showModal，同时用 React open 状态兜底
+    requestAnimationFrame(() => {
+      const d = dialogRef.current;
+      if (!d) return;
+      try {
+        if (!d.open && typeof d.showModal === "function") d.showModal();
+      } catch {
+        d.setAttribute("open", "");
+      }
+      d.removeAttribute("hidden");
+    });
+  }
+  function closeDialog() {
+    setOpen(false);
     const d = dialogRef.current;
-    if (!d) return;
-    try {
-      if (typeof d.showModal === "function") d.showModal();
-      else d.setAttribute("open", "");
-    } catch {
-      d.setAttribute("open", "");
+    if (d?.open) {
+      try { d.close(); } catch { d.removeAttribute("open"); }
     }
-    // 确保隐藏的 backdrop 也可见（e2e 偶发 hidden）
-    d.removeAttribute("hidden");
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -65,7 +75,9 @@ export default function ReportButton({ postId }: { postId: string }) {
 
       <dialog
         ref={dialogRef}
+        open={open}
         className="report-dialog"
+        onClose={() => setOpen(false)}
         style={{
           border: "1px solid var(--line)",
           borderRadius: 12,
@@ -75,10 +87,10 @@ export default function ReportButton({ postId }: { postId: string }) {
           maxWidth: "calc(100vw - 32px)",
           padding: 0,
           boxShadow: "0 12px 32px var(--shadow-md)",
+          display: open ? "block" : "none",
         }}
         onClick={(e) => {
-          // 点遮罩关闭
-          if (e.target === dialogRef.current) dialogRef.current?.close();
+          if (e.target === dialogRef.current) closeDialog();
         }}
       >
         <form onSubmit={submit} style={{ display: "grid", gap: 10, padding: 14 }}>
@@ -166,7 +178,7 @@ export default function ReportButton({ postId }: { postId: string }) {
             {state.kind === "done" ? (
               <button
                 type="button"
-                onClick={() => dialogRef.current?.close()}
+                onClick={closeDialog}
                 style={{
                   height: 30,
                   padding: "0 14px",
@@ -183,7 +195,7 @@ export default function ReportButton({ postId }: { postId: string }) {
               <>
                 <button
                   type="button"
-                  onClick={() => dialogRef.current?.close()}
+                  onClick={closeDialog}
                   style={{
                     height: 30,
                     padding: "0 14px",
