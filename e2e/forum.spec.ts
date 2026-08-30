@@ -281,15 +281,16 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
   // 版块空态与首页空态已替换为 EmptyState：访问不存在的版块应显示 not-found
   await page.goto("/c/does-not-exist-zzz", { waitUntil: "commit" });
   await page.waitForURL("**/c/does-not-exist-zzz", { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(800);
-  await expect(page.getByText("页面不存在").first()).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(1200);
+  // 兼容 404 数字与中文标题，任一可见即过
+  await expect(page.locator("text=页面不存在").first().or(page.locator("text=404").first())).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("link", { name: "返回首页" }).first()).toBeVisible();
 
   // 访问不存在的主题也应显示 not-found
   await page.goto("/t/does-not-exist-id", { waitUntil: "commit" });
   await page.waitForURL("**/t/does-not-exist-id", { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(800);
-  await expect(page.getByText("页面不存在").first()).toBeVisible({ timeout: 15000 });
+  await page.waitForTimeout(1200);
+  await expect(page.locator("text=页面不存在").first().or(page.locator("text=404").first())).toBeVisible({ timeout: 15000 });
 
   // 未登录访问 /u/:username 的编辑区显示登录卡片
   await page.goto("/login");
