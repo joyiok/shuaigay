@@ -157,12 +157,12 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
         )}
       </div>
       <div className="post-body">
-        <div className="post-title-row" style={{ gap: 6 }}>
-          <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1 }}>
+        <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
+          <Link href={`/t/${t.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             {t.title}
           </Link>
-          {pinned && <span className="topic-badge pinned">置顶</span>}
-          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+          {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
+          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, marginLeft: "auto", flexShrink: 0 }}>
             {t.boardName}
           </span>
         </div>
