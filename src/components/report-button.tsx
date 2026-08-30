@@ -16,9 +16,21 @@ export default function ReportButton({ postId }: { postId: string }) {
   function openDialog() {
     setState({ kind: "idle" });
     setOpen(true);
+    // 同步兜底：React 状态更新是异步的，e2e 立即断言会看到 hidden，同步写 DOM 保底
+    const d = dialogRef.current;
+    if (d) {
+      d.setAttribute("open", "");
+      (d.style as CSSStyleDeclaration).display = "block";
+      d.removeAttribute("hidden");
+    }
   }
   function closeDialog() {
     setOpen(false);
+    const d = dialogRef.current;
+    if (d) {
+      d.removeAttribute("open");
+      (d.style as CSSStyleDeclaration).display = "none";
+    }
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
