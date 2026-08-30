@@ -326,6 +326,7 @@ export async function editPostAction(formData: FormData): Promise<void> {
       authorId: true,
       contentMd: true,
       threadId: true,
+      createdAt: true,
       thread: { select: { locked: true, board: { select: { slug: true } } } },
     },
   });
@@ -351,16 +352,21 @@ export async function editPostAction(formData: FormData): Promise<void> {
     redirect(`/t/${post.threadId}?error=ratelimited`);
   }
 
+  // 5 分钟内免留痕：发帖后 5 分钟内的编辑不写入 PostEdit 历史（视为 minor）
+  const isGracePeriod = Date.now() - new Date(post.createdAt).getTime() < 5 * 60 * 1000;
+
   try {
     await db.$transaction(async (tx) => {
-      await tx.postEdit.create({
-        data: {
-          postId: post.id,
-          editorId: user.id,
-          oldContentMd: post.contentMd,
-          newContentMd: content.data,
-        },
-      });
+      if (!isGracePeriod) {
+        await tx.postEdit.create({
+          data: {
+            postId: post.id,
+            editorId: user.id,
+            oldContentMd: post.contentMd,
+            newContentMd: content.data,
+          },
+        });
+      }
       await tx.post.update({
         where: { id: post.id },
         data: { contentMd: content.data },
@@ -370,7 +376,7 @@ export async function editPostAction(formData: FormData): Promise<void> {
         data: { lastPostAt: new Date() },
       });
     });
-    logger.info("post.edit", { userId: user.id, postId });
+    logger.info("post.edit", { userId: user.id, postId, grace: isGracePeriod });
   } catch (e) {
     logger.error("post.edit_failed", { userId: user.id, postId, error: String(e) });
     throw e;

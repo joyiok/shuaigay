@@ -2,6 +2,23 @@
 
 原创极简风格的高性能论坛 — 基于 Next.js 15 + Prisma + PostgreSQL + Redis + Caddy。
 
+## 一键部署
+
+> 极简一键（已配置 .env 后，宿主机需有 Node + npx）:
+>
+> ```bash
+> docker compose up -d && npx prisma migrate deploy && npx prisma db seed
+> ```
+>
+> 容器内等价（无需宿主机 Node，推荐生产）:
+>
+> ```bash
+> docker compose up -d --build
+> docker compose exec app sh -c "npx prisma migrate deploy && npx prisma db seed"
+> ```
+>
+> 备份恢复见下方 `docker/backup/restore.sh` 说明。
+
 ## 一键部署（生产）
 
 ### 1. 准备环境
@@ -20,6 +37,8 @@ cp .env.example .env
 ### 2. 启动
 
 ```bash
+docker compose up -d && npx prisma migrate deploy && npx prisma db seed
+# 或分步（容器启动时已自动 migrate deploy，可仅 seed）：
 docker compose up -d --build
 # 容器启动时自动执行 prisma migrate deploy,无需手工迁移
 # 查看日志
@@ -41,7 +60,27 @@ docker compose exec app sh -c "npm run db:seed"
 npm run db:seed
 ```
 
-### 4. 备份（可选）
+### 4. 备份与恢复
+
+`backup` 服务已随 compose 启动,每日自动 `pg_dump + restic` 到 `RESTIC_REPOSITORY`。生产建议设为 `b2:bucket:forum-backups` 并配置 `B2_ACCOUNT_ID / KEY` 与强 `RESTIC_PASSWORD`,配合 `HEALTHCHECK_URL` 接 healthchecks.io。
+
+**一键备份/恢复：**
+
+```bash
+# 手动触发备份（容器内）
+docker compose exec backup sh /scripts/backup.sh
+# 迁移前快照
+docker compose exec backup sh /scripts/pre-dump.sh
+# 恢复最近一次快照（会覆盖数据库，确认无人在线再执行）
+sh docker/backup/restore.sh              # 宿主机执行，恢复 latest
+sh docker/backup/restore.sh <snapshot-id>  # 指定快照 (restic snapshots 查看)
+# 容器内恢复
+docker compose exec backup sh /scripts/restore.sh
+```
+
+> 恢复脚本路径 `docker/backup/restore.sh` 已随仓库提供，详见该脚本头部注释；备份文件为 `*.sql.gz`，恢复后如需一并还原附件，执行 `rsync -a /tmp/restore/srv/uploads/ ./uploads/`（脚本会提示）。
+
+### 4.1 备份（可选）
 
 `backup` 服务已随 compose 启动,每日自动 `pg_dump + restic` 到 `RESTIC_REPOSITORY`。生产建议设为 `b2:bucket:forum-backups` 并配置 `B2_ACCOUNT_ID / KEY` 与强 `RESTIC_PASSWORD`,配合 `HEALTHCHECK_URL` 接 healthchecks.io。
 

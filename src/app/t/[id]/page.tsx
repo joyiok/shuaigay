@@ -21,6 +21,7 @@ import ReportButton from "@/components/report-button";
 import PostEditor from "@/components/PostEditor";
 import EditHistory from "@/components/EditHistory";
 import Turnstile from "@/components/Turnstile";
+import UserAvatar from "@/components/UserAvatar";
 import { formatDate, formatBytes } from "@/lib/format";
 import { makeExcerpt } from "@/lib/excerpt";
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
@@ -225,14 +226,7 @@ export default async function ThreadPage({
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
-                  <div className="post-avatar" style={{ width: 32, height: 32, fontSize: 12, overflow: "hidden" }}>
-                    {p.authorAvatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                    ) : (
-                      p.authorName.slice(0, 1).toUpperCase()
-                    )}
-                  </div>
+                  <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
                   {p.authorRole === "ADMIN" && (
                     <span style={{ background: "var(--inverse)", color: "var(--inverse-text)", fontSize: 10, padding: "2px 6px", borderRadius: 999 }}>管理员</span>

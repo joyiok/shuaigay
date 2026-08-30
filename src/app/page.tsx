@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listAllThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
+import UserAvatar from "@/components/UserAvatar";
 
 export default async function HomePage({
   searchParams,
@@ -114,17 +115,9 @@ export default async function HomePage({
 }
 
 function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
-  const avatarLetter = (t.authorName || "?").slice(0, 1).toUpperCase();
   return (
     <li className="post-item">
-      <div className="post-avatar" style={{ overflow: "hidden" }}>
-        {t.authorAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={t.authorAvatarUrl} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          avatarLetter
-        )}
-      </div>
+      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">置顶</span>}

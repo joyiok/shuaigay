@@ -6,6 +6,7 @@ import { formatDate } from "@/lib/format";
 import { Highlight } from "@/components/Highlight";
 import InfiniteList from "@/components/InfiniteList";
 import EmptyState from "@/components/EmptyState";
+import SearchAutocomplete from "@/components/SearchAutocomplete";
 import type { PostSearchItem, ThreadSearchItem } from "@/lib/queries";
 
 export const metadata = {
@@ -79,23 +80,11 @@ export default async function SearchPage({
         role="search"
       >
         <div style={{ display: "flex", gap: 8 }}>
-          <input
-            type="search"
-            name="q"
-            defaultValue={q}
+          <SearchAutocomplete
             placeholder="搜索主题与回复…"
-            maxLength={MAX_Q}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              height: 36,
-              padding: "0 12px",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              fontSize: 13,
-              outline: "none",
-              background: "var(--panel)",
-            }}
+            initialValue={q}
+            variant="inline"
+            standalone={false}
           />
           <button
             type="submit"

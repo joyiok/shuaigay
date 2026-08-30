@@ -20,12 +20,13 @@ interface ComposerProps {
 /**
  * 发帖/回帖共用编辑器:
  * - 正文 textarea(name=content)
+ * - Markdown 工具栏：加粗 / 斜体 / 链接 / 代码 / 引用
+ * - 预览 Tab：左侧 textarea，右侧实时渲染
  * - 粘贴图片 → 加入附件预览,随表单一起提交(隐藏 file input 同步)
  * - 多图缩略图展示 + 移除
  * - @提及自动补全
  * - 表情面板
- * - 「引用」按钮委托:点击楼层上的 .post-quote-btn 把 > 引用插入光标处
- * - 预览 Tab:左侧 textarea，右侧用 renderMarkdown 实时渲染（防抖 200ms），复用 post-content 样式
+ * - 「引用」按钮委托
  */
 export default function Composer({
   placeholder,
@@ -126,8 +127,67 @@ export default function Composer({
     );
     ta.focus();
     setText(ta.value);
-    // 让 @提及补全重新扫描光标位置
     ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  /** 包裹选中区：before + selected(或 placeholder) + after，并选中内部文本便于继续编辑 */
+  function wrapSelection(before: string, after: string, placeholder: string) {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? ta.value.length;
+    const end = ta.selectionEnd ?? ta.value.length;
+    const selected = ta.value.slice(start, end);
+    const inner = selected || placeholder;
+    const content = before + inner + after;
+    ta.setRangeText(content, start, end, "end");
+    const innerStart = start + before.length;
+    const innerEnd = innerStart + inner.length;
+    ta.setSelectionRange(innerStart, innerEnd);
+    ta.focus();
+    setText(ta.value);
+    ta.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function handleBold() {
+    wrapSelection("**", "**", "粗体文本");
+  }
+  function handleItalic() {
+    wrapSelection("*", "*", "斜体文本");
+  }
+  function handleLink() {
+    wrapSelection("[", "](https://example.com)", "链接文本");
+  }
+  function handleCode() {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const end = ta.selectionEnd ?? 0;
+    const selected = ta.value.slice(start, end);
+    if (selected.includes("\n")) {
+      wrapSelection("```\n", "\n```", "代码块");
+    } else {
+      wrapSelection("`", "`", "代码");
+    }
+  }
+  function handleQuote() {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const end = ta.selectionEnd ?? 0;
+    const selected = ta.value.slice(start, end);
+    if (selected) {
+      const quoted = selected
+        .split("\n")
+        .map((line) => `> ${line}`)
+        .join("\n");
+      ta.setRangeText(quoted, start, end, "end");
+      ta.setSelectionRange(start, start + quoted.length);
+      ta.focus();
+      setText(ta.value);
+      ta.dispatchEvent(new Event("input", { bubbles: true }));
+    } else {
+      insertAtCursor("> 引用文本", true);
+    }
   }
 
   // 「引用」按钮委托:楼层上带 .post-quote-btn 的按钮点击后插入引用块
@@ -158,6 +218,22 @@ export default function Composer({
     lineHeight: 1.6,
     resize: "vertical",
     minHeight: 90,
+  };
+
+  const mdBtnStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 28,
+    height: 28,
+    border: "1px solid var(--line)",
+    borderRadius: 6,
+    background: "var(--panel)",
+    fontSize: 12,
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    cursor: "pointer",
+    flexShrink: 0,
   };
 
   return (
@@ -198,6 +274,39 @@ export default function Composer({
         >
           预览
         </button>
+      </div>
+
+      {/* Markdown 工具栏（加粗/斜体/链接/代码/引用） */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          marginBottom: 8,
+          flexWrap: "wrap",
+          padding: "6px 8px",
+          border: "1px solid var(--line)",
+          borderRadius: 8,
+          background: "var(--bg)",
+        }}
+        aria-label="Markdown 工具栏"
+      >
+        <button type="button" onClick={handleBold} style={mdBtnStyle} title="加粗 (选中文字后点击)" aria-label="加粗">
+          <span style={{ fontWeight: 900 }}>B</span>
+        </button>
+        <button type="button" onClick={handleItalic} style={mdBtnStyle} title="斜体" aria-label="斜体">
+          <span style={{ fontStyle: "italic", fontWeight: 700 }}>I</span>
+        </button>
+        <button type="button" onClick={handleLink} style={mdBtnStyle} title="链接" aria-label="链接">
+          🔗
+        </button>
+        <button type="button" onClick={handleCode} style={mdBtnStyle} title="代码" aria-label="代码">
+          {"</>"}
+        </button>
+        <button type="button" onClick={handleQuote} style={mdBtnStyle} title="引用" aria-label="引用">
+          ❝
+        </button>
+        <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 6 }}>支持 Markdown · 选中文字后点击工具栏可包裹</span>
       </div>
 
       {tab === "edit" ? (

@@ -119,7 +119,8 @@ export async function registerAction(formData: FormData): Promise<void> {
   }
 
   await createSession(user.id);
-  redirect("/");
+  // 注册成功后直接带 sent 标记进入验证页，满足「注册后邮件提示可见」
+  redirect("/verify-email?sent=1");
 }
 
 const loginSchema = z.object({

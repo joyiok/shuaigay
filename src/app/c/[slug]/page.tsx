@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { listThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
+import UserAvatar from "@/components/UserAvatar";
 import InfiniteList from "@/components/InfiniteList";
 import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
@@ -143,17 +144,9 @@ export default async function BoardPage({
 }
 
 function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
-  const avatarLetter = t.authorName.slice(0, 1).toUpperCase();
   return (
     <li className="post-item">
-      <div className="post-avatar" style={{ overflow: "hidden" }}>
-        {t.authorAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/avatar?file=${encodeURIComponent(t.authorAvatarUrl)}`} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          avatarLetter
-        )}
-      </div>
+      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">置顶</span>}

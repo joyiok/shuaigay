@@ -7,6 +7,8 @@ import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
+import UserAvatar from "@/components/UserAvatar";
+import SearchAutocomplete from "@/components/SearchAutocomplete";
 
 // 站点绝对地址:生产环境请通过 SITE_URL 环境变量注入,缺省时不影响相对 SEO 配置
 const siteUrl = process.env.SITE_URL;
@@ -87,31 +89,13 @@ export default async function RootLayout({
                 </Link>
               ))}
             </nav>
-            <form
-              action="/search"
-              method="get"
-              className="search-page-link"
-              role="search"
-              aria-label="搜索"
-            >
-              <input
-                type="search"
-                name="q"
-                placeholder="搜索关键词"
-                aria-label="搜索关键词"
-                className="search-page-fake-input"
-                autoComplete="off"
-              />
-              <button type="submit" className="search-page-fake-icon" aria-label="提交搜索" title="搜索">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                  <circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="m13 13 4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-              </button>
-            </form>
+            <SearchAutocomplete variant="header" placeholder="搜索关键词" />
             <div className="nav-mine" style={{ display: "flex" }}>
               {user ? (
                 <>
+                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ display: "inline-flex", alignItems: "center" }} aria-label={`${user.username} 头像`}>
+                    <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={40} radius={10} />
+                  </Link>
                   <Link
                     href="/messages"
                     style={{ position: "relative", display: "inline-flex", alignItems: "center", color: "var(--text-muted)" }}
@@ -210,18 +194,7 @@ export default async function RootLayout({
                   {user ? (
                     <>
                       <div className="user-header">
-                        <div className="user-avatar-big" style={{ overflow: "hidden" }}>
-                          {user.avatarUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={`/api/avatar?file=${encodeURIComponent(user.avatarUrl)}`}
-                              alt={user.username}
-                              style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                            />
-                          ) : (
-                            user.username.slice(0, 1).toUpperCase()
-                          )}
-                        </div>
+                          <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={40} radius={10} />
                         <div>
                           <div className="user-name">{user.username}</div>
                           <div className="user-rank">{user.role === "ADMIN" ? "管理员" : "注册会员"}</div>
@@ -241,7 +214,7 @@ export default async function RootLayout({
                   ) : (
                     <>
                       <div className="user-header">
-                        <div className="user-avatar-big visitor-avatar">?</div>
+                        <div style={{ width: 40, height: 40, borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "var(--text-muted)", flexShrink: 0 }}>?</div>
                         <div>
                           <div className="user-name">访客</div>
                           <div className="user-rank">请登录后发帖</div>

@@ -1,6 +1,46 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+
+async function cropToSquare256(file: File): Promise<Blob> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = new window.Image();
+    img.decoding = "async" as const;
+    img.src = objectUrl;
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("图片加载失败"));
+    });
+    const size = 256;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Canvas 不可用");
+    // 白底，避免 JPEG 透明变黑
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, size, size);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    const srcW = img.naturalWidth;
+    const srcH = img.naturalHeight;
+    const side = Math.min(srcW, srcH);
+    const sx = (srcW - side) / 2;
+    const sy = (srcH - side) / 2;
+    ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error("裁剪失败"))),
+        "image/jpeg",
+        0.8
+      );
+    });
+    return blob;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
 
 export default function AvatarUploader({
   username,
@@ -16,10 +56,18 @@ export default function AvatarUploader({
   // initialUrl 已是 /api/avatar?file= 形式，或 null
   const currentSrc = preview ?? initialUrl;
 
+  // 清理 objectUrl
+  useEffect(() => {
+    return () => {
+      if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
     const f = e.target.files?.[0];
     if (!f) {
+      if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
       setPreview(null);
       return;
     }
@@ -27,9 +75,11 @@ export default function AvatarUploader({
       setError("图片不能超过 2MB");
       return;
     }
-    if (!["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type)) {
+    if (f.type && !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type)) {
       // 仍允许选择，后端会做魔数校验
     }
+    // 释放旧 preview
+    if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
     const url = URL.createObjectURL(f);
     setPreview(url);
   };
@@ -40,11 +90,30 @@ export default function AvatarUploader({
       setError("请先选择图片");
       return;
     }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("图片不能超过 2MB");
+      return;
+    }
     setUploading(true);
     setError(null);
     try {
+      // 前端 canvas 裁为 1:1 256px，压缩 0.8 再上传
+      let uploadBlob: Blob = file;
+      let uploadName = file.name;
+      try {
+        uploadBlob = await cropToSquare256(file);
+        // 统一为 jpg
+        uploadName = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+        if (!uploadName.toLowerCase().endsWith(".jpg")) uploadName += ".jpg";
+      } catch (err) {
+        // 裁剪失败则回退原文件直传，后端仍会校验
+        console.warn("[avatar] crop failed, fallback to raw", err);
+        uploadBlob = file;
+      }
       const fd = new FormData();
-      fd.set("avatar", file);
+      // 以 File 形式追加以保留文件名，后端取 file.mime 通过魔数校验
+      const toUpload = uploadBlob instanceof File ? uploadBlob : new File([uploadBlob], uploadName, { type: "image/jpeg" });
+      fd.set("avatar", toUpload);
       const res = await fetch("/api/avatar", { method: "POST", body: fd });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -124,6 +193,7 @@ export default function AvatarUploader({
               <button
                 type="button"
                 onClick={() => {
+                  if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
                   setPreview(null);
                   if (inputRef.current) inputRef.current.value = "";
                 }}
@@ -141,8 +211,8 @@ export default function AvatarUploader({
               </button>
             )}
           </div>
-          <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>
-            支持 JPG/PNG/GIF/WEBP，限 2MB，前端仅预览压缩，展示时等比裁剪
+          <span style={{ fontSize: 11, color: "var(--text-subtle)", lineHeight: 1.5 }}>
+            支持 JPG/PNG/GIF/WEBP，限 2MB，前端自动裁为 1:1 256×256 JPEG (q=0.8) 后上传至 /api/avatar
           </span>
         </div>
       </div>

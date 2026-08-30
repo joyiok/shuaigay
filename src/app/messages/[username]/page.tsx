@@ -2,15 +2,20 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { renderMarkdown } from "@/lib/markdown";
+import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import { formatDate } from "@/lib/format";
-import { sendMessageAction } from "@/app/actions/messages";
 import AuthRequired from "@/components/AuthRequired";
+import EmptyState from "@/components/EmptyState";
+import UserAvatar from "@/components/UserAvatar";
+import MessageComposer from "@/components/MessageComposer";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 对话页:展示我与 @username 的私信历史，底部可发送。
+ * - 输入框 Enter 发送（Shift+Enter 换行），@ 提及复用 MentionAutocomplete 高亮
+ * - 消息渲染时 @ 高亮（linkMentions）
+ * - 空态用 EmptyState
  * 进入时把对方发给我的未读标为已读。未登录展示登录卡片。
  */
 export default async function ConversationPage({
@@ -34,7 +39,7 @@ export default async function ConversationPage({
 
   const other = await db.user.findUnique({
     where: { username },
-    select: { id: true, username: true, bio: true },
+    select: { id: true, username: true, bio: true, avatarUrl: true },
   });
   if (!other) notFound();
   if (other.id === me.id) redirect("/messages");
@@ -58,6 +63,13 @@ export default async function ConversationPage({
     take: 200,
   });
 
+  // @高亮：收集候选并查真实用户
+  const candidates = collectMentionCandidates(messages.map((m) => m.contentMd));
+  const mentionUsers = candidates.length
+    ? await db.user.findMany({ where: { username: { in: candidates } }, select: { username: true } })
+    : [];
+  const existingMentions = new Set(mentionUsers.map((u) => u.username));
+
   const ERRORS: Record<string, string> = {
     invalid: "内容格式不对",
     sensitive: "内容包含敏感词，请修改后重试",
@@ -77,9 +89,7 @@ export default async function ConversationPage({
       </div>
 
       <div className="card" style={{ padding: 14, display: "flex", alignItems: "center", gap: 10 }}>
-        <div className="post-avatar" style={{ width: 38, height: 38, fontSize: 13 }}>
-          {other.username.slice(0, 1).toUpperCase()}
-        </div>
+        <UserAvatar username={other.username} avatarUrl={other.avatarUrl} size={40} radius={10} />
         <div>
           <div style={{ fontWeight: 800, fontSize: 14 }}>{other.username}</div>
           {other.bio ? (
@@ -126,13 +136,16 @@ export default async function ConversationPage({
 
       <div className="card" style={{ padding: 14, display: "grid", gap: 12 }}>
         {messages.length === 0 ? (
-          <p style={{ color: "var(--text-subtle)", fontSize: 13, textAlign: "center", margin: "12px 0" }}>
-            还没有消息，发一条打个招呼吧。
-          </p>
+          <EmptyState
+            variant="default"
+            title="还没有消息"
+            description={`和 ${other.username} 还没有消息，发一条打个招呼吧。支持 @提及 高亮。`}
+          />
         ) : (
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
             {messages.map((m) => {
               const isMe = m.senderId === me.id;
+              const html = linkMentions(renderMarkdown(m.contentMd), existingMentions);
               return (
                 <li
                   key={m.id}
@@ -160,7 +173,7 @@ export default async function ConversationPage({
                       }}
                     >
                       <div
-                        dangerouslySetInnerHTML={{ __html: renderMarkdown(m.contentMd) }}
+                        dangerouslySetInnerHTML={{ __html: html }}
                         style={{ wordBreak: "break-word" }}
                       />
                     </div>
@@ -182,43 +195,7 @@ export default async function ConversationPage({
           </ul>
         )}
 
-        <form action={sendMessageAction} style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line-soft)", paddingTop: 12 }}>
-          <input type="hidden" name="receiverUsername" value={other.username} />
-          <textarea
-            name="content"
-            required
-            rows={3}
-            placeholder={`给 ${other.username} 发私信… 支持 Markdown`}
-            style={{
-              width: "100%",
-              border: "1px solid var(--line)",
-              borderRadius: 8,
-              padding: "10px 12px",
-              fontSize: 13,
-              outline: "none",
-              lineHeight: 1.6,
-              resize: "vertical",
-              minHeight: 72,
-            }}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              type="submit"
-              style={{
-                height: 32,
-                padding: "0 16px",
-                background: "var(--brand)",
-                color: "#fff",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 600,
-                border: "1px solid var(--brand)",
-              }}
-            >
-              发送
-            </button>
-          </div>
-        </form>
+        <MessageComposer receiverUsername={other.username} />
       </div>
     </div>
   );

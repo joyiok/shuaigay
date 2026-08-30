@@ -3,13 +3,16 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import AuthRequired from "@/components/AuthRequired";
+import EmptyState from "@/components/EmptyState";
+import UserAvatar from "@/components/UserAvatar";
 
 export const dynamic = "force-dynamic";
 
 /**
  * 私信列表(需登录):
- * - 按会话聚合(对方用户为维度)，展示最新一条消息、时间、未读数
- * - 未登录展示登录卡片；无会话时给空状态 + 引导去找人
+ * - 按对方聚合未读数 badge
+ * - 列表按最后消息时间倒序
+ * - 空态用 EmptyState
  */
 export default async function MessagesPage() {
   const me = await getCurrentUser();
@@ -21,30 +24,31 @@ export default async function MessagesPage() {
     orderBy: { createdAt: "desc" },
     take: 200,
     include: {
-      sender: { select: { username: true } },
-      receiver: { select: { username: true } },
+      sender: { select: { username: true, avatarUrl: true } },
+      receiver: { select: { username: true, avatarUrl: true } },
     },
   });
 
-  // 聚合: counterpart -> { last, unread, total }
+  // 聚合: counterpart -> { last, unread, total, avatarUrl }
   const map = new Map<
     string,
-    { username: string; last: (typeof recent)[number]; unread: number; total: number }
+    { username: string; avatarUrl: string | null; last: (typeof recent)[number]; unread: number; total: number }
   >();
 
   for (const m of recent) {
     const isMeSender = m.senderId === me.id;
     const otherUsername = isMeSender ? m.receiver.username : m.sender.username;
+    const otherAvatar = isMeSender ? m.receiver.avatarUrl : m.sender.avatarUrl;
     const entry = map.get(otherUsername);
     if (!entry) {
       map.set(otherUsername, {
         username: otherUsername,
+        avatarUrl: otherAvatar ?? null,
         last: m,
         unread: !isMeSender && !m.read ? 1 : 0,
         total: 1,
       });
     } else {
-      // recent 已按时间倒序，last 保持第一条；只累计未读与总数
       entry.total += 1;
       if (!isMeSender && !m.read) entry.unread += 1;
     }
@@ -66,21 +70,18 @@ export default async function MessagesPage() {
       <div className="card" style={{ padding: 14 }}>
         <h1 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>私信</h1>
         <p style={{ color: "var(--text-subtle)", fontSize: 12, margin: "6px 0 0" }}>
-          与站内用户一对一私信 · 点击进入对话
+          与站内用户一对一私信 · 点击进入对话 · 未读按对方聚合
         </p>
       </div>
 
       {conversations.length === 0 ? (
-        <div className="card" style={{ padding: 24, textAlign: "center" }}>
-          <p style={{ color: "var(--text-muted)", fontSize: 13, margin: 0 }}>
-            还没有私信，去用户主页发起对话吧。
-          </p>
-          <p style={{ marginTop: 10 }}>
-            <Link href="/search" style={{ color: "var(--brand)", fontSize: 13 }}>
-              搜索用户 →
-            </Link>
-          </p>
-        </div>
+        <EmptyState
+          variant="default"
+          title="还没有私信"
+          description="去用户主页发起对话吧，支持 @提及 与 Markdown。"
+          actionLabel="搜索用户"
+          actionHref="/search"
+        />
       ) : (
         <div className="card" style={{ overflow: "hidden" }}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -99,12 +100,7 @@ export default async function MessagesPage() {
                     borderBottom: "1px solid var(--line-soft)",
                   }}
                 >
-                  <div
-                    className="post-avatar"
-                    style={{ width: 36, height: 36, fontSize: 12, flexShrink: 0 }}
-                  >
-                    {c.username.slice(0, 1).toUpperCase()}
-                  </div>
+                  <UserAvatar username={c.username} avatarUrl={c.avatarUrl} size={40} radius={10} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Link
@@ -124,6 +120,9 @@ export default async function MessagesPage() {
                             borderRadius: 999,
                             minWidth: 18,
                             textAlign: "center",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
                           }}
                         >
                           {c.unread}
