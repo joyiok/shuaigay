@@ -27,6 +27,7 @@ export interface ThreadListItem {
   title: string;
   pinned: boolean;
   locked: boolean;
+  views: number;
   createdAt: Date;
   lastPostAt: Date;
   authorName: string;
@@ -60,6 +61,7 @@ function toThreadListItem(t: ThreadRow): ThreadListItem {
     title: t.title,
     pinned: t.pinned,
     locked: t.locked,
+    views: (t as unknown as { views: number }).views ?? 0,
     createdAt: t.createdAt,
     lastPostAt: t.lastPostAt,
     authorName: t.author.username,

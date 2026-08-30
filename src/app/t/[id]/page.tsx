@@ -111,6 +111,10 @@ export default async function ThreadPage({
   if (!loaded) notFound();
 
   const { thread, user, items, nextCursor } = loaded;
+  // 访问量 +1（fire-and-forget，不阻塞渲染，失败静默）
+  const currentViews = (thread as unknown as { views: number }).views ?? 0;
+  void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
+  (thread as unknown as { views: number }).views = currentViews + 1;
   const admin = isAdmin(user);
 
   // @提及:一次性查出本页所有候选用户名,只有真实存在的用户才渲染成链接
@@ -142,11 +146,19 @@ export default async function ThreadPage({
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
           {thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
         </div>
-        <div style={{ color: "var(--text-subtle)", fontSize: 12 }}>
+        <div style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Link href={`/c/${thread.board.slug}`} style={{ color: "var(--brand)" }}>
             {thread.board.name}
-          </Link>{" "}
-          · 主题 {thread.id.slice(-6)}
+          </Link>
+          <span>· 主题 {thread.id.slice(-6)}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+            {(thread as unknown as { views: number }).views} 浏览
+          </span>
+          <span>· {items.length} 楼</span>
         </div>
         {admin && (
           <div style={{ display: "flex", gap: 8, marginTop: 10 }}>

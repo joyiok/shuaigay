@@ -111,6 +111,7 @@ model Thread {
   title      String
   pinned     Boolean  @default(false)
   locked     Boolean  @default(false)
+  views      Int      @default(0)
   createdAt  DateTime @default(now())
   // 列表按此字段游标分页,回复时更新
   lastPostAt DateTime @default(now())

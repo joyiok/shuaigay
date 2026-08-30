@@ -181,6 +181,13 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
           </span>
           <span>
             <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
+              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+            </svg>
+            {t.views ?? 0} 浏览
+          </span>
+          <span>
+            <svg className="meta-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
             </svg>
             {t.replyCount}

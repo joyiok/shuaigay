@@ -131,8 +131,15 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
           <Link href={`/t/${t.id}`} className="post-title">
             {t.title}
           </Link>
-          <span className="topic-pages" style={{ fontSize: 11 }}>
-            {t.replyCount > 0 ? `${t.replyCount} 回复` : "0 回复"}
+          <span className="topic-pages" style={{ fontSize: 11, display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3 }}>
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
+                <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+              </svg>
+              {t.views ?? 0}
+            </span>
+            <span>· {t.replyCount} 回复</span>
           </span>
         </div>
         <div className="post-meta">
