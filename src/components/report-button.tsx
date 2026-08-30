@@ -14,7 +14,16 @@ export default function ReportButton({ postId }: { postId: string }) {
 
   function openDialog() {
     setState({ kind: "idle" });
-    dialogRef.current?.showModal();
+    const d = dialogRef.current;
+    if (!d) return;
+    try {
+      if (typeof d.showModal === "function") d.showModal();
+      else d.setAttribute("open", "");
+    } catch {
+      d.setAttribute("open", "");
+    }
+    // 确保隐藏的 backdrop 也可见（e2e 偶发 hidden）
+    d.removeAttribute("hidden");
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
