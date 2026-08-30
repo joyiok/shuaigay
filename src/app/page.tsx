@@ -4,6 +4,21 @@ import { decodeCursor } from "@/lib/cursor";
 import { formatDate } from "@/lib/format";
 import UserAvatar from "@/components/UserAvatar";
 
+const avatarColors = ["#ef4444", "#10b981", "#f59e0b", "#7c3aed", "#ec4899", "#06b6d4", "#8b5cf6", "#f97316"];
+const getAvatarColor = (name: string) => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % avatarColors.length;
+  return avatarColors[h]!;
+};
+const boardBadge = (name: string) => {
+  if (name.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
+  if (name.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
+  if (name.includes("生活")) return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
+  if (name.includes("资源")) return { bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" };
+  if (name.includes("公告")) return { bg: "#fff7ed", color: "#ea580c", border: "#fed7aa" };
+  return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
+};
+
 export default async function HomePage({
   searchParams,
 }: {
@@ -14,21 +29,6 @@ export default async function HomePage({
 
   // 兼容旧逻辑：若数据库为空，仍展示友好空态（EmptyState 在 layout 侧边栏已展示版块）
   const isEmpty = pinned.length === 0 && items.length === 0;
-
-  const avatarColors = ["#ef4444", "#10b981", "#f59e0b", "#7c3aed", "#ec4899", "#06b6d4", "#8b5cf6", "#f97316"];
-  const getAvatarColor = (name: string) => {
-    let h = 0;
-    for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % avatarColors.length;
-    return avatarColors[h]!;
-  };
-  const boardBadge = (name: string) => {
-    if (name.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-    if (name.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
-    if (name.includes("生活")) return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
-    if (name.includes("资源")) return { bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" };
-    if (name.includes("公告")) return { bg: "#fff7ed", color: "#ea580c", border: "#fed7aa" };
-    return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-  };
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
