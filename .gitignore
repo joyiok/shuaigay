@@ -23,3 +23,6 @@ playwright-report/
 blob-report/
 playwright/.cache/
 .pi/
+.opencode/
+.omo/
+.codegraph/

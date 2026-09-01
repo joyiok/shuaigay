@@ -19,8 +19,11 @@ async function main() {
   });
 
   const boards = [
-    { slug: "general", name: "综合讨论", description: "随便聊聊", order: 1 },
-    { slug: "tech", name: "技术交流", description: "技术与开发", order: 2 },
+    { slug: "general", name: "综合讨论", description: "随便聊聊 · 寻找同好", order: 1 },
+    { slug: "tech", name: "技术交流", description: "代码 · 部署 · 折腾记录", order: 2 },
+    { slug: "life", name: "生活分享", description: "日常 · 随手拍 · 心情", order: 3 },
+    { slug: "resource", name: "资源互助", description: "资源 · 工具 · 经验共享", order: 4 },
+    { slug: "announce", name: "公告", description: "社区规范 · 更新公告", order: 5 },
   ];
   for (const board of boards) {
     await db.board.upsert({

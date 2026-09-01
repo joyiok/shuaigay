@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -42,6 +43,8 @@ export async function adminTogglePinAction(formData: FormData): Promise<void> {
   });
   await db.auditLog.create({ data: { actorId, action: "toggle_pin", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.toggle_pin", { actorId, threadId, pinned: !thread.pinned });
+  revalidateTag("threads");
+  revalidatePath("/");
   redirect(ADMIN_TAB("threads"));
 }
 
@@ -59,6 +62,7 @@ export async function adminToggleLockAction(formData: FormData): Promise<void> {
   });
   await db.auditLog.create({ data: { actorId, action: "toggle_lock", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.toggle_lock", { actorId, threadId, locked: !thread.locked });
+  revalidateTag("threads");
   redirect(ADMIN_TAB("threads"));
 }
 
@@ -73,6 +77,10 @@ export async function adminDeleteThreadAction(formData: FormData): Promise<void>
   await deleteThread(threadId);
   await db.auditLog.create({ data: { actorId, action: "delete_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.delete_thread", { actorId, threadId });
+  revalidateTag("stats");
+  revalidateTag("threads");
+  revalidateTag("boards");
+  revalidatePath("/");
   redirect(ADMIN_TAB("threads"));
 }
 
@@ -89,6 +97,9 @@ export async function adminDeletePostAction(formData: FormData): Promise<void> {
   await deletePost(postId);
   await db.auditLog.create({ data: { actorId, action: "delete_post", targetType: "post", targetId: postId } }).catch(() => {});
   logger.info("admin.delete_post", { actorId, postId });
+  revalidateTag("stats");
+  revalidateTag("threads");
+  revalidatePath("/");
   redirect(ADMIN_TAB("posts"));
 }
 
@@ -112,6 +123,7 @@ export async function setUserRoleAction(formData: FormData): Promise<void> {
   await db.user.update({ where: { id: userId }, data: { role: role.data } });
   await db.auditLog.create({ data: { actorId: admin.id, action: "set_role", targetType: "user", targetId: userId, detail: role.data } }).catch(() => {});
   logger.info("admin.set_role", { actorId: admin.id, userId, role: role.data });
+  revalidateTag("users");
   redirect(ADMIN_TAB("users"));
 }
 
@@ -129,6 +141,7 @@ export async function addPointsAction(formData: FormData): Promise<void> {
   });
   await db.auditLog.create({ data: { actorId, action: "add_points", targetType: "user", targetId: userId, detail: String(delta.data) } }).catch(() => {});
   logger.info("admin.add_points", { actorId, userId, delta: delta.data });
+  revalidateTag("users");
   redirect(ADMIN_TAB("users"));
 }
 
@@ -146,6 +159,7 @@ export async function banUserAction(formData: FormData): Promise<void> {
   await banUser(userId, reason, hours);
   await db.auditLog.create({ data: { actorId, action: "ban_user", targetType: "user", targetId: userId, detail: reason } }).catch(() => {});
   logger.info("admin.ban_user", { actorId, userId, reason, durationDays });
+  revalidateTag("users");
   redirect(ADMIN_TAB("users"));
 }
 
@@ -158,6 +172,7 @@ export async function unbanUserAction(formData: FormData): Promise<void> {
   await unbanUser(userId);
   await db.auditLog.create({ data: { actorId, action: "unban_user", targetType: "user", targetId: userId } }).catch(() => {});
   logger.info("admin.unban_user", { actorId, userId });
+  revalidateTag("users");
   redirect(ADMIN_TAB("users"));
 }
 
@@ -197,6 +212,8 @@ export async function createBoardAction(formData: FormData): Promise<void> {
   });
   await db.auditLog.create({ data: { actorId, action: "create_board", targetType: "board", detail: slug.data } }).catch(() => {});
   logger.info("admin.create_board", { actorId, slug: slug.data });
+  revalidateTag("boards");
+  revalidatePath("/");
   redirect(ADMIN_TAB("boards"));
 }
 
@@ -225,6 +242,10 @@ export async function deleteBoardAction(formData: FormData): Promise<void> {
   await Promise.all(atts.map((a) => storage.remove(a.storedName)));
   await db.auditLog.create({ data: { actorId, action: "delete_board", targetType: "board", targetId: boardId } }).catch(() => {});
   logger.info("admin.delete_board", { actorId, boardId });
+  revalidateTag("boards");
+  revalidateTag("stats");
+  revalidateTag("threads");
+  revalidatePath("/");
   redirect(ADMIN_TAB("boards"));
 }
 
@@ -261,6 +282,8 @@ export async function moveBoardAction(formData: FormData): Promise<void> {
   ]);
   await db.auditLog.create({ data: { actorId, action: "move_board", targetType: "board", targetId: boardId } }).catch(() => {});
   logger.info("admin.move_board", { actorId, boardId, dir });
+  revalidateTag("boards");
+  revalidatePath("/");
   redirect(ADMIN_TAB("boards"));
 }
 

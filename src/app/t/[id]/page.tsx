@@ -144,7 +144,7 @@ export default async function ThreadPage({
   /** 引用按钮用到的楼层摘要:去空白、截断 */
   const excerpt = (md: string) => md.replace(/\s+/g, " ").trim().slice(0, 200);
 
-  const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
+  const siteUrl = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
   const canonical = `${siteUrl}${threadHref(thread.id, thread.title)}`;
   const jsonLd = {
     "@context": "https://schema.org",
@@ -161,10 +161,20 @@ export default async function ThreadPage({
       { "@type": "InteractionCounter", interactionType: "https://schema.org/CommentAction", userInteractionCount: items.length },
     ],
   };
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "首页", item: siteUrl },
+      { "@type": "ListItem", position: 2, name: thread.board.name, item: `${siteUrl}/c/${thread.board.slug}` },
+      { "@type": "ListItem", position: 3, name: thread.title, item: canonical },
+    ],
+  };
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <link rel="canonical" href={canonical} />
       <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
         <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">

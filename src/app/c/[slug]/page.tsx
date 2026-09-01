@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { listThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
@@ -11,6 +12,23 @@ import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import type { ThreadListItem } from "@/lib/queries";
 import type { Cursor } from "@/lib/cursor";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const board = await db.board.findUnique({ where: { slug } }).catch(() => null);
+  if (!board) return { title: "版块不存在" };
+  const site = process.env.SITE_URL ?? "https://forum.example.com";
+  const url = `${site}/c/${board.slug}`;
+  const title = `${board.name} - SHUAI GAY 社区`;
+  const description = board.description || `${board.name} — SHUAI GAY 社区的讨论版块。`;
+  return {
+    title,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title, description, url, type: "website", siteName: "SHUAI GAY 社区", locale: "zh_CN" },
+    twitter: { card: "summary", title, description },
+  };
+}
 
 /** 版块数据加载:合并在 try/catch 外侧,notFound 不被误吞 */
 async function loadBoardPage(boardId: string, cursor: Cursor | null) {
@@ -44,14 +62,42 @@ export default async function BoardPage({
   }
   const { pinned, items, nextCursor } = loaded;
 
+  const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "首页", item: siteOrigin },
+      { "@type": "ListItem", position: 2, name: board.name, item: `${siteOrigin}/c/${board.slug}` },
+    ],
+  };
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: board.name,
+    description: board.description ?? `${board.name} 版块`,
+    url: `${siteOrigin}/c/${board.slug}`,
+    isPartOf: { "@type": "WebSite", name: "SHUAI GAY 论坛", url: siteOrigin },
+  };
+
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <div className="breadcrumb">
-        <Link href="/">首页</Link>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
+      <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link itemProp="item" href="/">
+            <span itemProp="name">首页</span>
+          </Link>
+          <meta itemProp="position" content="1" />
+        </span>
         <span>/</span>
-        <Link href={`/c/${board.slug}`} style={{ fontWeight: 600, color: "var(--text)" }}>
-          {board.name}
-        </Link>
+        <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+          <Link itemProp="item" href={`/c/${board.slug}`} style={{ fontWeight: 600, color: "var(--text)" }}>
+            <span itemProp="name">{board.name}</span>
+          </Link>
+          <meta itemProp="position" content="2" />
+        </span>
       </div>
 
       <div className="card" style={{ padding: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>

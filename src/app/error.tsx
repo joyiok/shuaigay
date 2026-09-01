@@ -21,12 +21,12 @@ export default function GlobalError({
         style={{
           width: 72,
           height: 72,
-          borderRadius: 999,
-          background: "#f1f5f9",
-          border: "1px solid #e2e8f0",
+          borderRadius: 16,
+          background: "var(--bg-soft)",
+          border: "1px solid var(--line)",
           display: "grid",
           placeItems: "center",
-          color: "#0f172a",
+          color: "var(--brand)",
         }}
       >
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -37,8 +37,8 @@ export default function GlobalError({
       </div>
 
       <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a", letterSpacing: "-0.02em" }}>出了点问题</h1>
-        <p style={{ margin: 0, color: "#64748b", fontSize: 13, lineHeight: 1.7 }}>
+        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>出了点问题</h1>
+        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 13, lineHeight: 1.7 }}>
           页面加载时遇到错误，请重试。若持续出现，可能是网络或服务暂时不可用。
         </p>
         {error?.digest && (
@@ -56,13 +56,14 @@ export default function GlobalError({
             justifyContent: "center",
             height: 36,
             padding: "0 18px",
-            background: "#0f172a",
+            background: "linear-gradient(135deg,#7c3aed,#a855f7)",
             color: "#fff",
             borderRadius: 999,
             fontSize: 13,
             fontWeight: 700,
-            border: "1px solid #0f172a",
+            border: "1px solid transparent",
             cursor: "pointer",
+            boxShadow: "0 4px 12px rgba(124,58,237,0.22)",
           }}
         >
           重试
@@ -75,19 +76,20 @@ export default function GlobalError({
             justifyContent: "center",
             height: 36,
             padding: "0 18px",
-            background: "#fff",
-            color: "#0f172a",
+            background: "var(--panel)",
+            color: "var(--text)",
             borderRadius: 999,
             fontSize: 13,
             fontWeight: 600,
-            border: "1px solid #e2e8f0",
+            border: "1px solid var(--line)",
+            textDecoration: "none",
           }}
         >
           返回首页
         </a>
       </div>
 
-      <p style={{ margin: 0, fontSize: 11, color: "#94a3b8" }}>slate-900 · 极简错误态</p>
+      <p style={{ margin: 0, fontSize: 11, color: "var(--text-subtle)" }}>SHUAI GAY · 活力渐变 · 极简错误态</p>
     </div>
   );
 }

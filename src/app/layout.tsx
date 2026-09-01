@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
@@ -6,30 +6,52 @@ import { trackAndCountOnline } from "@/lib/online";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
+import { siteUrl } from "@/lib/site";
+import { getCachedActiveUsers, getCachedBoards, getCachedHotTopics, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
+import ForumNav from "@/components/ForumNav";
 
-// 站点绝对地址:生产环境请通过 SITE_URL 环境变量注入,缺省时不影响相对 SEO 配置
-const siteUrl = process.env.SITE_URL;
+const site = siteUrl();
+const siteOrigin = site.origin;
 
 export const metadata: Metadata = {
-  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
-  title: { default: "论坛", template: "%s · 论坛" },
-  description: "自研论坛",
+  metadataBase: site,
+  title: { default: "SHUAI GAY 论坛 · 开放 · 克制 · 高效", template: "%s · SHUAI GAY 论坛" },
+  description: "SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。",
+  keywords: ["SHUAI GAY", "论坛", "社区", "技术交流", "综合讨论", "生活分享", "资源互助"],
+  authors: [{ name: "SHUAI GAY" }],
+  creator: "SHUAI GAY",
+  category: "community",
+  alternates: { canonical: siteOrigin },
   openGraph: {
     type: "website",
     siteName: "SHUAI GAY 论坛",
-    title: "SHUAI GAY 论坛",
-    description: "开放 · 克制 · 高效 —— 原创极简风格的论坛",
+    title: "SHUAI GAY 论坛 · 开放 · 克制 · 高效",
+    description: "连接兴趣 · 遇见同好 · 分享精彩 — 原创极简风格的高性能社区。",
     locale: "zh_CN",
+    url: siteOrigin,
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "SHUAI GAY 论坛",
-    description: "开放 · 克制 · 高效 —— 原创极简风格的论坛",
+    description: "开放 · 克制 · 高效 — 原创极简风格的社区。",
   },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+  },
+  verification: {},
+};
+
+export const viewport: Viewport = {
+  themeColor: "#7c3aed",
+  colorScheme: "light",
+  width: "device-width",
+  initialScale: 1,
 };
 
 export default async function RootLayout({
@@ -40,37 +62,16 @@ export default async function RootLayout({
   const user = await getCurrentUser();
   const online = await trackAndCountOnline(user?.id);
 
-  // 顶部导航与侧边栏共用的版块列表
-  const boards = await db.board
-    .findMany({
-      orderBy: { order: "asc" },
-      include: { _count: { select: { threads: true } } },
-      take: 8,
-    })
-    .catch(() => [] as never[]);
-
-  // 侧边栏统计 + 热门话题 + 活跃用户
-  const [userCount, threadCount, postCount, hotTopics, activeUsers] = await Promise.all([
-    db.user.count().catch(() => 0),
-    db.thread.count().catch(() => 0),
-    db.post.count().catch(() => 0),
-    db.thread
-      .findMany({
-        orderBy: { lastPostAt: "desc" },
-        take: 5,
-        select: { id: true, title: true, board: { select: { name: true } }, _count: { select: { posts: true } } },
-      })
-      .catch(() => [] as never[]),
-    db.user
-      .findMany({
-        orderBy: { threads: { _count: "desc" } },
-        take: 5,
-        select: { username: true, avatarUrl: true },
-      })
-      .catch(() => [] as never[]),
+  // —— 性能：板块/统计/热帖/活跃用户走 60s 缓存，避免每请求 5 次 DB（A+B）——
+  const [boards, stats, hotTopics, activeUsers] = await Promise.all([
+    getCachedBoards(),
+    getCachedStats(),
+    getCachedHotTopics(),
+    getCachedActiveUsers(),
   ]);
+  const { userCount, threadCount, postCount } = stats;
 
-  // 私信未读数（顶部红点）
+  // 私信未读数（实时，不缓存）
   let unreadCount = 0;
   if (user) {
     try {
@@ -80,30 +81,61 @@ export default async function RootLayout({
     } catch {}
   }
 
+  // —— SEO：站点级 JSON-LD（C）——
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "SHUAI GAY 论坛",
+    url: siteOrigin,
+    description: "开放 · 克制 · 高效 — 原创极简风格社区",
+    inLanguage: "zh-CN",
+    potentialAction: {
+      "@type": "SearchAction",
+      target: `${siteOrigin}/search?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
+  };
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "SHUAI GAY 论坛",
+    url: siteOrigin,
+    logo: `${siteOrigin}/og.png`,
+  };
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "首页", item: siteOrigin },
+    ],
+  };
+
   return (
     <html lang="zh-CN">
+      <head>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      </head>
       <body>
+        <a href="#main-content" className="skip-link">
+          跳到主内容
+        </a>
         {/* 顶部栏 - 原创极简风格 */}
         <header className="site-header top">
           <div className="bar">
-            <Link href="/" className="brand">
+            <Link href="/" className="brand" aria-label="SHUAI GAY 论坛首页">
               <span className="brand-mark">SG</span> SHUAI <i>GAY</i>
             </Link>
             <MobileDrawer
-              boards={boards.map((b) => ({ slug: b.slug, name: b.name }))}
+              boards={boards.map((b) => ({ slug: b.slug, name: b.name, threads: (b as any)._count?.threads ?? 0 }))}
               user={user ? { username: user.username, role: user.role } : null}
               unreadCount={unreadCount}
+              stats={{ userCount, threadCount, postCount, online }}
+              hotTopics={hotTopics.map((t: any) => ({ id: t.id, title: t.title, replyCount: Math.max(0, (t._count?.posts ?? 1) - 1) }))}
+              activeUsers={activeUsers as any}
             />
-            <nav className="forum-nav" aria-label="顶部版块">
-              <Link href="/" className="forum-link active">
-                全部主题
-              </Link>
-              {boards.map((b) => (
-                <Link key={b.id} href={`/c/${b.slug}`} className="forum-link">
-                  {b.name}
-                </Link>
-              ))}
-            </nav>
+            <ForumNav boards={boards.map((b) => ({ slug: b.slug, name: b.name }))} />
             <SearchAutocomplete variant="header" placeholder="搜索关键词" />
             <div className="nav-mine" style={{ display: "flex" }}>
               {user ? (
@@ -196,13 +228,13 @@ export default async function RootLayout({
 
         <div className="wrap">
           <div className="forum-layout forum-layout-has-sidebar">
-            <div className="forum-main">
+            <div className="forum-main" id="main-content" tabIndex={-1}>
               <div className="home-shell" style={{ padding: 0, overflow: "hidden", border: "none", boxShadow: "none", background: "transparent" }}>
                 {children}
               </div>
             </div>
 
-            <aside className="sidebar">
+            <aside className="sidebar" aria-label="侧边栏">
               {/* 欢迎卡 — 参考图 */}
               <div className="welcome-card">
                 <div style={{ position: "relative", zIndex: 1 }}>
@@ -256,23 +288,34 @@ export default async function RootLayout({
                 </div>
               </div>
 
-              {/* 热门话题 — 参考图 */}
+              {/* 热门话题 — 版块 + 热帖分开，信息更清晰 */}
               <div className="card">
                 <div className="quick-wrap">
                   <div className="quick-title">热门话题 <Link href="/search" style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>换一换</Link></div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: hotTopics.length ? 12 : 0 }}>
                     {boards.map((b) => (
-                      <Link key={b.id} href={`/c/${b.slug}`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12 }}>
-                        <span style={{ color: "var(--brand)", fontWeight: 600 }}>{b.name}</span>
-                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11 }}>{b._count.threads}</span>
-                      </Link>
-                    ))}
-                    {hotTopics.map((t: any) => (
-                      <Link key={t.id} href={threadHref(t.id, t.title)} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "4px 10px", fontSize: 12, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {t.title.slice(0, 8)}
+                      <Link key={b.id} href={`/c/${b.slug}`} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 500, transition: "all 0.14s" }}>
+                        <span style={{ color: "var(--brand)", fontWeight: 700 }}>{b.name}</span>
+                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{(b as any)._count.threads}</span>
                       </Link>
                     ))}
                   </div>
+                  {hotTopics.length > 0 && (
+                    <>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={{ width: 3, height: 12, borderRadius: 999, background: "var(--brand)" }} /> 最新热帖
+                      </div>
+                      <div style={{ display: "grid", gap: 6 }}>
+                        {hotTopics.map((t: any, idx: number) => (
+                          <Link key={t.id} href={threadHref(t.id, t.title)} title={t.title} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--bg-soft)", fontSize: 12, color: "var(--text)", minWidth: 0, transition: "all 0.14s", textDecoration: "none" }}>
+                            <span style={{ width: 20, height: 20, borderRadius: 6, background: idx === 0 ? "#fef3c7" : idx === 1 ? "#ede9fe" : "#f3f4f6", color: idx === 0 ? "#d97706" : idx === 1 ? "#7c3aed" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{idx + 1}</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{t.title}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fff", border: "1px solid var(--line)", padding: "1px 6px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0 }}>💬 {Math.max(0, (t._count?.posts ?? 1) - 1)}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -310,7 +353,18 @@ export default async function RootLayout({
         <FloatingNewThread firstBoardSlug={boards[0]?.slug ?? null} />
 
         <footer className="footer">
-          <div className="runtime-info">© 2026 SHUAI GAY</div>
+          <div className="runtime-info">© 2026 SHUAI GAY · 开放 · 克制 · 高效</div>
+          <div className="footer-links">
+            <Link href="/">首页</Link>
+            <span aria-hidden>·</span>
+            <Link href="/search">搜索</Link>
+            <span aria-hidden>·</span>
+            <Link href="/sitemap.xml">Sitemap</Link>
+            <span aria-hidden>·</span>
+            <Link href="/robots.txt">Robots</Link>
+            <span aria-hidden>·</span>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+          </div>
         </footer>
       </body>
     </html>

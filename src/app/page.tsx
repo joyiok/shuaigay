@@ -28,11 +28,38 @@ export default async function HomePage({
   const { cursor: rawCursor } = await searchParams;
   const { pinned, items, nextCursor } = await listAllThreads(decodeCursor(rawCursor), 20);
 
+  // C：首页 ItemList 结构化数据（利于收录，20 条内）
+  const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
+  const allForLd = [...pinned, ...items].slice(0, 20);
+  const itemListJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ItemList",
+    name: "最新主题 · SHUAI GAY 论坛",
+    url: siteOrigin,
+    numberOfItems: allForLd.length,
+    itemListElement: allForLd.map((t: any, idx: number) => ({
+      "@type": "ListItem",
+      position: idx + 1,
+      url: `${siteOrigin}${threadHref(t.id, t.title)}`,
+      name: t.title,
+    })),
+  };
+  const collectionJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "SHUAI GAY 论坛 · 全部主题",
+    description: "综合讨论、技术交流、生活分享与资源互助的极简社区",
+    url: siteOrigin,
+    isPartOf: { "@type": "WebSite", name: "SHUAI GAY 论坛", url: siteOrigin },
+  };
+
   // 兼容旧逻辑：若数据库为空，仍展示友好空态（EmptyState 在 layout 侧边栏已展示版块）
   const isEmpty = pinned.length === 0 && items.length === 0;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       {/* Banner — 参考图 */}
       <div className="banner">
         <div className="banner-left">
@@ -145,51 +172,44 @@ export default async function HomePage({
 }
 
 function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
-  const bg = getAvatarColor(t.authorName);
   const badge = boardBadge(t.boardName);
   return (
-    <li className="post-item" style={{ gap: 12, position: "relative" }}>
-      <div style={{ width: 36, height: 36, borderRadius: 10, background: bg, color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0, overflow: "hidden" }}>
-        {t.authorAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={t.authorAvatarUrl} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          t.authorName.slice(0, 1).toUpperCase()
-        )}
-      </div>
+    <li className="post-item" style={{ gap: 12 }}>
+      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={36} radius={10} />
       <div className="post-body">
-        <div className="post-title-row" style={{ gap: 8, alignItems: "center", paddingRight: 72 }}>
-          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
+        <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
+          {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
+          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }} title={t.title}>
             {t.title}
           </Link>
-          {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
-          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, position: "absolute", right: 14, top: 12, flexShrink: 0 }}>
+          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, flexShrink: 0 }}>
             {t.boardName}
           </span>
         </div>
         <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
           <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(t.lastPostAt).split(" ")[0]}</span>
+          {t.replyCount > 8 && <span style={{ background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 700 }}>热门</span>}
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0, textAlign: "right" }} className="post-right">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, color: "var(--text-subtle)", fontSize: 12 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 12 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
               <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
             </svg>
             {t.views ?? 0}
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
               <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
             </svg>
             {t.replyCount}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-subtle)" }}>
-          <span style={{ fontWeight: 600, color: "var(--text)" }}>{t.authorName}</span>
+          <span style={{ fontWeight: 600, color: "var(--text)", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.authorName}</span>
           <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={20} radius={6} />
         </div>
       </div>

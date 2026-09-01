@@ -157,9 +157,32 @@ export default function InfiniteList({
 }
 
 function renderThreadRow(t: ThreadItem, query: string) {
+  const boardBg = (() => {
+    const n = t.boardName ?? "";
+    if (n.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
+    if (n.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
+    if (n.includes("生活")) return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
+    if (n.includes("资源")) return { bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" };
+    return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
+  })();
   return (
-    <li key={t.id} className="post-item">
-      <div className="post-avatar" style={{ overflow: "hidden" }}>
+    <li key={t.id} className="post-item" style={{ gap: 12 }}>
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: "linear-gradient(135deg,#7c3aed,#ec4899)",
+          color: "#fff",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: 13,
+          flexShrink: 0,
+          overflow: "hidden",
+        }}
+      >
         {t.authorAvatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/avatar?file=${encodeURIComponent(t.authorAvatarUrl)}`} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -167,40 +190,50 @@ function renderThreadRow(t: ThreadItem, query: string) {
           t.authorName.slice(0, 1).toUpperCase()
         )}
       </div>
-      <div className="post-body">
-        <div className="post-title-row">
+      <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
+        <div className="post-title-row" style={{ gap: 8 }}>
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
-          {t.locked && (
-            <span className="topic-badge" style={{ background: "var(--line-soft)" }}>
-              已锁
-            </span>
-          )}
-          <Link href={threadHref(t.id, t.title)} className="post-title">
+          {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={t.title} query={query} />
           </Link>
-          {t.replyCount > 0 && (
-            <span className="topic-pages" style={{ color: "var(--text-subtle)", fontSize: 11 }}>
-              {t.replyCount}
+          {t.boardName && (
+            <span className="topic-badge" style={{ background: boardBg.bg, color: boardBg.color, border: `1px solid ${boardBg.border}` }}>
+              {t.boardName}
             </span>
           )}
         </div>
-        <div className="post-meta">
-          <span>{t.authorName}</span>
-          {t.boardName ? <span>{t.boardName}</span> : null}
-          <span>{formatDate(new Date(t.lastPostAt))}</span>
+        <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
+          <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
+          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(new Date(t.lastPostAt)).split(" ")[0]}</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
+            💬 {t.replyCount}
+          </span>
         </div>
       </div>
-      <Link href={threadHref(t.id, t.title)} className="post-tag">
-        查看
-      </Link>
     </li>
   );
 }
 
 function renderPostRow(p: PostItem, query: string) {
   return (
-    <li key={p.id} className="post-item">
-      <div className="post-avatar" style={{ overflow: "hidden" }}>
+    <li key={p.id} className="post-item" style={{ gap: 12 }}>
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 10,
+          background: "linear-gradient(135deg,#10b981,#06b6d4)",
+          color: "#fff",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 800,
+          fontSize: 13,
+          flexShrink: 0,
+          overflow: "hidden",
+        }}
+      >
         {p.authorAvatarUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -208,27 +241,24 @@ function renderPostRow(p: PostItem, query: string) {
           p.authorName.slice(0, 1).toUpperCase()
         )}
       </div>
-      <div className="post-body">
-        <div className="post-title-row">
-          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title">
+      <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
+        <div className="post-title-row" style={{ gap: 8 }}>
+          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={p.threadTitle} query={query} />
           </Link>
-          <span className="topic-badge" style={{ background: "var(--line-soft)" }}>
+          <span className="topic-badge" style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", color: "var(--text-muted)" }}>
             回复
           </span>
         </div>
-        <div className="post-excerpt">
+        <div className="post-excerpt" style={{ marginTop: 4 }}>
           <Highlight text={p.excerpt} query={query} />
         </div>
-        <div className="post-meta">
-          <span>{p.authorName}</span>
-          <span>{p.boardName}</span>
-          <span>{formatDate(new Date(p.createdAt))}</span>
+        <div className="post-meta" style={{ gap: 8, marginTop: 4 }}>
+          <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{p.authorName}</span>
+          <span style={{ color: "var(--text-subtle)" }}>· {p.boardName}</span>
+          <span style={{ color: "var(--text-subtle)" }}>· {formatDate(new Date(p.createdAt)).split(" ")[0]}</span>
         </div>
       </div>
-      <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-tag">
-        查看
-      </Link>
     </li>
   );
 }

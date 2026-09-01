@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { revalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -205,6 +206,12 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     });
     threadId = thread.id;
     logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip });
+    // B：缓存失效 — 统计与热帖随新帖变化
+    revalidateTag("stats");
+    revalidateTag("threads");
+    revalidateTag("boards");
+    revalidatePath("/");
+    revalidatePath(`/c/${board.slug}`);
   } catch (e) {
     await Promise.all(attachmentRows.map((r) => storage.remove(r.storedName)));
     logger.error("thread.create_failed", { userId: user.id, error: String(e) });
@@ -301,6 +308,10 @@ export async function replyAction(formData: FormData): Promise<void> {
       }
     });
     logger.info("post.reply", { userId: user.id, threadId, ip });
+    revalidateTag("stats");
+    revalidateTag("threads");
+    revalidatePath(`/t/${thread.id}`);
+    revalidatePath("/");
   } catch (e) {
     await Promise.all(attachmentRows.map((r) => storage.remove(r.storedName)));
     logger.error("post.reply_failed", { userId: user.id, threadId, error: String(e) });
@@ -377,6 +388,8 @@ export async function editPostAction(formData: FormData): Promise<void> {
       });
     });
     logger.info("post.edit", { userId: user.id, postId, grace: isGracePeriod });
+    revalidateTag("threads");
+    revalidatePath(`/t/${post.threadId}`);
   } catch (e) {
     logger.error("post.edit_failed", { userId: user.id, postId, error: String(e) });
     throw e;
@@ -427,6 +440,11 @@ export async function deletePostAction(formData: FormData): Promise<void> {
     await db.thread.delete({ where: { id: post.threadId } });
     await Promise.all(all.map((a) => storage.remove(a.storedName)));
     logger.info("thread.delete_by_author", { userId: user.id, threadId: post.threadId });
+    revalidateTag("stats");
+    revalidateTag("threads");
+    revalidateTag("boards");
+    revalidatePath("/");
+    revalidatePath(`/c/${post.thread.board.slug}`);
     redirect(`/c/${post.thread.board.slug}`);
   } else {
     const atts = await db.attachment.findMany({
@@ -436,6 +454,9 @@ export async function deletePostAction(formData: FormData): Promise<void> {
     await db.post.delete({ where: { id: post.id } });
     await Promise.all(atts.map((a) => storage.remove(a.storedName)));
     logger.info("post.delete", { userId: user.id, postId });
+    revalidateTag("stats");
+    revalidateTag("threads");
+    revalidatePath(`/t/${post.threadId}`);
     redirect(`/t/${post.threadId}`);
   }
 }
@@ -456,6 +477,9 @@ export async function togglePinAction(formData: FormData): Promise<void> {
     data: { pinned: !thread.pinned },
   });
   logger.info("thread.toggle_pin", { userId: user.id, threadId });
+  revalidateTag("threads");
+  revalidatePath(`/t/${thread.id}`);
+  revalidatePath("/");
   redirect(`/t/${thread.id}`);
 }
 
@@ -475,5 +499,7 @@ export async function toggleLockAction(formData: FormData): Promise<void> {
     data: { locked: !thread.locked },
   });
   logger.info("thread.toggle_lock", { userId: user.id, threadId });
+  revalidateTag("threads");
+  revalidatePath(`/t/${thread.id}`);
   redirect(`/t/${thread.id}`);
 }

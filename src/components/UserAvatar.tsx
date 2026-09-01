@@ -45,7 +45,7 @@ export default function UserAvatar({ username, avatarUrl, size = 40, fontSize = 
         aria-label={`${username} 头像`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={url} alt={username} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+        <img src={url} alt={username} loading="lazy" decoding="async" fetchPriority="low" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
       </span>
     );
   }
