@@ -1,10 +1,17 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import AuthRequired from "@/components/AuthRequired";
 import EmptyState from "@/components/EmptyState";
 import UserAvatar from "@/components/UserAvatar";
+
+export const metadata: Metadata = {
+  title: "私信",
+  description: "站内一对一私信 — SHUAI GAY 论坛。",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 

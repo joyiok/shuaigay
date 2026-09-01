@@ -1,13 +1,31 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
+import { siteUrl } from "@/lib/site";
 import { updateBioAction } from "@/app/actions/user";
 import AvatarUploader from "@/components/AvatarUploader";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
+
+export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
+  const { username } = await params;
+  const user = await db.user.findUnique({ where: { username }, select: { username: true, bio: true, createdAt: true } }).catch(() => null);
+  if (!user) return { title: "用户不存在" };
+  const base = siteUrl().origin;
+  const url = `${base}/u/${encodeURIComponent(username)}`;
+  const description = user.bio?.slice(0, 80) || `${username} — SHUAI GAY 论坛用户主页。`;
+  return {
+    title: `${username} 的主页`,
+    description,
+    alternates: { canonical: url },
+    openGraph: { title: `${username} - SHUAI GAY 社区`, description, url, type: "profile", siteName: "SHUAI GAY 社区", locale: "zh_CN" },
+    twitter: { card: "summary", title: `${username} - SHUAI GAY`, description },
+  };
+}
 
 type Tab = "topics" | "replies";
 
@@ -92,9 +110,26 @@ export default async function UserPage({
 
   const avatarLetter = user.username.slice(0, 1).toUpperCase();
   const avSrc = avatarSrc(user.avatarUrl);
+  const siteOrigin = siteUrl().origin;
+  const profileJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    mainEntity: { "@type": "Person", name: user.username, description: user.bio ?? "", url: `${siteOrigin}/u/${encodeURIComponent(user.username)}` },
+    dateCreated: user.createdAt.toISOString(),
+  };
+  const breadcrumbJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "首页", item: siteOrigin },
+      { "@type": "ListItem", position: 2, name: user.username, item: `${siteOrigin}/u/${encodeURIComponent(user.username)}` },
+    ],
+  };
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <div className="breadcrumb">
         <Link href="/">首页</Link>
         <span>/</span>

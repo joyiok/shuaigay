@@ -1,6 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { registerAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
+
+export const metadata: Metadata = {
+  title: "注册",
+  description: "注册 SHUAI GAY 论坛 — 加入开放 · 克制 · 高效的极简社区，支持邀请码。",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "/register" },
+};
 
 const ERRORS: Record<string, string> = {
   invalid: "输入格式不对(用户名 3-20 位字母数字下划线,密码至少 8 位)",
@@ -44,30 +52,46 @@ export default async function RegisterPage({
       )}
       <form action={registerAction} style={{ display: "grid", gap: 10 }}>
         {inviteCode && <input type="hidden" name="invite" value={inviteCode} />}
-        <input
-          name="email"
-          type="email"
-          required
-          placeholder="邮箱"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
-        />
-        <input
-          name="username"
-          required
-          minLength={3}
-          maxLength={20}
-          pattern="[a-zA-Z0-9_-]{3,20}"
-          placeholder="用户名(字母数字下划线)"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
-        />
-        <input
-          name="password"
-          type="password"
-          required
-          minLength={8}
-          placeholder="密码(至少 8 位)"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
-        />
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>邮箱</span>
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
+            aria-label="邮箱"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>用户名</span>
+          <input
+            name="username"
+            required
+            minLength={3}
+            maxLength={20}
+            pattern="[a-zA-Z0-9_-]{3,20}"
+            autoComplete="username"
+            placeholder="3-20 位 字母/数字/下划线"
+            aria-label="用户名"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>密码</span>
+          <input
+            name="password"
+            type="password"
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="至少 8 位"
+            aria-label="密码"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
+          />
+        </label>
         <Turnstile resetSignal={error} />
         <button
           type="submit"

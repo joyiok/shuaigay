@@ -1,6 +1,14 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { loginAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
+
+export const metadata: Metadata = {
+  title: "登录",
+  description: "登录 SHUAI GAY 论坛 — 开放 · 克制 · 高效的极简社区。",
+  robots: { index: false, follow: false },
+  alternates: { canonical: "/login" },
+};
 
 const ERRORS: Record<string, string> = {
   invalid: "输入格式不对",
@@ -28,20 +36,31 @@ export default async function LoginPage({
       {reset && <p style={{ background: "#dcfce7", color: "#166534", border: "1px solid #bbf7d0", borderRadius: 6, padding: "8px 12px", fontSize: 13, marginBottom: 12 }}>密码已重置，请用新密码登录。</p>}
       <form action={loginAction} style={{ display: "grid", gap: 10 }}>
         {next && <input type="hidden" name="next" value={next} />}
-        <input
-          name="email"
-          type="email"
-          required
-          placeholder="邮箱"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
-        />
-        <input
-          name="password"
-          type="password"
-          required
-          placeholder="密码"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
-        />
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>邮箱</span>
+          <input
+            name="email"
+            type="email"
+            required
+            autoComplete="email"
+            inputMode="email"
+            placeholder="you@example.com"
+            aria-label="邮箱"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
+          />
+        </label>
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>密码</span>
+          <input
+            name="password"
+            type="password"
+            required
+            autoComplete="current-password"
+            placeholder="至少 8 位"
+            aria-label="密码"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 13, outline: "none" }}
+          />
+        </label>
         <Turnstile resetSignal={error} />
         <button
           type="submit"

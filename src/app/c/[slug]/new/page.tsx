@@ -1,7 +1,19 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { createThreadAction } from "@/app/actions/threads";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const board = await db.board.findUnique({ where: { slug } }).catch(() => null);
+  if (!board) return { title: "版块不存在" };
+  return {
+    title: `在「${board.name}」发新帖`,
+    description: `在 ${board.name} 版块发布新主题 — SHUAI GAY 论坛。`,
+    robots: { index: false, follow: false },
+  };
+}
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import Composer from "@/components/Composer";
 import Turnstile from "@/components/Turnstile";
@@ -62,13 +74,19 @@ export default async function NewThreadPage({
             {ERRORS[error]}
           </p>
         )}
-        <input
-          name="title"
-          required
-          maxLength={120}
-          placeholder="标题（5-120字）"
-          style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 14, outline: "none" }}
-        />
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>标题（5-120 字）</span>
+          <input
+            name="title"
+            required
+            maxLength={120}
+            minLength={5}
+            placeholder="一句话概括你的主题"
+            aria-label="标题"
+            autoComplete="off"
+            style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 14, outline: "none" }}
+          />
+        </label>
         <Composer
           placeholder="正文，支持 Markdown（@提及 / 粘贴图片 / 表情）"
           rows={10}

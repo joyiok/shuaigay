@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
@@ -6,6 +7,12 @@ import { generateInviteAction } from "@/app/actions/user";
 import CopyButton from "@/components/CopyButton";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
+
+export const metadata: Metadata = {
+  title: "我的邀请",
+  description: "邀请好友加入 SHUAI GAY 论坛，邀请成功双方均获积分。",
+  robots: { index: false, follow: false },
+};
 
 const MAX_INVITES = 5;
 
