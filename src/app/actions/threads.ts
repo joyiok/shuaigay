@@ -11,6 +11,8 @@ import {
   canReply,
   isAdmin,
 } from "@/lib/permissions";
+import { REPLY_POINTS, THREAD_POINTS } from "@/lib/levels";
+import { isBoardModerator } from "@/lib/moderators";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { containsSensitive } from "@/lib/sensitive";
@@ -31,6 +33,7 @@ import { sniffMime } from "@/lib/filetype";
 import { collectMentionCandidates } from "@/lib/markdown";
 import {
   excerptForNotify,
+  planFavoriteReplyNotifications,
   planMentionNotifications,
   planReplyNotifications,
 } from "@/lib/notify";
@@ -137,6 +140,18 @@ export async function createThreadAction(formData: FormData): Promise<void> {
   const board = await db.board.findUnique({ where: { slug: boardSlug } });
   if (!board) redirect("/?error=board_not_found");
 
+  // 主题分类(可选)
+  const rawCategoryId = String(formData.get("categoryId") ?? "").trim();
+  let categoryId: string | null = null;
+  if (rawCategoryId) {
+    const cat = await db.threadCategory.findFirst({
+      where: { id: rawCategoryId, boardId: board.id },
+      select: { id: true },
+    });
+    if (!cat) redirect(`/c/${board.slug}/new?error=invalid_category`);
+    categoryId = cat.id;
+  }
+
   const ip = await clientIp();
   if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
     redirect(`/c/${board.slug}/new?error=captcha_failed`);
@@ -174,6 +189,7 @@ export async function createThreadAction(formData: FormData): Promise<void> {
           boardId: board.id,
           authorId: user.id,
           title: title.data,
+          categoryId,
           posts: {
             create: {
               authorId: user.id,
@@ -184,6 +200,10 @@ export async function createThreadAction(formData: FormData): Promise<void> {
             },
           },
         },
+      });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { points: { increment: THREAD_POINTS } },
       });
       if (mentionedUsers.length) {
         const notifyIds = planMentionNotifications({
@@ -232,6 +252,7 @@ export async function replyAction(formData: FormData): Promise<void> {
       id: true,
       authorId: true,
       locked: true,
+      title: true,
       board: { select: { slug: true } },
     },
   });
@@ -268,12 +289,21 @@ export async function replyAction(formData: FormData): Promise<void> {
     ? await persistFiles(storage, prepared, user.id)
     : [];
 
-  // 通知对象:楼主(非自己)+ 被提及者(非自己,且与楼主去重),一人一条
+  // 通知对象:楼主(非自己)+ 被提及者(非自己,且与楼主去重),一人一条 + 收藏订阅
   const mentionRows = await findMentionedUsers(content.data, user.id);
   const notifyPlan = planReplyNotifications({
     actorId: user.id,
     threadAuthorId: thread.authorId,
     mentionedUserIds: mentionRows.map((u) => u.id),
+  });
+  const favRows = await db.favorite.findMany({
+    where: { threadId: thread.id, userId: { not: user.id } },
+    select: { userId: true },
+  });
+  const favoriteNotifyIds = planFavoriteReplyNotifications({
+    actorId: user.id,
+    subscriberIds: favRows.map((r) => r.userId),
+    alreadyNotifiedIds: new Set(notifyPlan.map((n) => n.userId)),
   });
 
   try {
@@ -292,6 +322,10 @@ export async function replyAction(formData: FormData): Promise<void> {
         where: { id: thread.id },
         data: { lastPostAt: new Date() },
       });
+      await tx.user.update({
+        where: { id: user.id },
+        data: { points: { increment: REPLY_POINTS } },
+      });
       if (notifyPlan.length) {
         await tx.notification.createMany({
           data: notifyPlan.map(({ userId: uid, kind: type }) => ({
@@ -301,6 +335,17 @@ export async function replyAction(formData: FormData): Promise<void> {
               type === "reply"
                 ? `${user.username} 回复了你的主题`
                 : `${user.username} 在回复里提到了你`,
+            body: excerptForNotify(content.data),
+            link: `/t/${thread.id}`,
+          })),
+        });
+      }
+      if (favoriteNotifyIds.length) {
+        await tx.notification.createMany({
+          data: favoriteNotifyIds.map((uid) => ({
+            userId: uid,
+            type: "favorite",
+            title: `${user.username} 回复了你收藏的主题`,
             body: excerptForNotify(content.data),
             link: `/t/${thread.id}`,
           })),
@@ -409,7 +454,7 @@ export async function deletePostAction(formData: FormData): Promise<void> {
       authorId: true,
       threadId: true,
       thread: {
-        select: { locked: true, board: { select: { slug: true } } },
+        select: { locked: true, board: { select: { slug: true, id: true } } },
       },
     },
   });
@@ -422,10 +467,12 @@ export async function deletePostAction(formData: FormData): Promise<void> {
   });
   const isFirstPost = first?.id === post.id;
 
+  const isStaff = isAdmin(user) || (await isBoardModerator(user.id, post.thread.board.id));
   if (
     !canDeletePost(user, post, {
       isFirstPost,
       threadLocked: post.thread.locked,
+      staff: isStaff,
     })
   ) {
     redirect(`/t/${post.threadId}?error=forbidden`);
@@ -463,14 +510,16 @@ export async function deletePostAction(formData: FormData): Promise<void> {
 
 export async function togglePinAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
-  if (!user || !isAdmin(user)) redirect("/");
+  if (!user) redirect("/");
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { id: true, pinned: true, board: { select: { slug: true } } },
+    select: { id: true, pinned: true, board: { select: { slug: true, id: true } } },
   });
   if (!thread) redirect("/");
+  const isStaff = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  if (!isStaff) redirect("/");
 
   await db.thread.update({
     where: { id: thread.id },
@@ -485,14 +534,16 @@ export async function togglePinAction(formData: FormData): Promise<void> {
 
 export async function toggleLockAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
-  if (!user || !isAdmin(user)) redirect("/");
+  if (!user) redirect("/");
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { id: true, locked: true },
+    select: { id: true, locked: true, board: { select: { id: true } } },
   });
   if (!thread) redirect("/");
+  const isStaff = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  if (!isStaff) redirect("/");
 
   await db.thread.update({
     where: { id: thread.id },

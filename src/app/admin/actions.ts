@@ -17,6 +17,7 @@ import { getStorage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { banUser, unbanUser } from "@/lib/ban";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
+import { getModeratedBoardIds } from "@/lib/moderators";
 
 const ADMIN_TAB = (tab: string) => `/admin?tab=${tab}` as const;
 
@@ -25,6 +26,16 @@ async function requireAdmin(): Promise<string> {
   const user = await getCurrentUser();
   if (!user || !isAdmin(user)) redirect("/login");
   return user.id;
+}
+
+/** 版主/管理员通用鉴权:返回可操作的版块集合(null=管理员全量) */
+async function requireStaff(): Promise<{ id: string; boardScope: Set<string> | null }> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  if (isAdmin(user)) return { id: user.id, boardScope: null };
+  const boards = await getModeratedBoardIds(user.id);
+  if (boards.size === 0) redirect("/login");
+  return { id: user.id, boardScope: boards };
 }
 
 /* ---------------- 主题管理 ---------------- */
@@ -292,18 +303,112 @@ export async function moveBoardAction(formData: FormData): Promise<void> {
 const reviewActionSchema = z.enum(["delete_thread", "delete_post", "ignore", "reject"]);
 
 export async function reviewReportAction(formData: FormData): Promise<void> {
-  const actorId = await requireAdmin();
+  const staff = await requireStaff();
   const reportId = String(formData.get("reportId") ?? "");
   const action = reviewActionSchema.safeParse(formData.get("action"));
   if (!action.success) redirect(ADMIN_TAB("reports") + "&error=invalid");
+
+  // 版主只能处理自己版块内的举报
+  if (staff.boardScope) {
+    const report = await db.report.findUnique({
+      where: { id: reportId },
+      select: { targetType: true, targetId: true },
+    });
+    if (!report) redirect(ADMIN_TAB("reports") + "&error=not_found");
+    let boardId: string | null = null;
+    if (report.targetType === "thread") {
+      const t = await db.thread.findUnique({ where: { id: report.targetId }, select: { boardId: true } });
+      boardId = t?.boardId ?? null;
+    } else {
+      const p = await db.post.findUnique({
+        where: { id: report.targetId },
+        select: { thread: { select: { boardId: true } } },
+      });
+      boardId = p?.thread.boardId ?? null;
+    }
+    if (!boardId || !staff.boardScope.has(boardId)) redirect(ADMIN_TAB("reports") + "&error=not_found");
+  }
 
   const result = await reviewReport(reportId, action.data as ReviewAction);
   if (!result.ok) {
     redirect(ADMIN_TAB("reports") + "&error=" + (result.status === 409 ? "already_processed" : "not_found"));
   }
-  await db.auditLog.create({ data: { actorId, action: "review_report", targetType: "report", targetId: reportId, detail: action.data } }).catch(() => {});
-  logger.info("admin.review_report", { actorId, reportId, action: action.data });
+  await db.auditLog.create({ data: { actorId: staff.id, action: "review_report", targetType: "report", targetId: reportId, detail: action.data } }).catch(() => {});
+  logger.info("admin.review_report", { actorId: staff.id, reportId, action: action.data });
   redirect(ADMIN_TAB("reports"));
+}
+
+/* ---------------- 版主管理 ---------------- */
+
+const usernameSchema = z.string().trim().regex(/^[a-zA-Z0-9_-]{3,20}$/);
+
+export async function addModeratorAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const username = usernameSchema.safeParse(formData.get("username"));
+  if (!username.success) redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { id: true, slug: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const user = await db.user.findUnique({ where: { username: username.data }, select: { id: true } });
+  if (!user) redirect(ADMIN_TAB("boards") + "&error=user_not_found");
+  const dup = await db.boardModerator.findUnique({ where: { boardId_userId: { boardId, userId: user.id } } });
+  if (dup) redirect(ADMIN_TAB("boards") + "&error=dup_moderator");
+  await db.boardModerator.create({ data: { boardId, userId: user.id } });
+  await db.auditLog.create({ data: { actorId, action: "set_moderator", targetType: "user", targetId: user.id, detail: board.slug } }).catch(() => {});
+  logger.info("admin.set_moderator", { actorId, boardId, userId: user.id });
+  revalidateTag("boards");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function removeModeratorAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const userId = String(formData.get("userId") ?? "");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { slug: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const mod = await db.boardModerator.findUnique({ where: { boardId_userId: { boardId, userId } } });
+  if (!mod) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  await db.boardModerator.delete({ where: { id: mod.id } });
+  await db.auditLog.create({ data: { actorId, action: "remove_moderator", targetType: "user", targetId: userId, detail: board.slug } }).catch(() => {});
+  logger.info("admin.remove_moderator", { actorId, boardId, userId });
+  revalidateTag("boards");
+  redirect(ADMIN_TAB("boards"));
+}
+
+/* ---------------- 主题分类 ---------------- */
+
+const categoryNameSchema = z.string().trim().min(1).max(20);
+
+export async function createCategoryAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const name = categoryNameSchema.safeParse(formData.get("name"));
+  if (!name.success) redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { id: true, slug: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const dup = await db.threadCategory.findFirst({ where: { boardId, name: name.data } });
+  if (dup) redirect(ADMIN_TAB("boards") + "&error=cat_exists");
+  const count = await db.threadCategory.count({ where: { boardId } });
+  await db.threadCategory.create({ data: { boardId, name: name.data, order: count } });
+  await db.auditLog.create({ data: { actorId, action: "create_category", targetType: "board", targetId: boardId, detail: name.data } }).catch(() => {});
+  logger.info("admin.create_category", { actorId, boardId, name: name.data });
+  revalidateTag("boards");
+  revalidateTag("threads");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function deleteCategoryAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const categoryId = String(formData.get("categoryId") ?? "");
+  const cat = await db.threadCategory.findUnique({ where: { id: categoryId }, select: { id: true, boardId: true, name: true } });
+  if (!cat) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  await db.thread.updateMany({ where: { categoryId }, data: { categoryId: null } });
+  await db.threadCategory.delete({ where: { id: categoryId } });
+  await db.auditLog.create({ data: { actorId, action: "delete_category", targetType: "board", targetId: cat.boardId, detail: cat.name } }).catch(() => {});
+  logger.info("admin.delete_category", { actorId, categoryId });
+  revalidateTag("boards");
+  revalidateTag("threads");
+  redirect(ADMIN_TAB("boards"));
 }
 
 /* ---------------- 敏感词 ---------------- */

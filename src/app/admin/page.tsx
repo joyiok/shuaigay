@@ -8,6 +8,7 @@ import { threadHref } from "@/lib/slug";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import {
+  addModeratorAction,
   addPointsAction,
   addSensitiveWordAction,
   adminDeletePostAction,
@@ -16,8 +17,11 @@ import {
   adminTogglePinAction,
   banUserAction,
   createBoardAction,
+  createCategoryAction,
   deleteBoardAction,
+  deleteCategoryAction,
   moveBoardAction,
+  removeModeratorAction,
   removeSensitiveWordAction,
   reviewReportAction,
   setUserRoleAction,
@@ -26,6 +30,8 @@ import {
 import { listActiveBans } from "@/lib/ban";
 import { listSensitiveWords } from "@/lib/sensitive";
 import { ConfirmForm, NativeConfirmForm } from "./ConfirmForms";
+import { getModeratedBoardIds } from "@/lib/moderators";
+import LevelBadge from "@/components/LevelBadge";
 
 export const metadata = { title: "管理后台" };
 
@@ -47,6 +53,9 @@ const ERRORS: Record<string, string> = {
   self_ban: "不能封禁自己",
   word_exists: "该词已存在",
   already_processed: "该举报已处理过",
+  dup_moderator: "该用户已是此版块版主",
+  user_not_found: "用户不存在",
+  cat_exists: "同名分类已存在",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -64,6 +73,10 @@ const ACTION_LABELS: Record<string, string> = {
   unban_user: "解封用户",
   add_word: "添加敏感词",
   remove_word: "移除敏感词",
+  set_moderator: "任命版主",
+  remove_moderator: "撤免版主",
+  create_category: "新建分类",
+  delete_category: "删除分类",
 };
 
 export default async function AdminPage({
@@ -81,11 +94,13 @@ export default async function AdminPage({
           <span>/</span>
           <span style={{ color: "var(--text)", fontWeight: 600 }}>管理后台</span>
         </div>
-        <AuthRequired title="请先登录" description="管理后台仅对登录用户开放，登录后若拥有管理员权限即可进入。" next="/admin" />
+        <AuthRequired title="请先登录" description="管理后台仅对登录用户开放，登录后若拥有管理员或版主权限即可进入。" next="/admin" />
       </div>
     );
   }
-  if (!isAdmin(user)) {
+  const adminFlag = isAdmin(user);
+  const modBoards = adminFlag ? null : await getModeratedBoardIds(user.id).catch(() => new Set<string>() as Set<string>);
+  if (!adminFlag && (!modBoards || modBoards.size === 0)) {
     return (
       <div style={{ display: "grid", gap: 12 }}>
         <div className="breadcrumb">
@@ -96,15 +111,15 @@ export default async function AdminPage({
         <EmptyState
           variant="report"
           title="无权访问"
-          description="当前账号没有管理员权限，请联系现有管理员授予权限。"
+          description="当前账号没有管理员权限，也不是任何版块的版主，请联系管理员授予权限。"
           actionLabel="返回首页"
           actionHref="/"
         />
       </div>
     );
   }
-
-  const active = TABS.some((t) => t.key === tab) ? (tab as string) : "threads";
+  const visibleTabs = adminFlag ? TABS : TABS.filter((t) => t.key === "reports");
+  const active = visibleTabs.some((t) => t.key === tab) ? (tab as string) : adminFlag ? "threads" : "reports";
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -116,7 +131,7 @@ export default async function AdminPage({
 
       <div className="topic-toolbar">
         <div className="tab-bar">
-          {TABS.map((t) => (
+          {visibleTabs.map((t) => (
             <Link key={t.key} href={`/admin?tab=${t.key}`} className={`tab ${active === t.key ? "active" : ""}`}>
               {t.label}
             </Link>
@@ -130,13 +145,13 @@ export default async function AdminPage({
         </p>
       )}
 
-      {active === "threads" && <ThreadsTab />}
-      {active === "posts" && <PostsTab />}
-      {active === "users" && <UsersTab currentUserId={user.id} />}
-      {active === "boards" && <BoardsTab />}
-      {active === "reports" && <ReportsTab />}
-      {active === "words" && <WordsTab />}
-      {active === "audit" && <AuditTab />}
+      {adminFlag && active === "threads" && <ThreadsTab />}
+      {adminFlag && active === "posts" && <PostsTab />}
+      {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
+      {adminFlag && active === "boards" && <BoardsTab />}
+      {active === "reports" && <ReportsTab boardScope={modBoards} />}
+      {adminFlag && active === "words" && <WordsTab />}
+      {adminFlag && active === "audit" && <AuditTab />}
     </div>
   );
 }
@@ -306,6 +321,16 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
     include: { _count: { select: { posts: true, threads: true } } },
   });
   const bans = await listActiveBans(users.map((u) => u.id));
+  const mods = await db.boardModerator.findMany({
+    where: { userId: { in: users.map((u) => u.id) } },
+    include: { board: { select: { name: true } } },
+  });
+  const modMap = new Map<string, string[]>();
+  for (const m of mods) {
+    const arr = modMap.get(m.userId) ?? [];
+    arr.push(m.board.name);
+    modMap.set(m.userId, arr);
+  }
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
@@ -334,10 +359,9 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
               </span>
               <div style={{ color: "var(--text-subtle)", fontSize: 11 }}>{u.email}</div>
             </div>
-            {u.role === "ADMIN" ? (
-              <span style={{ background: "var(--inverse)", color: "var(--inverse-text)", fontSize: 10, padding: "2px 6px", borderRadius: 999 }}>管理员</span>
-            ) : (
-              <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>注册会员</span>
+            <LevelBadge points={u.points} role={u.role} />
+            {modMap.get(u.id) && (
+              <span style={{ background: "var(--brand-soft)", color: "var(--brand)", fontSize: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid var(--line)" }} title={modMap.get(u.id)!.join("、")}>版主 · {modMap.get(u.id)!.slice(0, 2).join("、")}{modMap.get(u.id)!.length > 2 ? "…" : ""}</span>
             )}
             {ban && (
               <span
@@ -430,7 +454,11 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
 async function BoardsTab() {
   const boards = await db.board.findMany({
     orderBy: { order: "asc" },
-    include: { _count: { select: { threads: true } } },
+    include: {
+      _count: { select: { threads: true } },
+      moderators: { include: { user: { select: { id: true, username: true } } }, orderBy: { createdAt: "asc" } },
+      categories: { orderBy: { order: "asc" } },
+    },
   });
 
   return (
@@ -438,89 +466,98 @@ async function BoardsTab() {
       <div className="card" style={{ padding: 14 }}>
         <div className="quick-title" style={{ margin: "0 0 10px" }}>新建版块</div>
         <form action={createBoardAction} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input
-            name="slug"
-            required
-            placeholder="slug（如 general）"
-            pattern="[a-z0-9-]{1,32}"
-            style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }}
-          />
-          <input
-            name="name"
-            required
-            placeholder="名称"
-            maxLength={30}
-            style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }}
-          />
-          <input
-            name="description"
-            placeholder="简介（可选）"
-            maxLength={200}
-            style={{ height: 30, flex: 2, minWidth: 160, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }}
-          />
-          <input
-            type="number"
-            name="order"
-            defaultValue={0}
-            min={0}
-            max={10000}
-            title="排序值，越小越靠前"
-            style={{ width: 70, height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12, outline: "none" }}
-          />
-          <button
-            type="submit"
-            style={{ height: 30, padding: "0 14px", background: "var(--brand)", color: "#fff", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "1px solid var(--brand)", cursor: "pointer" }}
-          >
-            创建
-          </button>
+          <input name="slug" required placeholder="slug（如 general）" pattern="[a-z0-9-]{1,32}" style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
+          <input name="name" required placeholder="名称" maxLength={30} style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
+          <input name="description" placeholder="简介（可选）" maxLength={200} style={{ height: 30, flex: 2, minWidth: 160, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
+          <input type="number" name="order" defaultValue={0} min={0} max={10000} title="排序值，越小越靠前" style={{ width: 70, height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12, outline: "none" }} />
+          <button type="submit" style={{ height: 30, padding: "0 14px", background: "var(--brand)", color: "#fff", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "1px solid var(--brand)", cursor: "pointer" }}>创建</button>
         </form>
       </div>
 
       <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="quick-title" style={{ margin: 0 }}>
-            版块列表 <span>{boards.length} 个 · 删除需二次确认</span>
-          </div>
+          <div className="quick-title" style={{ margin: 0 }}>版块列表 <span>{boards.length} 个 · 删除需二次确认</span></div>
         </div>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {boards.map((b, i) => (
-            <Row key={b.id}>
-              <span style={{ fontSize: 12, color: "var(--text-subtle)", width: 40 }}>#{b.order}</span>
-              <div style={{ minWidth: 0 }}>
-                <Link href={`/c/${b.slug}`} style={{ fontWeight: 600, fontSize: 13 }}>
-                  {b.name}
-                </Link>
-                <div style={{ color: "var(--text-subtle)", fontSize: 11 }}>
-                  /{b.slug}{b.description ? ` · ${b.description}` : ""}
+            <li key={b.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--bg)", display: "grid", gap: 10 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12, color: "var(--text-subtle)", width: 40 }}>#{b.order}</span>
+                <div style={{ minWidth: 0 }}>
+                  <Link href={`/c/${b.slug}`} style={{ fontWeight: 600, fontSize: 13 }}>{b.name}</Link>
+                  <div style={{ color: "var(--text-subtle)", fontSize: 11 }}>/ {b.slug}{b.description ? ` · ${b.description}` : ""}</div>
                 </div>
+                <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{b._count.threads} 主题</span>
+                <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                  <form action={moveBoardAction}>
+                    <input type="hidden" name="boardId" value={b.id} />
+                    <input type="hidden" name="dir" value="up" />
+                    <button style={{ ...actionBtn, opacity: i === 0 ? 0.4 : 1 }} disabled={i === 0}>上移</button>
+                  </form>
+                  <form action={moveBoardAction}>
+                    <input type="hidden" name="boardId" value={b.id} />
+                    <input type="hidden" name="dir" value="down" />
+                    <button style={{ ...actionBtn, opacity: i === boards.length - 1 ? 0.4 : 1 }} disabled={i === boards.length - 1}>下移</button>
+                  </form>
+                  <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
+                    <input type="hidden" name="boardId" value={b.id} />
+                    <button type="submit" style={dangerBtn}>删除版块</button>
+                  </ConfirmForm>
+                </span>
               </div>
-              <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{b._count.threads} 主题</span>
-              <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                <form action={moveBoardAction}>
-                  <input type="hidden" name="boardId" value={b.id} />
-                  <input type="hidden" name="dir" value="up" />
-                  <button style={{ ...actionBtn, opacity: i === 0 ? 0.4 : 1 }} disabled={i === 0}>
-                    上移
-                  </button>
-                </form>
-                <form action={moveBoardAction}>
-                  <input type="hidden" name="boardId" value={b.id} />
-                  <input type="hidden" name="dir" value="down" />
-                  <button style={{ ...actionBtn, opacity: i === boards.length - 1 ? 0.4 : 1 }} disabled={i === boards.length - 1}>
-                    下移
-                  </button>
-                </form>
-                <ConfirmForm
-                  action={deleteBoardAction}
-                  message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}
-                >
-                  <input type="hidden" name="boardId" value={b.id} />
-                  <button type="submit" style={dangerBtn}>
-                    删除版块
-                  </button>
-                </ConfirmForm>
-              </span>
-            </Row>
+              <details style={{ background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px" }}>
+                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>版主 {b.moderators.length} · 分类 {b.categories.length}</summary>
+                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", marginBottom: 6 }}>版主</div>
+                    {b.moderators.length ? (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                        {b.moderators.map((m) => (
+                          <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 12 }}>
+                            {m.user.username}
+                            <form action={removeModeratorAction} style={{ display: "inline" }}>
+                              <input type="hidden" name="boardId" value={b.id} />
+                              <input type="hidden" name="userId" value={m.user.id} />
+                              <button type="submit" style={{ border: 0, background: "transparent", color: "var(--danger)", fontSize: 11, cursor: "pointer" }}>移除</button>
+                            </form>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无版主</span>
+                    )}
+                    <form action={addModeratorAction} style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+                      <input type="hidden" name="boardId" value={b.id} />
+                      <input name="username" required placeholder="用户名" pattern="[a-zA-Z0-9_-]{3,20}" style={{ height: 26, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
+                      <button type="submit" style={actionBtn}>设为版主</button>
+                    </form>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", marginBottom: 6 }}>主题分类</div>
+                    {b.categories.length ? (
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {b.categories.map((c) => (
+                          <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 12 }}>
+                            {c.name}
+                            <form action={deleteCategoryAction} style={{ display: "inline" }}>
+                              <input type="hidden" name="categoryId" value={c.id} />
+                              <button type="submit" style={{ border: 0, background: "transparent", color: "var(--danger)", fontSize: 11, cursor: "pointer" }}>删除</button>
+                            </form>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无分类</span>
+                    )}
+                    <form action={createCategoryAction} style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
+                      <input type="hidden" name="boardId" value={b.id} />
+                      <input name="name" required placeholder="新分类名(≤20字)" maxLength={20} style={{ height: 26, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
+                      <button type="submit" style={actionBtn}>新建分类</button>
+                    </form>
+                  </div>
+                </div>
+              </details>
+            </li>
           ))}
         </ul>
       </div>
@@ -530,13 +567,28 @@ async function BoardsTab() {
 
 /* ---------------- 举报队列 ---------------- */
 
-async function ReportsTab() {
-  const reports = await db.report.findMany({
+async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
+  let reports = await db.report.findMany({
     where: { status: "pending" },
     orderBy: { createdAt: "asc" },
-    take: 100,
+    take: 200,
     include: { reporter: { select: { username: true } } },
   });
+  if (boardScope && reports.length) {
+    const threadIdsAll = reports.filter((r) => r.targetType === "thread").map((r) => r.targetId);
+    const postIdsAll = reports.filter((r) => r.targetType === "post").map((r) => r.targetId);
+    const [scopeThreads, scopePosts] = await Promise.all([
+      threadIdsAll.length ? db.thread.findMany({ where: { id: { in: threadIdsAll } }, select: { id: true, boardId: true } }) : Promise.resolve([] as { id: string; boardId: string }[]),
+      postIdsAll.length ? db.post.findMany({ where: { id: { in: postIdsAll } }, select: { id: true, thread: { select: { boardId: true } } } }) : Promise.resolve([] as { id: string; thread: { boardId: string } }[]),
+    ]);
+    const threadBoardMap = new Map(scopeThreads.map((t) => [t.id, t.boardId]));
+    const postBoardMap = new Map(scopePosts.map((p) => [p.id, p.thread.boardId]));
+    reports = reports.filter((r) => {
+      const bid = r.targetType === "thread" ? threadBoardMap.get(r.targetId) : postBoardMap.get(r.targetId);
+      return !!bid && boardScope.has(bid);
+    });
+    reports = reports.slice(0, 100);
+  }
 
   const threadIds = reports.filter((r) => r.targetType === "thread").map((r) => r.targetId);
   const postIds = reports.filter((r) => r.targetType === "post").map((r) => r.targetId);
@@ -556,7 +608,7 @@ async function ReportsTab() {
     <div className="card" style={{ overflow: "hidden" }}>
       <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)" }}>
         <div className="quick-title" style={{ margin: 0 }}>
-          举报队列 <span>待处理 {reports.length} 条</span>
+          举报队列 <span>待处理 {reports.length} 条{boardScope ? " · 仅自己版块" : ""}</span>
         </div>
       </div>
       <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>

@@ -7,9 +7,12 @@ import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { siteUrl } from "@/lib/site";
 import { updateBioAction } from "@/app/actions/user";
+import { toggleFavoriteAction } from "@/app/actions/favorites";
 import AvatarUploader from "@/components/AvatarUploader";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
+import LevelBadge from "@/components/LevelBadge";
+import { catToneClass } from "@/lib/format";
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
@@ -27,7 +30,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   };
 }
 
-type Tab = "topics" | "replies";
+type Tab = "topics" | "replies" | "favs";
 
 function excerpt(raw: string): string {
   return raw.replace(/[#*_`>[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 100);
@@ -47,15 +50,19 @@ export default async function UserPage({
 }) {
   const { username } = await params;
   const { tab: rawTab } = await searchParams;
-  const tab: Tab = rawTab === "replies" ? "replies" : "topics";
+  const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : "topics";
+  // 收藏仅本人可见
+  const meEarly = await getCurrentUser();
+  const tab: Tab = _tab === "favs" && meEarly?.id !== (await db.user.findUnique({ where: { username }, select: { id: true } }).then((u) => u?.id)) ? "topics" : (_tab as Tab);
 
   const user = await db.user.findUnique({
     where: { username },
-    include: { _count: { select: { threads: true, posts: true } } },
+    include: { _count: { select: { threads: true, posts: true, favorites: true } as unknown as { threads: true; posts: true } } },
   });
   if (!user) notFound();
-
-  const me = await getCurrentUser();
+  // _count.favorites may be missing type-wise — fetch separately when needed
+  const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
+  const me = meEarly;
   const isSelf = me?.id === user.id;
 
   // 主题 Tab:最近发的主题
@@ -85,6 +92,29 @@ export default async function UserPage({
                 id: true,
                 title: true,
                 board: { select: { slug: true, name: true } },
+              },
+            },
+          },
+        })
+      : [];
+
+  const favorites =
+    tab === "favs" && isSelf
+      ? await db.favorite.findMany({
+          where: { userId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 30,
+          include: {
+            thread: {
+              select: {
+                id: true,
+                title: true,
+                pinned: true,
+                locked: true,
+                lastPostAt: true,
+                category: { select: { name: true } },
+                board: { select: { slug: true, name: true } },
+                _count: { select: { posts: true } },
               },
             },
           },
@@ -150,11 +180,7 @@ export default async function UserPage({
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{user.username}</h1>
-              {user.role === "ADMIN" && (
-                <span style={{ background: "var(--inverse)", color: "var(--inverse-text)", fontSize: 10, padding: "2px 6px", borderRadius: 999 }}>
-                  管理员
-                </span>
-              )}
+              <LevelBadge points={user.points} role={user.role} />
               {isSelf && (
                 <Link
                   href="/invite"
@@ -281,12 +307,14 @@ export default async function UserPage({
         <Link href={`/u/${encodeURIComponent(user.username)}`} className={`tab ${tab === "topics" ? "active" : ""}`}>
           主题 <span style={{ marginLeft: 4, opacity: 0.75 }}>{user._count.threads}</span>
         </Link>
-        <Link
-          href={`/u/${encodeURIComponent(user.username)}?tab=replies`}
-          className={`tab ${tab === "replies" ? "active" : ""}`}
-        >
+        <Link href={`/u/${encodeURIComponent(user.username)}?tab=replies`} className={`tab ${tab === "replies" ? "active" : ""}`}>
           回复 <span style={{ marginLeft: 4, opacity: 0.75 }}>{Math.max(0, user._count.posts - user._count.threads)}</span>
         </Link>
+        {isSelf && (
+          <Link href={`/u/${encodeURIComponent(user.username)}?tab=favs`} className={`tab ${tab === "favs" ? "active" : ""}`}>
+            收藏 <span style={{ marginLeft: 4, opacity: 0.75 }}>{favCount}</span>
+          </Link>
+        )}
       </div>
 
       {/* 主题列表 */}
@@ -382,6 +410,38 @@ export default async function UserPage({
                 </li>
               );
             })}
+          </ul>
+        )
+      )}
+
+      {tab === "favs" && isSelf && (
+        favorites.length === 0 ? (
+          <EmptyState variant="post" title="还没有收藏" description="收藏的主题会在这里显示，有新回复时会收到通知。" actionLabel="去逛逛" actionHref="/" />
+        ) : (
+          <ul className="post-list">
+            {favorites.map((f) => (
+              <li key={f.id} className="post-item">
+                <div className="post-avatar" style={{ overflow: "hidden" }}>{avatarLetter}</div>
+                <div className="post-body">
+                  <div className="post-title-row" style={{ gap: 6 }}>
+                    {f.thread.pinned && <span className="topic-badge pinned">置顶</span>}
+                    {f.thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+                    {f.thread.category && <span className={`topic-badge ${catToneClass(f.thread.category.name)}`}>{f.thread.category.name}</span>}
+                    <Link href={threadHref(f.thread.id, f.thread.title)} className="post-title">{f.thread.title}</Link>
+                  </div>
+                  <div className="post-meta">
+                    <span>{f.thread.board.name}</span>
+                    <span>{Math.max(0, f.thread._count.posts - 1)} 回复</span>
+                    <span>{formatDate(f.thread.lastPostAt)}</span>
+                  </div>
+                </div>
+                <form action={toggleFavoriteAction}>
+                  <input type="hidden" name="threadId" value={f.thread.id} />
+                  <input type="hidden" name="next" value={`/u/${encodeURIComponent(user.username)}?tab=favs`} />
+                  <button style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", background: "var(--panel)" }}>取消收藏</button>
+                </form>
+              </li>
+            ))}
           </ul>
         )
       )}

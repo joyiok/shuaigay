@@ -34,11 +34,11 @@ export function canReply(user: UserLike | null, thread: ThreadLike): boolean {
 export function canDeletePost(
   user: UserLike | null,
   post: PostLike,
-  opts: { isFirstPost: boolean; threadLocked: boolean },
+  opts: { isFirstPost: boolean; threadLocked: boolean; staff?: boolean },
 ): boolean {
   if (!user) return false;
-  if (isAdmin(user)) return true;
-  // 普通用户可以删自己的非首帖;首帖=主题本体,删除是管理员权限
+  if (isAdmin(user) || opts.staff) return true;
+  // 普通用户可以删自己的非首帖;首帖=主题本体,删除是管理员/版主权限
   return post.authorId === user.id && !opts.isFirstPost && !opts.threadLocked;
 }
 

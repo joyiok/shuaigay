@@ -22,6 +22,7 @@ import AuthRequired from "@/components/AuthRequired";
 
 const ERRORS: Record<string, string> = {
   invalid: "标题或内容格式不对",
+  invalid_category: "分类不存在，请刷新后重试",
   file_too_large: "有附件超过大小限制",
   unsupported_type: "不支持的附件类型",
   too_many_files: `最多 ${MAX_FILES_PER_POST} 个附件`,
@@ -42,6 +43,7 @@ export default async function NewThreadPage({
   const user = await getCurrentUser();
   const board = await db.board.findUnique({ where: { slug } });
   if (!board) notFound();
+  const categories = await db.threadCategory.findMany({ where: { boardId: board.id }, orderBy: { order: "asc" } });
   if (!user) {
     return (
       <div style={{ display: "grid", gap: 12 }}>
@@ -73,6 +75,19 @@ export default async function NewThreadPage({
           <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>
             {ERRORS[error]}
           </p>
+        )}
+        {categories.length > 0 && (
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>分类（可选）</span>
+            <select name="categoryId" defaultValue="" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 14, outline: "none", background: "var(--panel)" }}>
+              <option value="">不分类</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
         )}
         <label style={{ display: "grid", gap: 4 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>标题（5-120 字）</span>

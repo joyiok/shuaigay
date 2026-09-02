@@ -9,9 +9,8 @@ const threadInclude = {
 } satisfies Prisma.ThreadInclude;
 
 const postInclude = {
-  author: { select: { username: true, role: true, avatarUrl: true } },
+  author: { select: { username: true, role: true, avatarUrl: true, points: true } },
   attachments: true,
-  // 编辑历史:只取最近 20 条,展开时够用
   edits: {
     orderBy: { createdAt: "desc" as const },
     take: 20,
@@ -33,6 +32,7 @@ export interface ThreadListItem {
   authorName: string;
   authorAvatarUrl: string | null;
   replyCount: number;
+  categoryName?: string | null;
 }
 
 export interface PostEditListItem {
@@ -43,6 +43,19 @@ export interface PostEditListItem {
   createdAt: Date;
 }
 
+export interface PostRatingReason {
+  username: string;
+  value: number;
+  reason: string;
+  createdAt: Date;
+}
+export interface PostRatingView {
+  up: number;
+  down: number;
+  mine: -1 | 0 | 1;
+  reasons: PostRatingReason[];
+}
+
 export interface PostListItem {
   id: string;
   contentMd: string;
@@ -50,9 +63,11 @@ export interface PostListItem {
   authorId: string;
   authorName: string;
   authorRole: string;
+  authorPoints: number;
   authorAvatarUrl: string | null;
   attachments: { id: string; storedName: string; fileName: string; mimeType: string; sizeBytes: number }[];
   edits: PostEditListItem[];
+  rating: PostRatingView;
 }
 
 function toThreadListItem(t: ThreadRow): ThreadListItem {
@@ -70,7 +85,7 @@ function toThreadListItem(t: ThreadRow): ThreadListItem {
   };
 }
 
-function toPostListItem(p: PostRow): PostListItem {
+function toPostListItem(p: PostRow, rating: PostRatingView): PostListItem {
   return {
     id: p.id,
     contentMd: p.contentMd,
@@ -78,6 +93,7 @@ function toPostListItem(p: PostRow): PostListItem {
     authorId: p.authorId,
     authorName: p.author.username,
     authorRole: p.author.role,
+    authorPoints: (p.author as unknown as { points: number }).points ?? 0,
     authorAvatarUrl: (p.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
     attachments: p.attachments.map((a) => ({
       id: a.id,
@@ -93,6 +109,7 @@ function toPostListItem(p: PostRow): PostListItem {
       newContentMd: e.newContentMd,
       createdAt: e.createdAt,
     })),
+    rating,
   };
 }
 
@@ -100,11 +117,23 @@ function toPostListItem(p: PostRow): PostListItem {
  * 版块主题列表:固定条件 + 游标条件,永远走 (boardId, lastPostAt) 索引,
  * 不用 OFFSET——数据量大了以后 OFFSET 会越翻越慢。
  */
-export async function listThreads(boardId: string, cursor: Cursor | null, pageSize = 20) {
+export async function listThreads(
+  boardId: string,
+  cursor: Cursor | null,
+  categoryId: string | number | null = null,
+  pageSize = 20,
+) {
+  // 兼容旧调用 listThreads(boardId, cursor, 20) — 第三参为 number 时视为 pageSize
+  if (typeof categoryId === "number") {
+    pageSize = categoryId;
+    categoryId = null;
+  }
+  const categoryFilter = categoryId ? { categoryId: String(categoryId) } : {};
   const rows = await db.thread.findMany({
     where: {
       boardId,
       pinned: false,
+      ...categoryFilter,
       ...(cursor
         ? {
             OR: [
@@ -116,30 +145,37 @@ export async function listThreads(boardId: string, cursor: Cursor | null, pageSi
     },
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
-    include: threadInclude,
+    include: { ...threadInclude, category: { select: { name: true } } },
   });
 
   const hasMore = rows.length > pageSize;
   const items = rows.slice(0, pageSize);
-  const last = items[items.length - 1];
+  const last = items[items.length - 1] as unknown as { lastPostAt: Date; id: string };
   const nextCursor: string | null =
     hasMore && last
       ? encodeCursor({ t: last.lastPostAt.toISOString(), id: last.id })
       : null;
 
-  // 置顶帖数量少,单独一小查询,不参与游标
+  const mapWithCat = (t: (typeof rows)[number]): ThreadListItem => ({
+    ...toThreadListItem(t as unknown as ThreadRow),
+    categoryName: (t as unknown as { category: { name: string } | null }).category?.name ?? null,
+  });
+
   const pinned = cursor
     ? []
     : (
         await db.thread.findMany({
-          where: { boardId, pinned: true },
+          where: { boardId, pinned: true, ...categoryFilter },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
-          include: threadInclude,
+          include: { ...threadInclude, category: { select: { name: true } } },
         })
-      ).map(toThreadListItem);
+      ).map((t) => ({
+        ...toThreadListItem(t as unknown as ThreadRow),
+        categoryName: (t as unknown as { category: { name: string } | null }).category?.name ?? null,
+      }));
 
-  return { pinned, items: items.map(toThreadListItem), nextCursor };
+  return { pinned, items: items.map(mapWithCat), nextCursor };
 }
 
 // —— 搜索 ——
@@ -155,7 +191,6 @@ export interface PostSearchItem {
   threadTitle: string;
   boardSlug: string;
   boardName: string;
-  /** 命中关键词附近的纯文本摘录,由服务端截好 */
   excerpt: string;
   createdAt: Date;
   authorName: string;
@@ -163,10 +198,6 @@ export interface PostSearchItem {
   authorAvatarUrl: string | null;
 }
 
-/**
- * 主题搜索:标题 + 首帖正文,游标走 (lastPostAt, id) 复合排序,
- * 限定版块时仍可命中 (boardId, lastPostAt) 索引,不用 OFFSET。
- */
 export async function searchThreads(
   q: string,
   boardId: string | undefined,
@@ -180,54 +211,28 @@ export async function searchThreads(
         {
           OR: [
             { title: { contains: q, mode: "insensitive" } },
-            {
-              posts: {
-                some: { contentMd: { contains: q, mode: "insensitive" } },
-              },
-            },
+            { posts: { some: { contentMd: { contains: q, mode: "insensitive" } } } },
           ],
         },
         ...(cursor
-          ? [
-              {
-                OR: [
-                  { lastPostAt: { lt: new Date(cursor.t) } },
-                  { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
-                ],
-              },
-            ]
+          ? [{ OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] }]
           : []),
       ],
     },
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
-    include: {
-      ...threadInclude,
-      board: { select: { slug: true, name: true } },
-    },
+    include: { ...threadInclude, board: { select: { slug: true, name: true } } },
   });
-
   const hasMore = rows.length > pageSize;
   const items = rows.slice(0, pageSize);
   const last = items[items.length - 1];
-  const nextCursor: string | null =
-    hasMore && last
-      ? encodeCursor({ t: last.lastPostAt.toISOString(), id: last.id })
-      : null;
-
+  const nextCursor: string | null = hasMore && last ? encodeCursor({ t: last.lastPostAt.toISOString(), id: last.id }) : null;
   return {
-    items: items.map((t) => ({
-      ...toThreadListItem(t),
-      boardSlug: t.board.slug,
-      boardName: t.board.name,
-    })),
+    items: items.map((t) => ({ ...toThreadListItem(t), boardSlug: t.board.slug, boardName: t.board.name })),
     nextCursor,
   };
 }
 
-/**
- * 回复搜索:命中任意楼层正文,按 (createdAt, id) 倒序游标翻页。
- */
 export async function searchPosts(
   q: string,
   boardId: string | undefined,
@@ -238,37 +243,19 @@ export async function searchPosts(
     where: {
       contentMd: { contains: q, mode: "insensitive" },
       ...(boardId ? { thread: { boardId } } : {}),
-      ...(cursor
-        ? {
-            OR: [
-              { createdAt: { lt: new Date(cursor.t) } },
-              { createdAt: new Date(cursor.t), id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
+      ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
     include: {
       author: { select: { username: true, role: true, avatarUrl: true } },
-      thread: {
-        select: {
-          id: true,
-          title: true,
-          board: { select: { slug: true, name: true } },
-        },
-      },
+      thread: { select: { id: true, title: true, board: { select: { slug: true, name: true } } } },
     },
   });
-
   const hasMore = rows.length > pageSize;
   const items = rows.slice(0, pageSize);
   const last = items[items.length - 1];
-  const nextCursor: string | null =
-    hasMore && last
-      ? encodeCursor({ t: last.createdAt.toISOString(), id: last.id })
-      : null;
-
+  const nextCursor: string | null = hasMore && last ? encodeCursor({ t: last.createdAt.toISOString(), id: last.id }) : null;
   return {
     items: items.map((p) => ({
       id: p.id,
@@ -290,14 +277,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   const rows = await db.thread.findMany({
     where: {
       pinned: false,
-      ...(cursor
-        ? {
-            OR: [
-              { lastPostAt: { lt: new Date(cursor.t) } },
-              { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
+      ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
@@ -332,31 +312,68 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   };
 }
 
-export async function listPosts(threadId: string, cursor: Cursor | null, pageSize = 50) {
+export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSize = 50) {
   const rows = await db.post.findMany({
     where: {
       threadId,
-      ...(cursor
-        ? {
-            OR: [
-              { createdAt: { gt: new Date(cursor.t) } },
-              { createdAt: new Date(cursor.t), id: { gt: cursor.id } },
-            ],
-          }
-        : {}),
+      ...(cursor ? { OR: [{ createdAt: { gt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { gt: cursor.id } }] } : {}),
     },
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
     take: pageSize + 1,
     include: postInclude,
   });
-
   const hasMore = rows.length > pageSize;
   const items = rows.slice(0, pageSize);
   const last = items[items.length - 1];
-  const nextCursor: string | null =
-    hasMore && last
-      ? encodeCursor({ t: last.createdAt.toISOString(), id: last.id })
-      : null;
+  const nextCursor: string | null = hasMore && last ? encodeCursor({ t: last.createdAt.toISOString(), id: last.id }) : null;
 
-  return { items: items.map(toPostListItem), nextCursor };
+  const ids = items.map((p) => p.id);
+  let upMap = new Map<string, number>();
+  let downMap = new Map<string, number>();
+  let mineMap = new Map<string, number>();
+  let reasonsByPost = new Map<string, PostRatingReason[]>();
+
+  if (ids.length) {
+    const [grouped, mineRows, reasonRows] = await Promise.all([
+      (db as unknown as { postRating: { groupBy: (a: unknown) => Promise<{ postId: string; value: number; _count: { _all: number } }[]> } }).postRating.groupBy({
+        by: ["postId", "value"],
+        where: { postId: { in: ids } },
+        _count: { _all: true },
+      }),
+      viewerId
+        ? (db as unknown as { postRating: { findMany: (a: unknown) => Promise<{ postId: string; value: number }[]> } }).postRating.findMany({
+            where: { postId: { in: ids }, userId: viewerId },
+            select: { postId: true, value: true },
+          })
+        : Promise.resolve([] as { postId: string; value: number }[]),
+      (db as unknown as { postRating: { findMany: (a: unknown) => Promise<{ postId: string; value: number; reason: string | null; createdAt: Date; user: { username: string } }[]> } }).postRating.findMany({
+        where: { postId: { in: ids }, reason: { not: null } },
+        orderBy: { createdAt: "desc" },
+        take: 60,
+        include: { user: { select: { username: true } } },
+      }),
+    ]);
+    for (const g of grouped) {
+      if (g.value === 1) upMap.set(g.postId, g._count._all);
+      else if (g.value === -1) downMap.set(g.postId, g._count._all);
+    }
+    for (const r of mineRows) mineMap.set(r.postId, r.value);
+    for (const r of reasonRows) {
+      const list = reasonsByPost.get(r.postId) ?? [];
+      if (list.length < 5) {
+        list.push({ username: r.user.username, value: r.value, reason: r.reason ?? "", createdAt: r.createdAt });
+        reasonsByPost.set(r.postId, list);
+      }
+    }
+  }
+
+  const mapped = items.map((p) =>
+    toPostListItem(p as unknown as PostRow, {
+      up: upMap.get(p.id) ?? 0,
+      down: downMap.get(p.id) ?? 0,
+      mine: (mineMap.get(p.id) === 1 ? 1 : mineMap.get(p.id) === -1 ? -1 : 0) as -1 | 0 | 1,
+      reasons: reasonsByPost.get(p.id) ?? [],
+    }),
+  );
+  return { items: mapped, nextCursor };
 }

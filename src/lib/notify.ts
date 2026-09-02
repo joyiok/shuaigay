@@ -2,7 +2,7 @@
  * 通知计划:纯函数,把「谁该收到什么通知」从 server action 里抽出来,
  * 便于单测覆盖去重/排除自己的规则。
  */
-export type NotifyKind = "reply" | "mention";
+export type NotifyKind = "reply" | "mention" | "rate" | "favorite" | "report";
 
 export interface NotifyPlanItem {
   userId: string;
@@ -41,6 +41,25 @@ export function planMentionNotifications(opts: {
   const out: string[] = [];
   const seen = new Set<string>();
   for (const uid of opts.mentionedUserIds) {
+    if (uid === opts.actorId || seen.has(uid)) continue;
+    seen.add(uid);
+    out.push(uid);
+  }
+  return out;
+}
+
+/**
+ * 收藏订阅提醒计划:主题有新回复时,通知「收藏了该主题的人」。
+ * 已收到 reply/mention 通知的人(楼主、被提及者)不重复打扰。
+ */
+export function planFavoriteReplyNotifications(opts: {
+  actorId: string;
+  subscriberIds: readonly string[];
+  alreadyNotifiedIds: ReadonlySet<string>;
+}): string[] {
+  const out: string[] = [];
+  const seen = new Set(opts.alreadyNotifiedIds);
+  for (const uid of opts.subscriberIds) {
     if (uid === opts.actorId || seen.has(uid)) continue;
     seen.add(uid);
     out.push(uid);

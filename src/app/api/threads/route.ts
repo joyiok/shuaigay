@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const type = sp.get("type") === "post" ? "post" : "thread";
   const cursor = decodeCursor(sp.get("cursor"));
 
+  const rawCat = sp.get("cat")?.trim() ?? "";
   let items: unknown[] = [];
   let nextCursor: string | null = null;
 
@@ -40,7 +41,12 @@ export async function GET(req: NextRequest) {
     if (!board) {
       return NextResponse.json({ error: "版块不存在" }, { status: 404 });
     }
-    const r = await listThreads(board.id, cursor);
+    let categoryId: string | null = null;
+    if (rawCat) {
+      const cat = await db.threadCategory.findFirst({ where: { id: rawCat, boardId: board.id }, select: { id: true } });
+      categoryId = cat?.id ?? null;
+    }
+    const r = await listThreads(board.id, cursor, categoryId);
     items = r.items;
     nextCursor = r.nextCursor;
   } else {

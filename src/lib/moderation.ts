@@ -149,7 +149,66 @@ export async function createReport(
       reason: trimmed,
     },
   });
+  // 通知:管理员 + 该版块版主(便于及时处理)
+  void notifyReportStaff(reporterId, targetType as ReportTargetType, targetId, trimmed).catch(() => {});
   return { ok: true };
+}
+
+/** 举报成功后通知该版块的版主与所有管理员 */
+async function notifyReportStaff(
+  reporterId: string,
+  targetType: ReportTargetType,
+  targetId: string,
+  reason: string,
+): Promise<void> {
+  try {
+    let boardId: string | null = null;
+    let boardName: string | null = null;
+    if (targetType === "thread") {
+      const t = await db.thread.findUnique({
+        where: { id: targetId },
+        select: { boardId: true, board: { select: { name: true } } },
+      });
+      boardId = (t as { boardId?: string } | null)?.boardId ?? null;
+      boardName = (t as { board?: { name?: string } } | null)?.board?.name ?? null;
+    } else {
+      const p = await db.post.findUnique({
+        where: { id: targetId },
+        select: { thread: { select: { boardId: true, board: { select: { name: true } } } } },
+      });
+      const th = (p as { thread?: { boardId?: string; board?: { name?: string } } } | null)?.thread ?? null;
+      boardId = th?.boardId ?? null;
+      boardName = th?.board?.name ?? null;
+    }
+    // 管理员
+    const admins = ((await (db as unknown as { user: { findMany: (a: unknown) => Promise<{ id: string }[]> } }).user.findMany({
+      where: { role: "ADMIN" },
+      select: { id: true },
+    })) ?? []) as { id: string }[];
+    // 版主
+    let modIds: string[] = [];
+    if (boardId) {
+      const mods = ((await (db as unknown as { boardModerator: { findMany: (a: unknown) => Promise<{ userId: string }[]> } }).boardModerator.findMany({
+        where: { boardId },
+        select: { userId: true },
+      })) ?? []) as { userId: string }[];
+      modIds = mods.map((m) => m.userId);
+    }
+    const recipients = new Set<string>([...admins.map((a) => a.id), ...modIds]);
+    recipients.delete(reporterId);
+    if (recipients.size === 0) return;
+    const body = reason.slice(0, 80);
+    const title = boardName ? `「${boardName}」收到新举报` : "收到新举报";
+    await Promise.all(
+      [...recipients].map((uid) =>
+        db.notification.create({
+          data: { userId: uid, type: "report", title, body, link: "/admin?tab=reports" },
+        }),
+      ),
+    );
+  } catch {
+    // 通知失败不阻断举报主流程
+  }
 }
 
 export type ReviewAction = "delete_thread" | "delete_post" | "ignore" | "reject";
