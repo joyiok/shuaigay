@@ -36,6 +36,7 @@ const ERRORS: Record<string, string> = {
   invalid_category: "分类不存在，请刷新后重试",
   forbidden: "没有权限做这个操作",
   locked: "主题已锁定",
+  board_locked: "版块已锁定，仅版主/管理员可回复",
   ratelimited: "操作太频繁,请稍后再试",
   file_too_large: "有附件超过大小限制",
   unsupported_type: "不支持的附件类型",
@@ -90,7 +91,7 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null) {
   const thread = await db.thread.findUnique({
     where: { id },
     include: {
-      board: { select: { id: true, slug: true, name: true } },
+      board: { select: { id: true, slug: true, name: true, isHidden: true, isLocked: true } },
       category: { select: { name: true } },
     },
   });
@@ -123,6 +124,8 @@ export default async function ThreadPage({
 
   const admin = isAdmin(user);
   const isBoardStaff = admin || (user ? await isBoardModerator(user.id, (thread as unknown as { board: { id: string } }).board.id) : false);
+  if ((thread as unknown as { board: { isHidden: boolean } }).board.isHidden && !isBoardStaff) notFound();
+  const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
   const isFav = user
     ? !!(await db.favorite
         .findUnique({ where: { userId_threadId: { userId: user.id, threadId: thread.id } }, select: { id: true } })
@@ -345,7 +348,7 @@ export default async function ThreadPage({
       )}
 
       <div className="card" style={{ padding: 14 }}>
-        {canReply(user, thread) ? (
+        {canReplyNow ? (
           <form action={replyAction} style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="threadId" value={thread.id} />
             <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} />
@@ -355,7 +358,7 @@ export default async function ThreadPage({
             </div>
           </form>
         ) : user ? (
-          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>主题已锁定，无法回复。</p>
+          <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{(thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff ? "版块已锁定，无法回复（仅版主/管理员可发）。" : "主题已锁定，无法回复。"}</p>
         ) : (
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>
             <Link href={`/login?next=${encodeURIComponent(threadHref(thread.id, thread.title))}`} style={{ color: "var(--brand)" }}>登录</Link> 后回复

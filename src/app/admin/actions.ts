@@ -411,6 +411,130 @@ export async function deleteCategoryAction(formData: FormData): Promise<void> {
   redirect(ADMIN_TAB("boards"));
 }
 
+export async function renameCategoryAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const categoryId = String(formData.get("categoryId") ?? "");
+  const name = categoryNameSchema.safeParse(formData.get("name"));
+  if (!name.success) redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const cat = await db.threadCategory.findUnique({ where: { id: categoryId }, select: { id: true, boardId: true } });
+  if (!cat) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const dup = await db.threadCategory.findFirst({ where: { boardId: cat.boardId, name: name.data, id: { not: categoryId } } });
+  if (dup) redirect(ADMIN_TAB("boards") + "&error=cat_exists");
+  await db.threadCategory.update({ where: { id: categoryId }, data: { name: name.data } });
+  await db.auditLog.create({ data: { actorId, action: "rename_category", targetType: "board", targetId: cat.boardId, detail: name.data } }).catch(() => {});
+  logger.info("admin.rename_category", { actorId, categoryId, name: name.data });
+  revalidateTag("boards");
+  revalidateTag("threads");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function moveCategoryAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const categoryId = String(formData.get("categoryId") ?? "");
+  const dir = String(formData.get("dir") ?? "");
+  if (dir !== "up" && dir !== "down") redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const cat = await db.threadCategory.findUnique({ where: { id: categoryId }, select: { id: true, boardId: true, order: true } });
+  if (!cat) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const neighbor =
+    dir === "up"
+      ? await db.threadCategory.findFirst({ where: { boardId: cat.boardId, order: { lt: cat.order } }, orderBy: { order: "desc" }, select: { id: true, order: true } })
+      : await db.threadCategory.findFirst({ where: { boardId: cat.boardId, order: { gt: cat.order } }, orderBy: { order: "asc" }, select: { id: true, order: true } });
+  if (!neighbor) redirect(ADMIN_TAB("boards"));
+  await db.$transaction([
+    db.threadCategory.update({ where: { id: cat.id }, data: { order: neighbor.order } }),
+    db.threadCategory.update({ where: { id: neighbor.id }, data: { order: cat.order } }),
+  ]);
+  await db.auditLog.create({ data: { actorId, action: "move_category", targetType: "board", targetId: cat.boardId } }).catch(() => {});
+  logger.info("admin.move_category", { actorId, categoryId, dir });
+  revalidateTag("boards");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function updateBoardAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const slug = boardSlugSchema.safeParse(formData.get("slug"));
+  const name = boardNameSchema.safeParse(formData.get("name"));
+  const description = boardDescSchema.safeParse(formData.get("description") ?? "");
+  if (!slug.success || !name.success || !description.success) redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { id: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const dup = await db.board.findFirst({ where: { slug: slug.data, id: { not: boardId } }, select: { id: true } });
+  if (dup) redirect(ADMIN_TAB("boards") + "&error=slug_taken");
+  await db.board.update({ where: { id: boardId }, data: { slug: slug.data, name: name.data, description: description.data || null } });
+  await db.auditLog.create({ data: { actorId, action: "update_board", targetType: "board", targetId: boardId, detail: slug.data } }).catch(() => {});
+  logger.info("admin.update_board", { actorId, boardId, slug: slug.data });
+  revalidateTag("boards");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function toggleBoardHiddenAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { isHidden: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  await db.board.update({ where: { id: boardId }, data: { isHidden: !board.isHidden } });
+  await db.auditLog.create({ data: { actorId, action: "toggle_hidden", targetType: "board", targetId: boardId, detail: String(!board.isHidden) } }).catch(() => {});
+  logger.info("admin.toggle_hidden", { actorId, boardId, hidden: !board.isHidden });
+  revalidateTag("boards");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function toggleBoardLockedAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { isLocked: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  await db.board.update({ where: { id: boardId }, data: { isLocked: !board.isLocked } });
+  await db.auditLog.create({ data: { actorId, action: "toggle_locked", targetType: "board", targetId: boardId, detail: String(!board.isLocked) } }).catch(() => {});
+  logger.info("admin.toggle_locked", { actorId, boardId, locked: !board.isLocked });
+  revalidateTag("boards");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function clearBoardAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { id: true, name: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  const threads = await db.thread.findMany({ where: { boardId }, select: { id: true } });
+  const threadIds = threads.map((t) => t.id);
+  const atts = threadIds.length ? await db.attachment.findMany({ where: { post: { threadId: { in: threadIds } } }, select: { storedName: true } }) : [];
+  await db.thread.deleteMany({ where: { boardId } });
+  await Promise.all(threadIds.map((id) => settlePendingReports("thread", id, false)));
+  const storage = getStorage();
+  await Promise.all(atts.map((a) => storage.remove(a.storedName)));
+  await db.auditLog.create({ data: { actorId, action: "clear_board", targetType: "board", targetId: boardId } }).catch(() => {});
+  logger.info("admin.clear_board", { actorId, boardId, count: threadIds.length });
+  revalidateTag("boards");
+  revalidateTag("stats");
+  revalidateTag("threads");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("boards"));
+}
+
+export async function mergeBoardAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const sourceId = String(formData.get("sourceId") ?? "");
+  const targetId = String(formData.get("targetId") ?? "");
+  if (sourceId === targetId) redirect(ADMIN_TAB("boards") + "&error=invalid");
+  const [source, target] = await Promise.all([
+    db.board.findUnique({ where: { id: sourceId }, select: { id: true } }),
+    db.board.findUnique({ where: { id: targetId }, select: { id: true } }),
+  ]);
+  if (!source || !target) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  // 分类不跨版块，合并时置空
+  await db.thread.updateMany({ where: { boardId: sourceId }, data: { boardId: targetId, categoryId: null } });
+  await db.auditLog.create({ data: { actorId, action: "merge_board", targetType: "board", targetId: sourceId, detail: targetId } }).catch(() => {});
+  logger.info("admin.merge_board", { actorId, sourceId, targetId });
+  revalidateTag("boards");
+  revalidateTag("threads");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("boards"));
+}
+
 /* ---------------- 敏感词 ---------------- */
 
 export async function addSensitiveWordAction(formData: FormData): Promise<void> {

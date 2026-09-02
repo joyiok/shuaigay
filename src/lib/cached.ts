@@ -12,6 +12,7 @@ export const getCachedBoards = unstable_cache(
   async () => {
     try {
       return await db.board.findMany({
+        where: { isHidden: false },
         orderBy: { order: "asc" },
         include: { _count: { select: { threads: true } } },
         take: 8,
@@ -45,6 +46,7 @@ export const getCachedHotTopics = unstable_cache(
   async () => {
     try {
       return await db.thread.findMany({
+        where: { board: { isHidden: false } },
         orderBy: { lastPostAt: "desc" },
         take: 5,
         select: { id: true, title: true, board: { select: { name: true } }, _count: { select: { posts: true } } },

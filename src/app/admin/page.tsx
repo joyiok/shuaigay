@@ -16,10 +16,17 @@ import {
   adminToggleLockAction,
   adminTogglePinAction,
   banUserAction,
+  clearBoardAction,
   createBoardAction,
   createCategoryAction,
   deleteBoardAction,
   deleteCategoryAction,
+  mergeBoardAction,
+  moveCategoryAction,
+  renameCategoryAction,
+  toggleBoardHiddenAction,
+  toggleBoardLockedAction,
+  updateBoardAction,
   moveBoardAction,
   removeModeratorAction,
   removeSensitiveWordAction,
@@ -69,6 +76,11 @@ const ACTION_LABELS: Record<string, string> = {
   create_board: "创建版块",
   delete_board: "删除版块",
   move_board: "移动版块",
+  update_board: "编辑版块",
+  toggle_hidden: "隐藏/显示",
+  toggle_locked: "锁定/解锁版块",
+  clear_board: "清空版块",
+  merge_board: "合并版块",
   review_report: "处理举报",
   ban_user: "封禁用户",
   unban_user: "解封用户",
@@ -78,6 +90,8 @@ const ACTION_LABELS: Record<string, string> = {
   remove_moderator: "撤免版主",
   create_category: "新建分类",
   delete_category: "删除分类",
+  rename_category: "重命名分类",
+  move_category: "移动分类",
 };
 
 export default async function AdminPage({
@@ -461,6 +475,10 @@ async function BoardsTab() {
       categories: { orderBy: { order: "asc" } },
     },
   });
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayGroups = await db.thread.groupBy({ by: ["boardId"], where: { createdAt: { gte: today } }, _count: { _all: true } }).catch(() => [] as { boardId: string; _count: { _all: number } }[]);
+  const todayMap = new Map(todayGroups.map((g) => [g.boardId, g._count._all]));
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
@@ -509,11 +527,13 @@ async function BoardsTab() {
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                   <Link href={`/c/${b.slug}`} style={{ fontWeight: 800, fontSize: 15, fontFamily: "Space Grotesk, sans-serif", color: "var(--text)", textDecoration: "none", letterSpacing: "-0.02em" }}>{b.name}</Link>
                   <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>/ {b.slug}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, background: b._count.threads > 10 ? "#FFF7A8" : "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>{b._count.threads} 主题</span>
+                  {(b as unknown as { isHidden: boolean }).isHidden && <span style={{ fontSize: 10, background: "var(--text)", color: "var(--panel)", padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>隐藏</span>}
+                  {(b as unknown as { isLocked: boolean }).isLocked && <span style={{ fontSize: 10, background: "#FFF7A8", border: "1.5px solid var(--line)", padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>锁定</span>}
+                  <span style={{ fontSize: 11, fontWeight: 700, background: b._count.threads > 10 ? "#FFF7A8" : "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>{b._count.threads} 主题 · 今日 {todayMap.get(b.id) ?? 0}</span>
                 </div>
-                {b.description ? <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, lineHeight: 1.5 }}>{b.description}</div> : <div style={{ fontSize: 12, color: "var(--text-subtle)", marginTop: 5, fontStyle: "italic" }}>暂无简介 — 在上方创建时可填写</div>}
+                {b.description ? <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, lineHeight: 1.5 }}>{b.description}</div> : <div style={{ fontSize: 12, color: "var(--text-subtle)", marginTop: 5, fontStyle: "italic" }}>暂无简介 — 在编辑中可填写</div>}
               </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
                 <form action={moveBoardAction}>
                   <input type="hidden" name="boardId" value={b.id} />
                   <input type="hidden" name="dir" value="up" />
@@ -523,6 +543,14 @@ async function BoardsTab() {
                   <input type="hidden" name="boardId" value={b.id} />
                   <input type="hidden" name="dir" value="down" />
                   <button disabled={i === boards.length - 1} title="下移" style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid var(--line)", background: i === boards.length - 1 ? "var(--bg-soft)" : "var(--panel)", color: i === boards.length - 1 ? "var(--text-subtle)" : "var(--text)", fontSize: 12, fontWeight: 700, boxShadow: i === boards.length - 1 ? "none" : "2px 2px 0 var(--line)", opacity: i === boards.length - 1 ? 0.5 : 1, cursor: i === boards.length - 1 ? "not-allowed" : "pointer" }}>↓</button>
+                </form>
+                <form action={toggleBoardHiddenAction}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <button title={(b as unknown as { isHidden: boolean }).isHidden ? "取消隐藏" : "设为隐藏"} style={{ height: 30, padding: "0 8px", border: "1.5px solid var(--line)", background: (b as unknown as { isHidden: boolean }).isHidden ? "var(--text)" : "var(--panel)", color: (b as unknown as { isHidden: boolean }).isHidden ? "var(--panel)" : "var(--text)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{(b as unknown as { isHidden: boolean }).isHidden ? "已隐藏" : "隐藏"}</button>
+                </form>
+                <form action={toggleBoardLockedAction}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <button title={(b as unknown as { isLocked: boolean }).isLocked ? "解锁" : "锁定发帖"} style={{ height: 30, padding: "0 8px", border: "1.5px solid var(--line)", background: (b as unknown as { isLocked: boolean }).isLocked ? "#FFF7A8" : "var(--panel)", color: "var(--text)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{(b as unknown as { isLocked: boolean }).isLocked ? "已锁定" : "锁定"}</button>
                 </form>
                 <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
                   <input type="hidden" name="boardId" value={b.id} />
@@ -570,15 +598,33 @@ async function BoardsTab() {
                   <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.categories.length ? `${b.categories.length} 项` : "空"}</span>
                 </div>
                 {b.categories.length ? (
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
-                    {b.categories.map((c) => (
-                      <span key={c.id} className={`topic-badge ${catToneClass(c.name)}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, borderWidth: "1.5px", boxShadow: "1px 1px 0 var(--line)" }}>
-                        {c.name}
-                        <form action={deleteCategoryAction} style={{ display: "inline", marginLeft: 2 }}>
+                  <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
+                    {b.categories.map((c, idx) => (
+                      <div key={c.id} style={{ display: "flex", gap: 6, alignItems: "center", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "6px 8px" }}>
+                        <span className={`topic-badge ${catToneClass(c.name)}`} style={{ fontSize: 11, flexShrink: 0 }}>{c.name}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>#{c.order}</span>
+                        <form action={renameCategoryAction} style={{ display: "flex", gap: 4, flex: 1, marginLeft: 6 }}>
                           <input type="hidden" name="categoryId" value={c.id} />
-                          <button type="submit" title="删除分类" style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: 10, color: "inherit", opacity: 0.6, padding: 0 }}>×</button>
+                          <input name="name" defaultValue={c.name} maxLength={20} style={{ flex: 1, height: 24, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 11, background: "var(--panel)" }} />
+                          <button type="submit" style={{ height: 24, padding: "0 6px", border: "1px solid var(--line)", background: "var(--panel)", borderRadius: 6, fontSize: 10, cursor: "pointer" }}>改名</button>
                         </form>
-                      </span>
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <form action={moveCategoryAction}>
+                            <input type="hidden" name="categoryId" value={c.id} />
+                            <input type="hidden" name="dir" value="up" />
+                            <button disabled={idx === 0} style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid var(--line)", background: idx === 0 ? "var(--bg-soft)" : "var(--panel)", opacity: idx === 0 ? 0.4 : 1, cursor: idx === 0 ? "not-allowed" : "pointer", fontSize: 10 }}>↑</button>
+                          </form>
+                          <form action={moveCategoryAction}>
+                            <input type="hidden" name="categoryId" value={c.id} />
+                            <input type="hidden" name="dir" value="down" />
+                            <button disabled={idx === b.categories.length - 1} style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid var(--line)", background: idx === b.categories.length - 1 ? "var(--bg-soft)" : "var(--panel)", opacity: idx === b.categories.length - 1 ? 0.4 : 1, cursor: idx === b.categories.length - 1 ? "not-allowed" : "pointer", fontSize: 10 }}>↓</button>
+                          </form>
+                          <form action={deleteCategoryAction}>
+                            <input type="hidden" name="categoryId" value={c.id} />
+                            <button type="submit" style={{ width: 24, height: 24, borderRadius: 6, border: "1px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, cursor: "pointer" }}>×</button>
+                          </form>
+                        </div>
+                      </div>
                     ))}
                   </div>
                 ) : (
@@ -592,6 +638,42 @@ async function BoardsTab() {
                   </div>
                   <button type="submit" style={{ height: 32, padding: "0 12px", background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer", whiteSpace: "nowrap" }}>新建</button>
                 </form>
+              </div>
+            </div>
+
+            <div style={{ display: "flex", gap: 8, padding: "10px 12px", background: "var(--bg-soft)", borderTop: "1.5px solid var(--line)", flexWrap: "wrap", alignItems: "center" }}>
+              <details style={{ flex: 1 }}>
+                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: "var(--text)" }}>编辑版块</summary>
+                <form action={updateBoardAction} style={{ display: "grid", gap: 8, marginTop: 10, padding: 10, background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8 }}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>Slug</span><input name="slug" defaultValue={b.slug} required pattern="[a-z0-9-]{1,32}" style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
+                    <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>名称</span><input name="name" defaultValue={b.name} required maxLength={30} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
+                  </div>
+                  <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>简介</span><input name="description" defaultValue={b.description ?? ""} maxLength={200} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}><button type="submit" style={{ height: 30, padding: "0 12px", background: "var(--text)", color: "var(--panel)", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>保存</button></div>
+                </form>
+              </details>
+              <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
+                <ConfirmForm action={clearBoardAction} message={`确认清空版块「${b.name}」？\n该版块下 ${b._count.threads} 个主题将被全部删除（保留版块本身），不可恢复！`}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <button type="submit" style={{ height: 28, padding: "0 10px", border: "1.5px solid var(--line)", background: "var(--panel)", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>清空</button>
+                </ConfirmForm>
+                <details style={{ position: "relative" }}>
+                  <summary style={{ listStyle: "none", height: 28, padding: "0 10px", border: "1.5px solid var(--line)", background: "var(--panel)", borderRadius: 6, fontSize: 11, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>合并</summary>
+                  <form action={mergeBoardAction} style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, padding: 10, boxShadow: "4px 4px 0 var(--line)", display: "grid", gap: 8, width: 220, zIndex: 10 }}>
+                    <input type="hidden" name="sourceId" value={b.id} />
+                    <span style={{ fontSize: 11, fontWeight: 600 }}>合并到：</span>
+                    <select name="targetId" required style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 12 }}>
+                      <option value="">选择目标版块</option>
+                      {boards.filter((x) => x.id !== b.id).map((x) => (
+                        <option key={x.id} value={x.id}>{x.name} /{x.slug}</option>
+                      ))}
+                    </select>
+                    <button type="submit" style={{ height: 28, background: "var(--text)", color: "var(--panel)", borderRadius: 6, fontSize: 11, fontWeight: 600 }}>确认合并</button>
+                    <span style={{ fontSize: 10, color: "var(--text-subtle)" }}>源版块主题将移至目标版块，分类置空</span>
+                  </form>
+                </details>
               </div>
             </div>
           </div>

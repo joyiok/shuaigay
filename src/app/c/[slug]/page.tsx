@@ -12,7 +12,9 @@ import EmptyState from "@/components/EmptyState";
 import ErrorState from "@/components/ErrorState";
 import type { ThreadListItem } from "@/lib/queries";
 import type { Cursor } from "@/lib/cursor";
-import { listBoardModerators } from "@/lib/moderators";
+import { getCurrentUser } from "@/lib/auth";
+import { isAdmin } from "@/lib/permissions";
+import { isBoardModerator, listBoardModerators } from "@/lib/moderators";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -52,6 +54,9 @@ export default async function BoardPage({
   const { cursor: rawCursor, error, cat: rawCat } = await searchParams;
   const board = await db.board.findUnique({ where: { slug } });
   if (!board) notFound();
+  const viewer = await getCurrentUser();
+  const viewerIsStaff = isAdmin(viewer) || (viewer ? await isBoardModerator(viewer.id, board.id) : false);
+  if ((board as unknown as { isHidden: boolean }).isHidden && !viewerIsStaff) notFound();
 
   const [categories, moderators] = await Promise.all([
     db.threadCategory.findMany({ where: { boardId: board.id }, orderBy: { order: "asc" } }),
@@ -105,7 +110,11 @@ export default async function BoardPage({
 
       <div className="card" style={{ padding: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{board.name}</h1>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{board.name}</h1>
+            {(board as unknown as { isHidden: boolean }).isHidden && <span style={{ background: "var(--text)", color: "var(--panel)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>隐藏</span>}
+            {(board as unknown as { isLocked: boolean }).isLocked && <span style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>锁定</span>}
+          </div>
           {board.description && <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}>{board.description}</p>}
           {moderators.length > 0 && (
             <p style={{ color: "var(--text-subtle)", fontSize: 12, marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
@@ -116,7 +125,11 @@ export default async function BoardPage({
             </p>
           )}
         </div>
-        <Link href={`/c/${board.slug}/new`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--brand)", color: "#fff", borderRadius: 6, fontSize: 13, fontWeight: 600 }}>发新帖</Link>
+        {(board as unknown as { isLocked: boolean }).isLocked && !viewerIsStaff ? (
+          <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--bg-soft)", color: "var(--text-subtle)", border: "1.5px solid var(--line-soft)", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>已锁定</span>
+        ) : (
+          <Link href={`/c/${board.slug}/new`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 13, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)" }}>发新帖</Link>
+        )}
       </div>
 
       {error && ERRORS[error] && (

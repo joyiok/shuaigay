@@ -139,6 +139,9 @@ export async function createThreadAction(formData: FormData): Promise<void> {
 
   const board = await db.board.findUnique({ where: { slug: boardSlug } });
   if (!board) redirect("/?error=board_not_found");
+  const _isStaffForCreate = isAdmin(user) || (await isBoardModerator(user.id, board.id));
+  if ((board as unknown as { isHidden: boolean }).isHidden && !_isStaffForCreate) redirect("/?error=not_found");
+  if ((board as unknown as { isLocked: boolean }).isLocked && !_isStaffForCreate) redirect(`/c/${board.slug}/new?error=board_locked`);
 
   // 主题分类(可选)
   const rawCategoryId = String(formData.get("categoryId") ?? "").trim();
@@ -253,11 +256,14 @@ export async function replyAction(formData: FormData): Promise<void> {
       authorId: true,
       locked: true,
       title: true,
-      board: { select: { slug: true } },
+      board: { select: { id: true, slug: true, isHidden: true, isLocked: true } },
     },
   });
   if (!thread) redirect("/");
   if (!canReply(user, thread)) redirect(`/t/${thread.id}?error=locked`);
+  const _isStaffReply = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  if ((thread.board as unknown as { isHidden: boolean }).isHidden && !_isStaffReply) redirect("/");
+  if ((thread.board as unknown as { isLocked: boolean }).isLocked && !_isStaffReply) redirect(`/t/${thread.id}?error=board_locked`);
 
   const content = contentSchema.safeParse(formData.get("content"));
   if (!content.success) redirect(`/t/${thread.id}?error=invalid`);

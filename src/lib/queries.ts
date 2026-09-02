@@ -206,7 +206,7 @@ export async function searchThreads(
 ) {
   const rows = await db.thread.findMany({
     where: {
-      ...(boardId ? { boardId } : {}),
+      ...(boardId ? { boardId } : { board: { isHidden: false } }),
       AND: [
         {
           OR: [
@@ -242,7 +242,7 @@ export async function searchPosts(
   const rows = await db.post.findMany({
     where: {
       contentMd: { contains: q, mode: "insensitive" },
-      ...(boardId ? { thread: { boardId } } : {}),
+      ...(boardId ? { thread: { boardId } } : { thread: { board: { isHidden: false } } }),
       ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ createdAt: "desc" as const }, { id: "desc" as const }],
@@ -277,6 +277,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   const rows = await db.thread.findMany({
     where: {
       pinned: false,
+      board: { isHidden: false },
       ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
@@ -291,7 +292,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
     ? []
     : (
         await db.thread.findMany({
-          where: { pinned: true },
+          where: { pinned: true, board: { isHidden: false } },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, board: { select: { slug: true, name: true } } },
