@@ -7,7 +7,7 @@ import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
 import { siteUrl } from "@/lib/site";
-import { getCachedActiveUsers, getCachedBoards, getCachedHotTopics, getCachedStats } from "@/lib/cached";
+import { getCachedActiveUsers, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
@@ -65,11 +65,12 @@ export default async function RootLayout({
   const online = await trackAndCountOnline(user?.id);
 
   // —— 性能：板块/统计/热帖/活跃用户走 60s 缓存，避免每请求 5 次 DB（A+B）——
-  const [boards, stats, hotTopics, activeUsers] = await Promise.all([
+  const [boards, stats, hotTopics, activeUsers, categoryCloud] = await Promise.all([
     getCachedBoards(),
     getCachedStats(),
     getCachedHotTopics(),
     getCachedActiveUsers(),
+    getCachedCategoryCloud(),
   ]);
   const { userCount, threadCount, postCount } = stats;
 
@@ -293,7 +294,7 @@ export default async function RootLayout({
               {/* 热门话题 — 版块 + 热帖分开，信息更清晰 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">热门话题 <Link href="/search" style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>换一换</Link></div>
+                  <div className="quick-title">热门话题 <Link href="/hot" style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>榜单</Link></div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: hotTopics.length ? 12 : 0 }}>
                     {boards.map((b) => (
                       <Link key={b.id} href={`/c/${b.slug}`} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 500, transition: "all 0.14s" }}>
@@ -335,6 +336,46 @@ export default async function RootLayout({
                   </div>
                 </div>
               </div>
+
+              {/* 话题标签云 — 全站分类聚合 */}
+              {categoryCloud.length > 0 && (
+                <div className="card">
+                  <div className="quick-wrap">
+                    <div className="quick-title">话题标签</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+                      {categoryCloud.map((c: any) => {
+                        const cnt = Math.max(0, c._count?.threads ?? 0);
+                        const size = cnt >= 50 ? 14 : cnt >= 10 ? 13 : 12;
+                        const weight = cnt >= 50 ? 700 : cnt >= 10 ? 600 : 500;
+                        return (
+                          <Link
+                            key={c.id}
+                            href={`/c/${c.board.slug}?cat=${c.id}`}
+                            title={`${c.name} · ${c.board.name} · ${cnt} 主题`}
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 5,
+                              background: "var(--bg-soft)",
+                              border: "1px solid var(--line)",
+                              borderRadius: 999,
+                              padding: "4px 10px",
+                              fontSize: size,
+                              fontWeight: weight,
+                              color: "var(--text)",
+                              transition: "all 0.14s",
+                            }}
+                          >
+                            <span style={{ color: "var(--brand)" }}>#</span>
+                            {c.name}
+                            <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "0 5px", fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{cnt}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* 社区公告 */}
               <div className="card">

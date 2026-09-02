@@ -74,3 +74,60 @@ export const getCachedActiveUsers = unstable_cache(
   ["sg:activeUsers"],
   { revalidate: 60, tags: ["users"] },
 );
+
+/**
+ * 热榜(/hot):按 views + 回复数 的热度排序,只算可见版块。
+ * rangeDays 为 1(今日)/7(本周),作为缓存 key 维度。
+ */
+export const getCachedHotRanking = unstable_cache(
+  async (rangeDays: number) => {
+    try {
+      const since = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+      const rows = await db.thread.findMany({
+        where: { board: { isHidden: false }, createdAt: { gte: since } },
+        orderBy: [{ views: "desc" }, { lastPostAt: "desc" }],
+        take: 100,
+        select: {
+          id: true,
+          title: true,
+          views: true,
+          createdAt: true,
+          lastPostAt: true,
+          board: { select: { slug: true, name: true } },
+          author: { select: { username: true, avatarUrl: true } },
+          _count: { select: { posts: true } },
+        },
+      });
+      return rows
+        .map((t) => ({ ...t, replyCount: Math.max(0, t._count.posts - 1) }))
+        .map((t) => ({ ...t, heat: t.views + t.replyCount }))
+        .sort((a, b) => b.heat - a.heat)
+        .slice(0, 50);
+    } catch {
+      return [] as never[];
+    }
+  },
+  ["sg:hotRanking"],
+  { revalidate: 60, tags: ["threads"] },
+);
+
+/** 全局话题标签云:所有版块可见分类 + 主题数,120s 缓存 */
+export const getCachedCategoryCloud = unstable_cache(
+  async () => {
+    try {
+      return await db.threadCategory.findMany({
+        where: { board: { isHidden: false } },
+        include: {
+          board: { select: { slug: true, name: true } },
+          _count: { select: { threads: true } },
+        },
+        orderBy: { threads: { _count: "desc" } },
+        take: 24,
+      });
+    } catch {
+      return [] as never[];
+    }
+  },
+  ["sg:categoryCloud"],
+  { revalidate: 120, tags: ["threads", "categories"] },
+);

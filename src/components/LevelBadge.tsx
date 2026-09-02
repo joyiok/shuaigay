@@ -8,9 +8,14 @@ export default function LevelBadge({ points, role }: { points: number; role?: st
           background: "var(--inverse)",
           color: "var(--inverse-text)",
           fontSize: 10,
-          padding: "2px 6px",
+          padding: "2px 7px",
           borderRadius: 999,
           whiteSpace: "nowrap",
+          fontWeight: 700,
+          border: "2px solid var(--line)",
+          boxShadow: "2px 2px 0 var(--line)",
+          transform: "rotate(-0.8deg)",
+          display: "inline-flex",
         }}
       >
         管理员
@@ -26,12 +31,15 @@ export default function LevelBadge({ points, role }: { points: number; role?: st
       style={{
         background: lv.bg,
         color: lv.color,
-        border: `1px solid ${lv.border}`,
+        border: `2px solid var(--line)`,
         fontSize: 10,
-        padding: "2px 6px",
+        padding: "2px 7px",
         borderRadius: 999,
         whiteSpace: "nowrap",
-        fontWeight: 600,
+        fontWeight: 700,
+        boxShadow: "2px 2px 0 var(--line)",
+        transform: "rotate(-0.8deg)",
+        display: "inline-flex",
       }}
     >
       {lv.name}

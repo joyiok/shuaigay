@@ -89,7 +89,7 @@ export default async function HomePage({
           <Link href="/search" className="tab">
             搜索
           </Link>
-          <Link href="/?sort=hot" className="tab">🔥 热门</Link>
+          <Link href="/hot" className="tab">🔥 热门</Link>
           <Link href="/search?type=post" className="tab">⭐ 精华</Link>
           <Link href="/?filter=unreplied" className="tab">
             待回复

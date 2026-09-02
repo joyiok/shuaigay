@@ -42,17 +42,8 @@ export default function MessageComposer({
           rows={3}
           placeholder={`给 ${receiverUsername} 发私信… 支持 Markdown，@ 提及，回车发送 Shift+回车换行`}
           onKeyDown={onKeyDown}
-          style={{
-            width: "100%",
-            border: "1px solid var(--line)",
-            borderRadius: 8,
-            padding: "10px 12px",
-            fontSize: 13,
-            outline: "none",
-            lineHeight: 1.6,
-            resize: "vertical",
-            minHeight: 72,
-          }}
+          className="composer-textarea"
+          style={{ minHeight: 72 }}
         />
         <MentionAutocomplete textareaRef={taRef} />
       </div>

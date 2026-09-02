@@ -7,8 +7,9 @@ const formatter = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
 });
 
-export function formatDate(d: Date): string {
-  return formatter.format(d);
+export function formatDate(d: Date | string | number): string {
+  // unstable_cache 缓存恢复后 Date 会变成 ISO 字符串,统一 new Date 兜底
+  return formatter.format(new Date(d));
 }
 
 export function formatBytes(n: number): string {

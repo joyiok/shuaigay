@@ -208,16 +208,7 @@ export default function Composer({
   }, []);
 
   const textareaStyle: React.CSSProperties = {
-    width: "100%",
-    border: "1px solid var(--line)",
-    borderRadius: 6,
-    padding: "10px 12px",
     fontFamily: monospace ? "ui-monospace, monospace" : "inherit",
-    fontSize: 13,
-    outline: "none",
-    lineHeight: 1.6,
-    resize: "vertical",
-    minHeight: 90,
   };
 
   const mdBtnStyle: React.CSSProperties = {
@@ -285,9 +276,10 @@ export default function Composer({
           marginBottom: 8,
           flexWrap: "wrap",
           padding: "6px 8px",
-          border: "1px solid var(--line)",
+          border: "2px solid var(--line)",
           borderRadius: 8,
-          background: "var(--bg)",
+          background: "var(--panel)",
+          boxShadow: "3px 3px 0 var(--line)",
         }}
         aria-label="Markdown 工具栏"
       >
@@ -320,6 +312,7 @@ export default function Composer({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onPaste={handlePaste}
+            className="composer-textarea"
             style={textareaStyle}
           />
           <MentionAutocomplete textareaRef={taRef} />
@@ -343,6 +336,7 @@ export default function Composer({
               value={text}
               onChange={(e) => setText(e.target.value)}
               onPaste={handlePaste}
+              className="composer-textarea"
               style={{ ...textareaStyle, minHeight: 180 }}
             />
             <MentionAutocomplete textareaRef={taRef} />
@@ -350,14 +344,14 @@ export default function Composer({
           <div
             className="post-content"
             style={{
-              border: "1px solid var(--line)",
-              borderRadius: 6,
+              border: "2px solid var(--line)",
+              borderRadius: 8,
               padding: "10px 12px",
               background: "var(--panel)",
+              boxShadow: "4px 4px 0 var(--line)",
               minHeight: 180,
               maxHeight: 400,
               overflowY: "auto",
-              lineHeight: 1.6,
             }}
             dangerouslySetInnerHTML={{
               __html: previewHtml || '<p style="color:var(--text-subtle)">暂无内容</p>',
@@ -463,7 +457,7 @@ export default function Composer({
             display: "flex",
             flexWrap: "wrap",
             gap: 8,
-            border: "1px dashed var(--line)",
+            border: "2px dashed var(--line)",
             borderRadius: 8,
             padding: 10,
             background: "var(--bg)",

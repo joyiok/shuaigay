@@ -50,17 +50,8 @@ export default function PostEditor({
         rows={7}
         defaultValue={contentMd}
         aria-label="编辑内容"
-        style={{
-          width: "100%",
-          border: "1px solid var(--line)",
-          borderRadius: 6,
-          padding: "10px 12px",
-          fontSize: 13,
-          outline: "none",
-          lineHeight: 1.6,
-          resize: "vertical",
-          fontFamily: "inherit",
-        }}
+        className="composer-textarea"
+        style={{ minHeight: 160 }}
       />
       <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
         <button

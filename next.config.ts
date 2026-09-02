@@ -18,6 +18,15 @@ const nextConfig: NextConfig = {
     unoptimized: false,
     formats: ["image/avif", "image/webp"],
   },
+  async redirects() {
+    return [
+      {
+        source: "/ranking",
+        destination: "/hot",
+        permanent: true,
+      },
+    ];
+  },
   async headers() {
     return [
       {

@@ -313,10 +313,11 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   };
 }
 
-export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSize = 50) {
+export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSize = 50, authorId: string | null = null) {
   const rows = await db.post.findMany({
     where: {
       threadId,
+      ...(authorId ? { authorId } : {}),
       ...(cursor ? { OR: [{ createdAt: { gt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { gt: cursor.id } }] } : {}),
     },
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],

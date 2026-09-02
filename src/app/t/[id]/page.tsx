@@ -87,7 +87,7 @@ export async function generateMetadata({
   };
 }
 
-async function loadThreadPage(rawId: string, cursor: Cursor | null) {
+async function loadThreadPage(rawId: string, cursor: Cursor | null, opOnly: boolean) {
   const id = parseThreadId(rawId);
   const thread = await db.thread.findUnique({
     where: { id },
@@ -98,7 +98,7 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null) {
   });
   if (!thread) return null;
   const user = await getCurrentUser();
-  const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null);
+  const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, 50, opOnly ? thread.authorId : null);
   return { thread, user, items, nextCursor };
 }
 
@@ -107,13 +107,14 @@ export default async function ThreadPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ cursor?: string; error?: string }>;
+  searchParams: Promise<{ cursor?: string; error?: string; filter?: string }>;
 }) {
   const { id } = await params;
-  const { cursor: rawCursor, error } = await searchParams;
+  const { cursor: rawCursor, error, filter: rawFilter } = await searchParams;
+  const opOnly = rawFilter === "op";
   let loaded: Awaited<ReturnType<typeof loadThreadPage>>;
   try {
-    loaded = await loadThreadPage(id, decodeCursor(rawCursor));
+    loaded = await loadThreadPage(id, decodeCursor(rawCursor), opOnly);
   } catch {
     return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
@@ -186,7 +187,7 @@ export default async function ThreadPage({
         </span>
       </div>
 
-      <div className="card" style={{ padding: 14 }}>
+      <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
@@ -235,6 +236,25 @@ export default async function ThreadPage({
             </form>
           </div>
         )}
+        <div style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap" }}>
+          <Link
+            href={opOnly ? threadHref(thread.id, thread.title) : `${threadHref(thread.id, thread.title)}?filter=op`}
+            style={{
+              height: 28,
+              padding: "0 10px",
+              display: "inline-flex",
+              alignItems: "center",
+              border: `1px solid ${opOnly ? "var(--brand)" : "var(--line)"}`,
+              borderRadius: 6,
+              background: opOnly ? "#ede9fe" : "var(--panel)",
+              color: opOnly ? "var(--brand)" : "var(--text-muted)",
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            {opOnly ? "只看楼主 ✓" : "只看楼主"}
+          </Link>
+        </div>
       </div>
 
       {error && ERRORS[error] && (
@@ -344,7 +364,7 @@ export default async function ThreadPage({
 
       {nextCursor && (
         <div style={{ textAlign: "center" }}>
-          <Link href={`${threadHref(thread.id, thread.title)}?cursor=${nextCursor}`} style={{ display: "inline-flex", alignItems: "center", height: 32, padding: "0 16px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 13 }}>加载后面的回复 →</Link>
+          <Link href={`${threadHref(thread.id, thread.title)}?cursor=${nextCursor}${opOnly ? "&filter=op" : ""}`} style={{ display: "inline-flex", alignItems: "center", height: 32, padding: "0 16px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 13 }}>加载后面的回复 →</Link>
         </div>
       )}
 

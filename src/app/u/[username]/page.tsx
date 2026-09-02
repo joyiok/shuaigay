@@ -6,9 +6,10 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { siteUrl } from "@/lib/site";
-import { updateBioAction } from "@/app/actions/user";
+import { updateBioAction, toggleFollowAction } from "@/app/actions/user";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
 import AvatarUploader from "@/components/AvatarUploader";
+import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import LevelBadge from "@/components/LevelBadge";
@@ -121,6 +122,27 @@ export default async function UserPage({
         })
       : [];
 
+  // 关注关系:是否已关注 + 关注/粉丝数 + 最近粉丝列表
+  const [isFollowing, followerCount, followingCount, followers] = me
+    ? await Promise.all([
+        db.follow
+          .findUnique({
+            where: { followerId_followingId: { followerId: me.id, followingId: user.id } },
+            select: { id: true },
+          })
+          .then((f) => !!f)
+          .catch(() => false),
+        db.follow.count({ where: { followingId: user.id } }).catch(() => 0),
+        db.follow.count({ where: { followerId: user.id } }).catch(() => 0),
+        db.follow.findMany({
+          where: { followingId: user.id },
+          orderBy: { createdAt: "desc" },
+          take: 8,
+          include: { follower: { select: { id: true, username: true, avatarUrl: true } } },
+        }),
+      ])
+    : [false, await db.follow.count({ where: { followingId: user.id } }).catch(() => 0), await db.follow.count({ where: { followerId: user.id } }).catch(() => 0), []];
+
   const firstPostIds = new Set<string>();
   if (posts.length) {
     const threadIds = [...new Set(posts.map((p) => p.threadId))];
@@ -167,7 +189,7 @@ export default async function UserPage({
       </div>
 
       {/* 资料卡 */}
-      <div className="card" style={{ padding: 18 }}>
+      <div className="card user-profile-card" style={{ padding: 18 }}>
         <div style={{ display: "flex", gap: 14, alignItems: "flex-start", flexWrap: "wrap" }}>
           <div className="user-avatar-big" style={{ width: 56, height: 56, fontSize: 20, overflow: "hidden" }}>
             {avSrc ? (
@@ -190,8 +212,48 @@ export default async function UserPage({
                 </Link>
               )}
               {!isSelf && me && (
+                <>
+                  <Link
+                    href={`/messages/${encodeURIComponent(user.username)}`}
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      height: 28,
+                      padding: "0 12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      background: "var(--brand)",
+                      color: "#fff",
+                      borderRadius: 999,
+                      border: "1px solid var(--brand)",
+                    }}
+                  >
+                    发私信
+                  </Link>
+                  <form action={toggleFollowAction}>
+                    <input type="hidden" name="username" value={user.username} />
+                    <button
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        height: 28,
+                        padding: "0 12px",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        borderRadius: 999,
+                        border: `1px solid ${isFollowing ? "var(--line)" : "var(--brand)"}`,
+                        background: isFollowing ? "var(--panel)" : "var(--brand)",
+                        color: isFollowing ? "var(--text-muted)" : "#fff",
+                      }}
+                    >
+                      {isFollowing ? "✓ 已关注" : "+ 关注"}
+                    </button>
+                  </form>
+                </>
+              )}
+              {!isSelf && !me && (
                 <Link
-                  href={`/messages/${encodeURIComponent(user.username)}`}
+                  href={`/login?next=${encodeURIComponent(`/u/${encodeURIComponent(user.username)}`)}`}
                   style={{
                     fontSize: 12,
                     fontWeight: 600,
@@ -199,13 +261,13 @@ export default async function UserPage({
                     padding: "0 12px",
                     display: "inline-flex",
                     alignItems: "center",
-                    background: "var(--brand)",
-                    color: "#fff",
                     borderRadius: 999,
-                    border: "1px solid var(--brand)",
+                    border: "1px solid var(--line)",
+                    background: "var(--panel)",
+                    color: "var(--text-muted)",
                   }}
                 >
-                  发私信
+                  + 关注
                 </Link>
               )}
             </div>
@@ -234,6 +296,14 @@ export default async function UserPage({
                 <strong>{Math.max(0, user._count.posts - user._count.threads)}</strong>
               </span>
               <span style={{ color: "var(--text-subtle)" }}>注册于 {formatDate(user.createdAt)}</span>
+              <span>
+                <span style={{ color: "var(--text-subtle)" }}>关注 </span>
+                <strong>{followingCount}</strong>
+              </span>
+              <span>
+                <span style={{ color: "var(--text-subtle)" }}>粉丝 </span>
+                <strong>{followerCount}</strong>
+              </span>
             </div>
           </div>
         </div>
@@ -301,6 +371,31 @@ export default async function UserPage({
           </div>
         ) : null}
       </div>
+
+      {/* 粉丝列表 */}
+      {followerCount > 0 && (
+        <div className="card" style={{ padding: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 3, height: 12, borderRadius: 999, background: "var(--brand)" }} />
+            最近粉丝
+            <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-subtle)", fontWeight: 600 }}>{followerCount}</span>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {followers.map((f) => (
+              <Link
+                key={f.follower.id}
+                href={`/u/${encodeURIComponent(f.follower.username)}`}
+                style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}
+              >
+                <UserAvatar username={f.follower.username} avatarUrl={f.follower.avatarUrl} size={32} radius={9} />
+                <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", maxWidth: 90, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {f.follower.username}
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Tab 切换 */}
       <div className="tab-bar" style={{ margin: 0 }}>

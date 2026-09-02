@@ -34,18 +34,18 @@ const DESCS: Record<EmptyVariant, string> = {
 };
 
 function Illustration({ variant }: { variant: EmptyVariant }) {
-  // slate-900 极简线框插画，统一描边与留白
+  // 手绘感线框涂鸦: 墨色描边 + 纸面填充, 外层用 .empty-doodle 微转托底
   const common = {
     stroke: "currentColor",
-    strokeWidth: 1.6,
+    strokeWidth: 1.8,
     fill: "none",
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
   };
   if (variant === "search") {
     return (
-      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "#0f172a", opacity: 0.85 }}>
-        <rect x="12" y="10" width="72" height="48" rx="10" stroke="currentColor" strokeWidth={1.6} fill="#f8fafc" />
+      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "var(--text)", opacity: 0.9 }}>
+        <rect x="12" y="10" width="72" height="48" rx="10" stroke="currentColor" strokeWidth={1.8} fill="var(--bg-soft)" />
         <circle cx="42" cy="34" r="14" {...common} />
         <path d="M52 44L64 56" {...common} />
         <circle cx="42" cy="34" r="4" fill="currentColor" opacity={0.08} stroke="none" />
@@ -54,8 +54,8 @@ function Illustration({ variant }: { variant: EmptyVariant }) {
   }
   if (variant === "board") {
     return (
-      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "#0f172a", opacity: 0.85 }}>
-        <rect x="14" y="16" width="68" height="44" rx="10" stroke="currentColor" strokeWidth={1.6} fill="#f8fafc" />
+      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "var(--text)", opacity: 0.9 }}>
+        <rect x="14" y="16" width="68" height="44" rx="10" stroke="currentColor" strokeWidth={1.8} fill="var(--bg-soft)" />
         <path d="M26 30H70M26 40H70M26 50H52" {...common} />
         <rect x="22" y="22" width="52" height="6" rx="3" fill="currentColor" opacity={0.06} stroke="none" />
       </svg>
@@ -63,26 +63,26 @@ function Illustration({ variant }: { variant: EmptyVariant }) {
   }
   if (variant === "invite") {
     return (
-      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "#0f172a", opacity: 0.85 }}>
-        <rect x="18" y="14" width="60" height="44" rx="12" stroke="currentColor" strokeWidth={1.6} fill="#f8fafc" />
+      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "var(--text)", opacity: 0.9 }}>
+        <rect x="18" y="14" width="60" height="44" rx="12" stroke="currentColor" strokeWidth={1.8} fill="var(--bg-soft)" />
         <path d="M30 36H66M30 44H54" {...common} />
-        <circle cx="48" cy="28" r="8" stroke="currentColor" strokeWidth={1.6} fill="none" />
+        <circle cx="48" cy="28" r="8" stroke="currentColor" strokeWidth={1.8} fill="none" />
         <path d="M44 28L47 31L52 25" {...common} />
       </svg>
     );
   }
   if (variant === "report") {
     return (
-      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "#0f172a", opacity: 0.85 }}>
-        <path d="M48 12L78 24V48L48 60L18 48V24L48 12Z" stroke="currentColor" strokeWidth={1.6} fill="#f8fafc" />
+      <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "var(--text)", opacity: 0.9 }}>
+        <path d="M48 12L78 24V48L48 60L18 48V24L48 12Z" stroke="currentColor" strokeWidth={1.8} fill="var(--bg-soft)" />
         <path d="M48 28V38M48 44H48.5" stroke="currentColor" strokeWidth={2} strokeLinecap="round" />
       </svg>
     );
   }
   // default / thread / post / user
   return (
-    <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "#0f172a", opacity: 0.85 }}>
-      <rect x="16" y="12" width="64" height="48" rx="12" stroke="currentColor" strokeWidth={1.6} fill="#f8fafc" />
+    <svg width="96" height="72" viewBox="0 0 96 72" fill="none" aria-hidden="true" style={{ color: "var(--text)", opacity: 0.9 }}>
+      <rect x="16" y="12" width="64" height="48" rx="12" stroke="currentColor" strokeWidth={1.8} fill="var(--bg-soft)" />
       <rect x="26" y="24" width="44" height="6" rx="3" fill="currentColor" opacity={0.08} />
       <rect x="26" y="34" width="32" height="6" rx="3" fill="currentColor" opacity={0.06} />
       <circle cx="48" cy="50" r="2" fill="currentColor" opacity={0.2} />
@@ -103,30 +103,16 @@ export default function EmptyState({
 
   return (
     <div
-      className="card"
-      style={{
-        padding: "36px 20px",
-        textAlign: "center",
-        display: "grid",
-        gap: 14,
-        justifyItems: "center",
-      }}
+      className="empty-paper"
+      style={{ display: "grid", gap: 14, justifyItems: "center" }}
       role="status"
       aria-live="polite"
     >
-      <div
-        style={{
-          width: 96,
-          height: 72,
-          display: "grid",
-          placeItems: "center",
-          color: "var(--text-subtle)",
-        }}
-      >
+      <div className="empty-doodle" style={{ width: 104, height: 78 }}>
         <Illustration variant={variant} />
       </div>
       <div style={{ display: "grid", gap: 6, justifyItems: "center", maxWidth: 420 }}>
-        <p style={{ margin: 0, fontWeight: 800, fontSize: 15, color: "var(--text)", letterSpacing: "-0.02em" }}>{t}</p>
+        <p className="empty-title" style={{ margin: 0 }}>{t}</p>
         <p style={{ margin: 0, color: "var(--text-subtle)", fontSize: 13, lineHeight: 1.6 }}>{d}</p>
       </div>
       {(actionLabel && (actionHref || onAction)) && (
@@ -145,8 +131,9 @@ export default function EmptyState({
                 borderRadius: 999,
                 fontSize: 13,
                 fontWeight: 700,
-                border: "1px solid var(--brand)",
-                boxShadow: "0 1px 2px var(--shadow-base)",
+                border: "2px solid var(--line)",
+                boxShadow: "3px 3px 0 var(--line)",
+                textDecoration: "none",
               }}
             >
               {actionLabel}
@@ -166,7 +153,8 @@ export default function EmptyState({
                 borderRadius: 999,
                 fontSize: 13,
                 fontWeight: 700,
-                border: "1px solid var(--brand)",
+                border: "2px solid var(--line)",
+                boxShadow: "3px 3px 0 var(--line)",
                 cursor: "pointer",
               }}
             >

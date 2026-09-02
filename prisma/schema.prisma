@@ -39,6 +39,8 @@ model User {
   moderations       BoardModerator[]
   sentMessages      DirectMessage[]    @relation("DirectMessageSender")
   receivedMessages  DirectMessage[]    @relation("DirectMessageReceiver")
+  following         Follow[]           @relation("UserFollowers")
+  followers         Follow[]           @relation("UserFollowing")
   sessions          Session[]
   attachments       Attachment[]       @relation("AttachmentUploader")
   notifications     Notification[]
@@ -138,6 +140,21 @@ model BoardModerator {
 
   @@unique([boardId, userId])
   @@index([userId])
+}
+
+/** 关注:单向关注,关注者 followerId → 被关注者 followingId;取关即删除记录 */
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollowers", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("UserFollowing", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followingId, createdAt])
+  @@index([followerId, createdAt])
 }
 
 /** 收藏:登录用户收藏主题;收藏者会在该主题有新回复时收到提醒 */
