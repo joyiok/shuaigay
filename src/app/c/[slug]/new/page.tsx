@@ -21,17 +21,18 @@ import Composer from "@/components/Composer";
 import Turnstile from "@/components/Turnstile";
 import Link from "next/link";
 import AuthRequired from "@/components/AuthRequired";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
 
-const ERRORS: Record<string, string> = {
-  invalid: "标题或内容格式不对",
-  invalid_category: "分类不存在，请刷新后重试",
-  board_locked: "版块已锁定，无法发帖（仅版主/管理员可发）",
-  file_too_large: "有附件超过等级限制（新手 5MB，正式及以上 20MB）",
-  unsupported_type: "不支持的附件类型",
-  too_many_files: `最多 ${MAX_FILES_PER_POST} 个附件`,
-  captcha_failed: "人机验证未通过，请重新验证后重试",
-  sensitive: "内容包含敏感词，请修改后重试",
-  daily_limit: "今日发帖已达上限，升级后可发更多（新手 3/日，正式 5/日）",
+const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
+  invalid: { title: "少写了点", msg: "标题 5-120 字，正文 1-20000 字。", tip: "标题再补几个字，正文别空着" },
+  invalid_category: { title: "分类找不到了", msg: "选的分类不存在，可能刚被删。", tip: "刷新一下重选" },
+  board_locked: { title: "版块锁了", msg: "这个版块已锁定，普通用户不能发新帖。", tip: "去别的版发，或找版主开锁" },
+  file_too_large: { title: "附件太大了", msg: "新手 5MB，正式及以上 20MB。", tip: "升级后再传，或压一下图" },
+  unsupported_type: { title: "格式不支持", msg: "只认 JPG/PNG/GIF/WEBP 等常见图。", tip: "换个格式再试" },
+  too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发，或删几个" },
+  captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },
+  sensitive: { title: "有敏感词", msg: "内容里有敏感词，已转待审而不是直接拦。", tip: "等版主过审，或改一下措辞" },
+  daily_limit: { title: "今天发够了", msg: "今日发帖已达上限。", tip: "新手 3/日 正式 5/日，明天再来或升个级" },
 };
 
 export default async function NewThreadPage({
@@ -84,11 +85,9 @@ export default async function NewThreadPage({
       </div>
       <form action={createThreadAction} className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
         <input type="hidden" name="boardSlug" value={board.slug} />
-        <h1 style={{ fontSize: 16, fontWeight: 800, margin: 0 }}>在「{board.name}」发新帖</h1>
+        <h1 style={{ fontSize: 16, fontWeight: 800, margin: 0, fontFamily: "Crimson Pro, serif" }}>在「{board.name}」发新帖</h1>
         {error && ERRORS[error] && (
-          <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>
-            {ERRORS[error]}
-          </p>
+          <HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} />
         )}
         {categories.length > 0 && (
           <label style={{ display: "grid", gap: 4 }}>

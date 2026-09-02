@@ -30,22 +30,23 @@ import { makeExcerpt } from "@/lib/excerpt";
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import { parseThreadId, threadHref } from "@/lib/slug";
 import { isBoardModerator } from "@/lib/moderators";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
 
-const ERRORS: Record<string, string> = {
-  invalid: "内容格式不对",
-  invalid_category: "分类不存在，请刷新后重试",
-  forbidden: "没有权限做这个操作",
-  locked: "主题已锁定",
-  board_locked: "版块已锁定，仅版主/管理员可回复",
-  daily_limit: "今日回帖已达上限，升级后可发更多（新手 10/日，正式 20/日）",
-  ratelimited: "操作太频繁,请稍后再试",
-  file_too_large: "有附件超过大小限制",
-  unsupported_type: "不支持的附件类型",
-  too_many_files: `最多 ${MAX_FILES_PER_POST} 个附件`,
-  captcha_failed: "人机验证未通过，请重新验证后重试",
-  sensitive: "内容包含敏感词，请修改后重试",
-  reason_sensitive: "评分理由包含敏感词，请修改后重试",
-  self_rate: "不能给自己的楼层评分",
+const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
+  invalid: { title: "少写了点", msg: "内容 1-20000 字。", tip: "再补几句" },
+  invalid_category: { title: "分类没了", msg: "选的分类没了。", tip: "刷新重选" },
+  forbidden: { title: "没权限", msg: "不能做这个操作。", tip: "看看是不是自己的帖子" },
+  locked: { title: "主题锁了", msg: "这个主题已锁定。", tip: "找版主开锁" },
+  board_locked: { title: "版块锁了", msg: "版块已锁定，普通用户不能回。", tip: "等开锁或去别的版" },
+  daily_limit: { title: "今天回够了", msg: "今日回帖已达上限。", tip: "新手 10/日 正式 20/日，明天再来" },
+  ratelimited: { title: "手速太快", msg: "操作太频繁，歇会。", tip: "等 1 分钟" },
+  file_too_large: { title: "附件太大了", msg: "新手 5MB，正式 20MB。", tip: "压一下图" },
+  unsupported_type: { title: "格式不支持", msg: "只认常见图片。", tip: "换个格式" },
+  too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发" },
+  captcha_failed: { title: "验证没过", msg: "人机验证失败。", tip: "重验一次" },
+  sensitive: { title: "有敏感词", msg: "已转待审。", tip: "等审核" },
+  reason_sensitive: { title: "理由有敏感词", msg: "评分理由含敏感词。", tip: "换个说法" },
+  self_rate: { title: "不能自评", msg: "不能给自己评分。", tip: "去给别人点赞" },
 };
 
 export async function generateMetadata({
@@ -268,7 +269,7 @@ export default async function ThreadPage({
       </div>
 
       {error && ERRORS[error] && (
-        <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>{ERRORS[error]}</p>
+        <HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} />
       )}
       {pending && (
         <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
