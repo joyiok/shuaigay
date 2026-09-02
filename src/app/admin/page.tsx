@@ -3,7 +3,7 @@ import type { CSSProperties } from "react";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
-import { formatDate } from "@/lib/format";
+import { catToneClass, formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
@@ -32,6 +32,7 @@ import { listSensitiveWords } from "@/lib/sensitive";
 import { ConfirmForm, NativeConfirmForm } from "./ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import LevelBadge from "@/components/LevelBadge";
+import UserAvatar from "@/components/UserAvatar";
 
 export const metadata = { title: "管理后台" };
 
@@ -456,114 +457,156 @@ async function BoardsTab() {
     orderBy: { order: "asc" },
     include: {
       _count: { select: { threads: true } },
-      moderators: { include: { user: { select: { id: true, username: true } } }, orderBy: { createdAt: "asc" } },
+      moderators: { include: { user: { select: { id: true, username: true, avatarUrl: true } } }, orderBy: { createdAt: "asc" } },
       categories: { orderBy: { order: "asc" } },
     },
   });
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <div className="card" style={{ padding: 14 }}>
-        <div className="quick-title" style={{ margin: "0 0 10px" }}>新建版块</div>
-        <form action={createBoardAction} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          <input name="slug" required placeholder="slug（如 general）" pattern="[a-z0-9-]{1,32}" style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
-          <input name="name" required placeholder="名称" maxLength={30} style={{ height: 30, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
-          <input name="description" placeholder="简介（可选）" maxLength={200} style={{ height: 30, flex: 2, minWidth: 160, border: "1px solid var(--line)", borderRadius: 6, padding: "0 10px", fontSize: 12, outline: "none" }} />
-          <input type="number" name="order" defaultValue={0} min={0} max={10000} title="排序值，越小越靠前" style={{ width: 70, height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12, outline: "none" }} />
-          <button type="submit" style={{ height: 30, padding: "0 14px", background: "var(--brand)", color: "#fff", borderRadius: 6, fontSize: 12, fontWeight: 600, border: "1px solid var(--brand)", cursor: "pointer" }}>创建</button>
+    <div style={{ display: "grid", gap: 14 }}>
+      <div className="card" style={{ padding: 16, position: "relative" }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+          <div>
+            <div className="quick-title" style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif" }}>新建版块</div>
+            <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", marginTop: 2 }}>{boards.length} 个版块 · slug 唯一，建议小写英文-数字</div>
+          </div>
+          <span style={{ fontSize: 10, background: "#FFF7A8", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>ADMIN ONLY</span>
+        </div>
+        <form action={createBoardAction} style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px", gap: 10, alignItems: "end" }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>Slug · 地址后缀 <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>/c/</span></span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)" }}>
+                <span style={{ fontSize: 12, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>/c/</span>
+                <input name="slug" required pattern="[a-z0-9-]{1,32}" placeholder="general" style={{ flex: 1, border: 0, outline: "none", fontSize: 13, fontFamily: "JetBrains Mono, monospace", background: "transparent" }} />
+              </span>
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>名称</span>
+              <input name="name" required maxLength={30} placeholder="综合讨论" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", fontSize: 13, outline: "none", boxShadow: "2px 2px 0 var(--line)" }} />
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>排序</span>
+              <input type="number" name="order" defaultValue={boards.length + 1} min={0} max={10000} style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 8px", fontSize: 13, textAlign: "center", boxShadow: "2px 2px 0 var(--line)" }} />
+            </label>
+          </div>
+          <label style={{ display: "grid", gap: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>简介 <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>— 一句话，显示在版块页顶部</span></span>
+            <input name="description" maxLength={200} placeholder="例如：随便聊聊 · 寻找同好" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", fontSize: 13, outline: "none", boxShadow: "2px 2px 0 var(--line)" }} />
+          </label>
+          <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
+            <button type="submit" style={{ height: 36, padding: "0 18px", background: "var(--text)", color: "var(--panel)", border: "2px solid var(--line)", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "3px 3px 0 var(--line)", fontFamily: "Space Grotesk, sans-serif", cursor: "pointer" }}>+ 创建版块</button>
+          </div>
         </form>
       </div>
 
-      <div className="card" style={{ overflow: "hidden" }}>
-        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)" }}>
-          <div className="quick-title" style={{ margin: 0 }}>版块列表 <span>{boards.length} 个 · 删除需二次确认</span></div>
-        </div>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-          {boards.map((b, i) => (
-            <li key={b.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--bg)", display: "grid", gap: 10 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 12, color: "var(--text-subtle)", width: 40 }}>#{b.order}</span>
-                <div style={{ minWidth: 0 }}>
-                  <Link href={`/c/${b.slug}`} style={{ fontWeight: 600, fontSize: 13 }}>{b.name}</Link>
-                  <div style={{ color: "var(--text-subtle)", fontSize: 11 }}>/ {b.slug}{b.description ? ` · ${b.description}` : ""}</div>
+      <div style={{ display: "grid", gap: 12 }}>
+        {boards.map((b, i) => (
+          <div key={b.id} className="card" style={{ overflow: "hidden", padding: 0, display: "grid" }}>
+            <div style={{ display: "flex", gap: 12, padding: "14px 14px 12px", alignItems: "flex-start", borderBottom: "1.5px solid var(--line)", background: "var(--panel)" }}>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--bg-soft)", border: "1.5px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, fontFamily: "JetBrains Mono, monospace", flexShrink: 0, boxShadow: "1px 1px 0 var(--line)" }}>#{b.order}</div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <Link href={`/c/${b.slug}`} style={{ fontWeight: 800, fontSize: 15, fontFamily: "Space Grotesk, sans-serif", color: "var(--text)", textDecoration: "none", letterSpacing: "-0.02em" }}>{b.name}</Link>
+                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>/ {b.slug}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: b._count.threads > 10 ? "#FFF7A8" : "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>{b._count.threads} 主题</span>
                 </div>
-                <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{b._count.threads} 主题</span>
-                <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                  <form action={moveBoardAction}>
-                    <input type="hidden" name="boardId" value={b.id} />
-                    <input type="hidden" name="dir" value="up" />
-                    <button style={{ ...actionBtn, opacity: i === 0 ? 0.4 : 1 }} disabled={i === 0}>上移</button>
-                  </form>
-                  <form action={moveBoardAction}>
-                    <input type="hidden" name="boardId" value={b.id} />
-                    <input type="hidden" name="dir" value="down" />
-                    <button style={{ ...actionBtn, opacity: i === boards.length - 1 ? 0.4 : 1 }} disabled={i === boards.length - 1}>下移</button>
-                  </form>
-                  <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
-                    <input type="hidden" name="boardId" value={b.id} />
-                    <button type="submit" style={dangerBtn}>删除版块</button>
-                  </ConfirmForm>
-                </span>
+                {b.description ? <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 5, lineHeight: 1.5 }}>{b.description}</div> : <div style={{ fontSize: 12, color: "var(--text-subtle)", marginTop: 5, fontStyle: "italic" }}>暂无简介 — 在上方创建时可填写</div>}
               </div>
-              <details style={{ background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px" }}>
-                <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>版主 {b.moderators.length} · 分类 {b.categories.length}</summary>
-                <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", marginBottom: 6 }}>版主</div>
-                    {b.moderators.length ? (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-                        {b.moderators.map((m) => (
-                          <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 12 }}>
-                            {m.user.username}
-                            <form action={removeModeratorAction} style={{ display: "inline" }}>
-                              <input type="hidden" name="boardId" value={b.id} />
-                              <input type="hidden" name="userId" value={m.user.id} />
-                              <button type="submit" style={{ border: 0, background: "transparent", color: "var(--danger)", fontSize: 11, cursor: "pointer" }}>移除</button>
-                            </form>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无版主</span>
-                    )}
-                    <form action={addModeratorAction} style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
-                      <input type="hidden" name="boardId" value={b.id} />
-                      <input name="username" required placeholder="用户名" pattern="[a-zA-Z0-9_-]{3,20}" style={{ height: 26, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
-                      <button type="submit" style={actionBtn}>设为版主</button>
-                    </form>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", marginBottom: 6 }}>主题分类</div>
-                    {b.categories.length ? (
-                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                        {b.categories.map((c) => (
-                          <span key={c.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 12 }}>
-                            {c.name}
-                            <form action={deleteCategoryAction} style={{ display: "inline" }}>
-                              <input type="hidden" name="categoryId" value={c.id} />
-                              <button type="submit" style={{ border: 0, background: "transparent", color: "var(--danger)", fontSize: 11, cursor: "pointer" }}>删除</button>
-                            </form>
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无分类</span>
-                    )}
-                    <form action={createCategoryAction} style={{ display: "flex", gap: 6, marginTop: 8, alignItems: "center" }}>
-                      <input type="hidden" name="boardId" value={b.id} />
-                      <input name="name" required placeholder="新分类名(≤20字)" maxLength={20} style={{ height: 26, flex: 1, minWidth: 120, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} />
-                      <button type="submit" style={actionBtn}>新建分类</button>
-                    </form>
-                  </div>
+              <div style={{ display: "flex", gap: 6, flexShrink: 0, alignItems: "center" }}>
+                <form action={moveBoardAction}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <input type="hidden" name="dir" value="up" />
+                  <button disabled={i === 0} title="上移" style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid var(--line)", background: i === 0 ? "var(--bg-soft)" : "var(--panel)", color: i === 0 ? "var(--text-subtle)" : "var(--text)", fontSize: 12, fontWeight: 700, boxShadow: i === 0 ? "none" : "2px 2px 0 var(--line)", opacity: i === 0 ? 0.5 : 1, cursor: i === 0 ? "not-allowed" : "pointer" }}>↑</button>
+                </form>
+                <form action={moveBoardAction}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <input type="hidden" name="dir" value="down" />
+                  <button disabled={i === boards.length - 1} title="下移" style={{ width: 30, height: 30, borderRadius: 8, border: "1.5px solid var(--line)", background: i === boards.length - 1 ? "var(--bg-soft)" : "var(--panel)", color: i === boards.length - 1 ? "var(--text-subtle)" : "var(--text)", fontSize: 12, fontWeight: 700, boxShadow: i === boards.length - 1 ? "none" : "2px 2px 0 var(--line)", opacity: i === boards.length - 1 ? 0.5 : 1, cursor: i === boards.length - 1 ? "not-allowed" : "pointer" }}>↓</button>
+                </form>
+                <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <button type="submit" style={{ height: 30, padding: "0 10px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>删除</button>
+                </ConfirmForm>
+              </div>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, padding: 12, background: "var(--bg)" }}>
+              <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "Space Grotesk, sans-serif" }}>版主 · {b.moderators.length}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.moderators.length ? `${b.moderators.length} 人` : "空"}</span>
                 </div>
-              </details>
-            </li>
-          ))}
-        </ul>
+                {b.moderators.length ? (
+                  <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
+                    {b.moderators.map((m) => (
+                      <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 999, padding: "3px 6px 3px 3px", fontSize: 12, boxShadow: "1px 1px 0 var(--line)" }}>
+                        <UserAvatar username={m.user.username} avatarUrl={(m.user as any).avatarUrl ?? null} size={22} radius={999} />
+                        <span style={{ fontWeight: 600, fontSize: 12 }}>{m.user.username}</span>
+                        <form action={removeModeratorAction} style={{ display: "inline" }}>
+                          <input type="hidden" name="boardId" value={b.id} />
+                          <input type="hidden" name="userId" value={m.user.id} />
+                          <button type="submit" title="移除版主" style={{ width: 18, height: 18, borderRadius: 999, border: "1px solid var(--line)", background: "var(--bg-soft)", color: "var(--text-subtle)", fontSize: 10, lineHeight: 1, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>×</button>
+                        </form>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--text-subtle)", marginBottom: 10, padding: "10px 12px", background: "var(--bg-soft)", borderRadius: 8, border: "1px dashed var(--line-soft)", textAlign: "center", lineHeight: 1.5 }}>暂无版主<br /><span style={{ fontSize: 11 }}>添加后可管理置顶/锁定/删帖与举报</span></div>
+                )}
+                <form action={addModeratorAction} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 8px", background: "var(--panel)", boxShadow: "1px 1px 0 var(--line)" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>@</span>
+                    <input name="username" required placeholder="用户名" pattern="[a-zA-Z0-9_-]{3,20}" style={{ flex: 1, border: 0, outline: "none", fontSize: 12, background: "transparent" }} />
+                  </div>
+                  <button type="submit" style={{ height: 32, padding: "0 12px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer", whiteSpace: "nowrap" }}>添加</button>
+                </form>
+              </div>
+
+              <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "Space Grotesk, sans-serif" }}>主题分类 · {b.categories.length}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.categories.length ? `${b.categories.length} 项` : "空"}</span>
+                </div>
+                {b.categories.length ? (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+                    {b.categories.map((c) => (
+                      <span key={c.id} className={`topic-badge ${catToneClass(c.name)}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "4px 10px", fontSize: 12, borderWidth: "1.5px", boxShadow: "1px 1px 0 var(--line)" }}>
+                        {c.name}
+                        <form action={deleteCategoryAction} style={{ display: "inline", marginLeft: 2 }}>
+                          <input type="hidden" name="categoryId" value={c.id} />
+                          <button type="submit" title="删除分类" style={{ border: 0, background: "transparent", cursor: "pointer", fontSize: 10, color: "inherit", opacity: 0.6, padding: 0 }}>×</button>
+                        </form>
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: "var(--text-subtle)", marginBottom: 10, padding: "10px 12px", background: "var(--bg-soft)", borderRadius: 8, border: "1px dashed var(--line-soft)", textAlign: "center", lineHeight: 1.5 }}>暂无分类<br /><span style={{ fontSize: 11 }}>用于发帖时可选，提升筛选效率</span></div>
+                )}
+                <form action={createCategoryAction} style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 8px", background: "var(--panel)", boxShadow: "1px 1px 0 var(--line)" }}>
+                    <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>#</span>
+                    <input name="name" required maxLength={20} placeholder="新分类名" style={{ flex: 1, border: 0, outline: "none", fontSize: 12, background: "transparent" }} />
+                  </div>
+                  <button type="submit" style={{ height: 32, padding: "0 12px", background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer", whiteSpace: "nowrap" }}>新建</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        ))}
+        {boards.length === 0 && (
+          <div className="card" style={{ padding: 32, textAlign: "center", color: "var(--text-subtle)", borderStyle: "dashed" }}>
+            <div style={{ fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>还没有版块</div>
+            <div style={{ fontSize: 12 }}>在上方创建第一个版块，社区就有了起点</div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
 
 /* ---------------- 举报队列 ---------------- */
 
