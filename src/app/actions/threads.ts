@@ -179,12 +179,26 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     ? await persistFiles(storage, prepared, user.id)
     : [];
 
-  // 审核判定 A/B/C
+  // 审核判定 A/B/C + 等级权限
   const approvalUser = await fetchApprovalUser(user.id);
   const approvalBoard = await fetchApprovalBoard(board.id);
   const { pending, reason: pendingReason } = approvalUser && approvalBoard ? await needsApproval(approvalUser, approvalBoard, title.data, content.data, _isStaffForCreate) : { pending: false, reason: null };
   const threadStatus = pending ? "pending" : "approved";
   const postStatus = pending ? "pending" : "approved";
+  // 等级每日限额
+  if (!_isStaffForCreate && approvalUser) {
+    const { permsForPoints } = await import("@/lib/levels");
+    const perms = permsForPoints(approvalUser.points);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayThreads = await db.thread.count({ where: { authorId: user.id, createdAt: { gte: today } } });
+    if (todayThreads >= perms.dailyThreads) redirect(`/c/${board.slug}/new?error=daily_limit`);
+    // 附件大小按等级
+    const maxBytes = perms.maxUploadMB * 1024 * 1024;
+    for (const f of prepared) {
+      if (f.buf.length > maxBytes) redirect(`/c/${board.slug}/new?error=file_too_large`);
+    }
+  }
 
   // redirect 会抛 NEXT_REDIRECT,不能被 try 捕获,所以库操作和跳转分开
   const mentionedUsers = await findMentionedUsers(content.data, user.id);
@@ -345,6 +359,16 @@ export async function replyAction(formData: FormData): Promise<void> {
   const approvalBoardReply = await fetchApprovalBoard(thread.board.id);
   const { pending: pendingReply, reason: pendingReasonReply } = approvalUserReply && approvalBoardReply ? await needsApproval(approvalUserReply, approvalBoardReply, "", content.data, _isStaffReply) : { pending: false, reason: null };
   const postStatusReply = pendingReply ? "pending" : "approved";
+  if (!_isStaffReply && approvalUserReply) {
+    const { permsForPoints } = await import("@/lib/levels");
+    const perms = permsForPoints(approvalUserReply.points);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayReplies = await db.post.count({ where: { authorId: user.id, createdAt: { gte: today } } });
+    if (todayReplies >= perms.dailyReplies) redirect(`/t/${thread.id}?error=daily_limit`);
+    const maxBytes = perms.maxUploadMB * 1024 * 1024;
+    for (const f of prepared) { if (f.buf.length > maxBytes) redirect(`/t/${thread.id}?error=file_too_large`); }
+  }
 
   try {
     await db.$transaction(async (tx) => {

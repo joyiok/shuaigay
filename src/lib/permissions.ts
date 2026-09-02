@@ -6,6 +6,7 @@
 export interface UserLike {
   id: string;
   role: "USER" | "ADMIN";
+  points?: number;
 }
 
 export interface PostLike {
@@ -54,4 +55,13 @@ export function canEditPost(
 
 export function canModerate(user: UserLike | null): boolean {
   return isAdmin(user);
+}
+
+export function canPostLinkForPoints(points: number): boolean {
+  // 需正式会员及以上
+  return points >= 30;
+}
+
+export function maxUploadMBForPoints(points: number): number {
+  return points >= 30 ? 20 : 5;
 }

@@ -26,11 +26,12 @@ const ERRORS: Record<string, string> = {
   invalid: "标题或内容格式不对",
   invalid_category: "分类不存在，请刷新后重试",
   board_locked: "版块已锁定，无法发帖（仅版主/管理员可发）",
-  file_too_large: "有附件超过大小限制",
+  file_too_large: "有附件超过等级限制（新手 5MB，正式及以上 20MB）",
   unsupported_type: "不支持的附件类型",
   too_many_files: `最多 ${MAX_FILES_PER_POST} 个附件`,
   captcha_failed: "人机验证未通过，请重新验证后重试",
   sensitive: "内容包含敏感词，请修改后重试",
+  daily_limit: "今日发帖已达上限，升级后可发更多（新手 3/日，正式 5/日）",
 };
 
 export default async function NewThreadPage({

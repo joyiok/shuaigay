@@ -15,6 +15,7 @@ import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass } from "@/lib/format";
+import { levelForPoints, nextLevelForPoints, permsForPoints, LEVELS } from "@/lib/levels";
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
@@ -318,6 +319,30 @@ export default async function UserPage({
                 <strong>{followerCount}</strong>
               </span>
             </div>
+            {/* 等级进度 */}
+            {(() => {
+              const lv = levelForPoints(user.points);
+              const next = nextLevelForPoints(user.points);
+              const perms = permsForPoints(user.points);
+              const pct = next ? Math.max(5, Math.min(100, Math.round(((user.points - lv.min) / (next.missing + (user.points - lv.min))) * 100))) : 100;
+              return (
+                <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--bg-soft)", border: "1.5px solid var(--line-soft)", borderRadius: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace" }}>
+                    <span>{lv.name} · {user.points} 分</span>
+                    <span>{next ? `距 ${next.name} 还差 ${next.missing} 分` : "已满级"}</span>
+                  </div>
+                  <div style={{ height: 6, background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: lv.color, borderRadius: 999, transition: "width 0.3s" }} />
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>
+                    <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>日发帖 {perms.dailyThreads}</span>
+                    <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>日回帖 {perms.dailyReplies}</span>
+                    <span style={{ background: perms.canPostLink ? "var(--panel)" : "#FFF1F0", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999, color: perms.canPostLink ? "var(--text)" : "var(--danger)" }}>{perms.canPostLink ? "可发外链" : "外链需审核"}</span>
+                    <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>附件 {perms.maxUploadMB}MB</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 

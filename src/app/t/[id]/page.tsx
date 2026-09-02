@@ -37,6 +37,7 @@ const ERRORS: Record<string, string> = {
   forbidden: "没有权限做这个操作",
   locked: "主题已锁定",
   board_locked: "版块已锁定，仅版主/管理员可回复",
+  daily_limit: "今日回帖已达上限，升级后可发更多（新手 10/日，正式 20/日）",
   ratelimited: "操作太频繁,请稍后再试",
   file_too_large: "有附件超过大小限制",
   unsupported_type: "不支持的附件类型",

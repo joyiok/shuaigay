@@ -28,8 +28,37 @@ export function levelForPoints(points: number): Level {
   return cur;
 }
 
+export function levelIndexForPoints(points: number): number {
+  let idx = 0;
+  for (let i = 0; i < LEVELS.length; i++) if (points >= LEVELS[i].min) idx = i;
+  return idx;
+}
+
 /** 距离下一级还差多少分;已是顶级返回 null */
 export function nextLevelForPoints(points: number): { name: string; missing: number } | null {
   for (const l of LEVELS) if (points < l.min) return { name: l.name, missing: l.min - points };
   return null;
+}
+
+// 等级→权限（纯函数，Discuz 式用户组简化版）
+export interface LevelPerms {
+  dailyThreads: number;
+  dailyReplies: number;
+  maxUploadMB: number;
+  canPostLink: boolean;
+  canUpload: boolean;
+}
+
+export function permsForPoints(points: number): LevelPerms {
+  const idx = levelIndexForPoints(points);
+  if (idx >= 5) return { dailyThreads: 20, dailyReplies: 100, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 元老
+  if (idx >= 4) return { dailyThreads: 15, dailyReplies: 80, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 金牌
+  if (idx >= 3) return { dailyThreads: 10, dailyReplies: 50, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 高级
+  if (idx >= 2) return { dailyThreads: 8, dailyReplies: 40, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 中级
+  if (idx >= 1) return { dailyThreads: 5, dailyReplies: 20, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 正式
+  return { dailyThreads: 3, dailyReplies: 10, maxUploadMB: 5, canPostLink: false, canUpload: true }; // 新手
+}
+
+export function hasLink(text: string): boolean {
+  return /https?:\/\//i.test(text);
 }

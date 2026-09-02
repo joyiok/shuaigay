@@ -26,6 +26,9 @@ export async function needsApproval(
   isStaff = false,
 ): Promise<{ pending: boolean; reason: string | null }> {
   if (!isStaff && board.requireApproval) return { pending: true, reason: "版块开启审核" };
+  // 等级不足发外链需审核
+  const { hasLink } = await import("./levels");
+  if (!isStaff && hasLink(title + " " + content) && user.points < 30) return { pending: true, reason: "等级不足，发外链需正式会员" };
   if (user.points < 30) return { pending: true, reason: "新人见习" };
   const ageMs = Date.now() - new Date(user.createdAt).getTime();
   if (ageMs < 24 * 60 * 60 * 1000) return { pending: true, reason: "注册24h内" };
