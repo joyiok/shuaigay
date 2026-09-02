@@ -44,12 +44,21 @@ body {
   font-size: 14px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
-  /* 纸纹噪点 - 极淡复印机颗粒 */
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  /* 纸纹 — 双层点阵 + 极淡纤维噪点 */
+  background-color: var(--bg);
   background-image:
-    radial-gradient(rgba(17,17,20,0.06) 1px, transparent 1px),
-    radial-gradient(rgba(17,17,20,0.03) 1px, transparent 1px);
-  background-size: 22px 22px, 14px 14px;
-  background-position: 0 0, 11px 7px;
+    radial-gradient(rgba(17,17,20,0.055) 1px, transparent 1px),
+    radial-gradient(rgba(17,17,20,0.028) 1px, transparent 1px),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
+  background-size: 22px 22px, 14px 14px, 256px 256px;
+  background-position: 0 0, 11px 7px, 0 0;
+}
+body::before {
+  content: ""; position: fixed; inset: 0; pointer-events: none; z-index: -1;
+  background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, transparent 220px),
+              radial-gradient(800px 400px at 85% -10%, rgba(255,247,168,0.28), transparent 60%);
 }
 ::selection { background: #111114; color: #FFFBF2; }
 
@@ -329,17 +338,22 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
   .banner::before { left: 18px; }
 }
 
-/* 卡片 — 纸质硬边 */
+/* 卡片 — 纸质硬边 + 纤维 + 内高光 */
 .card {
   position: relative;
   background: var(--panel);
   border: 2px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 4px 4px 0 var(--line);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 4px 4px 0 var(--line), inset 0 1px 0 rgba(255,255,255,0.9), inset 0 -1px 0 rgba(17,17,20,0.04);
+  transition: transform 0.14s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.14s ease;
 }
-.card:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--line); }
+.card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: 10px;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='c'%3E%3CfeTurbulence baseFrequency='0.95' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='0.018'/%3E%3C/svg%3E");
+  opacity: 0.6;
+}
+.card:hover { transform: translate(-1px,-1px); box-shadow: 5px 5px 0 var(--line), inset 0 1px 0 rgba(255,255,255,0.9); }
 .forum-main .card { transform: rotate(-0.08deg); }
 .sidebar .card { transform: rotate(0.22deg); }
 .sidebar .card:nth-child(even) { transform: rotate(-0.18deg); }
@@ -462,7 +476,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 .btn-publish:active { transform: translateY(0); }
 
 /* 帖子列表 */
-.post-list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 2px solid var(--line); border-radius: 12px; box-shadow: 4px 4px 0 var(--line); }
+.post-list { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 2px solid var(--line); border-radius: 12px; box-shadow: 4px 4px 0 var(--line), inset 0 1px 0 rgba(255,255,255,0.8); }
 /* 列表不再裁剪溢出,让首行置顶胶带像 Banner 一样露出来;首尾行补圆角避免 hover 背景方角 */
 .post-list > .post-item:first-child { border-top-left-radius: 10px; border-top-right-radius: 10px; }
 .post-list > .post-item:last-child { border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; }
@@ -568,15 +582,17 @@ button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important
 .post-content a { color: var(--brand); text-decoration: none; border-bottom: 1px solid transparent; }
 .post-content a:hover { color: var(--brand-hover); border-bottom-color: currentColor; }
 .post-content blockquote {
-  margin: 0.8em 0;
-  padding: 10px 14px;
+  margin: 0.9em 0;
+  padding: 12px 14px 12px 18px;
   border: 1.5px solid var(--line);
   border-left: 4px solid var(--line);
   background: #FFF7D6;
   border-radius: 8px;
   color: var(--text-muted);
-  box-shadow: 2px 2px 0 rgba(17,17,20,0.08);
+  box-shadow: 2px 2px 0 rgba(17,17,20,0.08), inset 0 1px 0 rgba(255,255,255,0.7);
+  position: relative;
 }
+.post-content blockquote::before { content: "\201C"; position: absolute; left: 8px; top: 2px; font-family: "Crimson Pro", serif; font-size: 22px; line-height: 1; color: rgba(17,17,20,0.09); font-weight: 700; pointer-events: none; }
 .post-content blockquote p { margin: 0.3em 0; }
 .post-content code {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
