@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   authors: [{ name: "SHUAI GAY" }],
   creator: "SHUAI GAY",
   category: "community",
-  alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml` } },
+  alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml`, "application/atom+xml": `${siteOrigin}/atom.xml`, "application/feed+json": `${siteOrigin}/feed.json` } },
   openGraph: {
     type: "website",
     siteName: "SHUAI GAY 论坛",
@@ -366,6 +366,10 @@ export default async function RootLayout({
             <Link href="/robots.txt">Robots</Link>
             <span aria-hidden>·</span>
             <Link href="/rss.xml">RSS</Link>
+            <span aria-hidden>·</span>
+            <Link href="/atom.xml">Atom</Link>
+            <span aria-hidden>·</span>
+            <Link href="/feed.json">JSON</Link>
             <span aria-hidden>·</span>
             <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
           </div>

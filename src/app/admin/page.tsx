@@ -1019,7 +1019,7 @@ async function StatsTab() {
       </div>
 
       <div className="card" style={{ padding: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/feed.xml" style={{ color: "var(--brand)" }}>/feed.xml</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
+        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/atom.xml" style={{ color: "var(--brand)" }}>/atom.xml</Link> · <Link href="/feed.json" style={{ color: "var(--brand)" }}>/feed.json</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
         <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>数据 60s 缓存，隐藏版块已过滤</span>
       </div>
     </div>
