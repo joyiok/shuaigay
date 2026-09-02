@@ -430,7 +430,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
   const users = await db.user.findMany({
     orderBy: { createdAt: "asc" },
     take: 200,
-    include: { _count: { select: { posts: true, threads: true } }, medals: { include: { medal: true } } },
+    include: { _count: { select: { posts: true, threads: true, medals: true, following: true, followers: true } as any }, medals: { include: { medal: true } } },
   });
   const bans = await listActiveBans(users.map((u) => u.id));
   const mods = await db.boardModerator.findMany({
@@ -438,25 +438,33 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
     include: { board: { select: { name: true } } },
   });
   const modMap = new Map<string, string[]>();
-  for (const m of mods) {
-    const arr = modMap.get(m.userId) ?? [];
-    arr.push(m.board.name);
-    modMap.set(m.userId, arr);
-  }
-
+  for (const m of mods) modMap.set(m.userId, [...(modMap.get(m.userId) ?? []), m.board.name]);
   return (
     <div style={{ display: "grid", gap: 12 }}>
+      <div className="card" style={{ padding: 14, display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <div>
+          <div style={{ fontWeight: 800, fontFamily: GROTESK, fontSize: 14 }}>用户管理 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 11, fontFamily: MONO }}>· {users.length} 人 · {users.filter((u) => u.role === "ADMIN").length} 管理 · {bans.size} 封禁 · 点行展开详情</span></div>
+          <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, marginTop: 4 }}>顶部输入即时过滤 · 改资料/重置密码/封禁均需二次确认</div>
+        </div>
+        <input id="user-search" placeholder="搜索用户名/邮箱…" style={{ height: 34, minWidth: 220, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 12px", fontSize: 13, background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)", outline: "none" }} onInput={(e) => {
+          const v = (e.target as HTMLInputElement).value.toLowerCase();
+          document.querySelectorAll("[data-user-row]").forEach((el) => {
+            const hay = (el.getAttribute("data-hay") ?? "").toLowerCase();
+            (el as HTMLElement).style.display = !v || hay.includes(v) ? "" : "none";
+          });
+        }} />
+      </div>
       <div className="card" style={{ overflow: "hidden" }}>
-        <PaperCardHeader title="用户管理" count={`${users.length} 人`} sub="点用户名展开详情 · 改资料/重置密码/封禁均需二次确认" />
         <ListCard>
           {users.map((u, i) => {
             const ban = bans.get(u.id);
             const isSelf = u.id === currentUserId;
+            const hay = `${u.username} ${u.email} ${u.bio ?? ""}`.toLowerCase();
             return (
-              <li key={u.id} style={{ borderBottom: i === users.length - 1 ? "none" : "1px solid var(--line-soft)", display: "grid" }}>
+              <li key={u.id} data-user-row data-hay={hay} style={{ borderBottom: i === users.length - 1 ? "none" : "1px solid var(--line-soft)", display: "grid" }}>
                 <details style={{ padding: 0 }}>
                   <summary style={{ listStyle: "none", display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", cursor: "pointer" }}>
-                    <UserAvatar username={u.username} avatarUrl={(u as any).avatarUrl ?? null} size={32} radius={8} />
+                    <UserAvatar username={u.username} avatarUrl={(u as any).avatarUrl ?? null} size={34} radius={8} />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
                         <span style={{ fontWeight: 800, fontSize: 13, fontFamily: GROTESK }}>{u.username}</span>
@@ -464,33 +472,43 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
                         <LevelBadge points={u.points} role={u.role} />
                         {modMap.get(u.id) && <span style={tapeBadge} title={modMap.get(u.id)!.join("、")}>MOD · {modMap.get(u.id)!.slice(0, 2).join("、")}</span>}
                         {ban && <span style={{ ...tapeBadge, background: "var(--danger-soft)", color: "var(--danger)", borderColor: "#fecaca" }} title={ban.reason}>封禁中{ban.expiresAt ? ` · 至 ${formatDate(ban.expiresAt)}` : " · 永久"}</span>}
-                        {(u as any).medals?.length > 0 && <span style={{ fontSize: 11 }}>{(u as any).medals.map((m: any) => m.medal.icon).join(" ")}</span>}
+                        {(u as any).medals?.length > 0 && <span style={{ fontSize: 11, letterSpacing: "0.04em" }}>{(u as any).medals.map((m: any) => m.medal.icon).join(" ")}</span>}
+                        <span style={{ fontSize: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999, fontFamily: MONO, color: "var(--text-subtle)" }}>{u._count.threads}主题 · {u._count.posts}回帖 · {u._count?.medals ?? 0}勋章</span>
                       </div>
                       <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
                         <span>{u.email}</span>
-                        <span>· {u.points}分 · {u._count.threads}主题 · {u._count.posts}回帖</span>
-                        <span style={{ display: "none" }} className="hide-mobile">· {formatDate(u.createdAt)}</span>
+                        <span>· {u.points}分</span>
+                        <span>· {formatDate(u.createdAt)}</span>
+                        <span style={{ background: "var(--panel)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>关注 {(u as any)._count?.following ?? 0} · 粉丝 {(u as any)._count?.followers ?? 0}</span>
                       </div>
-                      <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: MONO, marginTop: 2 }}>注册IP: {(u as any).registrationIp ?? "—"} · 末登IP: {(u as any).lastLoginIp ?? "—"}</div>
+                      <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: MONO, marginTop: 2, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <span>注册IP: {(u as any).registrationIp ?? "—"}</span>
+                        <span>· 末登IP: {(u as any).lastLoginIp ?? "—"}</span>
+                        <span>· 末活跃IP: {(u as any).lastActiveIp ?? "—"}</span>
+                        {u.bio ? <span>· {u.bio.slice(0, 24)}{u.bio.length > 24 ? "…" : ""}</span> : <span>· 无简介</span>}
+                      </div>
                     </div>
-                    <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line-soft)", padding: "2px 8px", borderRadius: 999, background: "var(--bg-soft)" }}>详情 ▾</span>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line-soft)", padding: "2px 8px", borderRadius: 999, background: "var(--bg-soft)", flexShrink: 0 }}>详情 ▾</span>
                   </summary>
                   <div style={{ padding: "12px 14px", background: "var(--bg-soft)", borderTop: "1px solid var(--line-soft)", display: "grid", gap: 12 }}>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
                       <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
                         <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 8, fontFamily: GROTESK }}>公开资料 · 链接 /u/{u.username} 可见</div>
-                        <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, marginBottom: 8, wordBreak: "break-all" }}>ID: {u.id} · 注册: {formatDate(u.createdAt)} · 上次活跃: {(u as any).lastActiveAt ? formatDate((u as any).lastActiveAt) : "—"}</div>
-                        {(u as any).bio && <div style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>{(u as any).bio}</div>}
+                        <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, marginBottom: 8, wordBreak: "break-all" }}>ID: {u.id.slice(0, 8)}… · 注册: {formatDate(u.createdAt)} · 上次活跃: {(u as any).lastActiveAt ? formatDate((u as any).lastActiveAt) : "—"} · 验证: {u.emailVerified ? "已验" : "未验"}</div>
+                        {(u as any).bio ? <div style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8, whiteSpace: "pre-wrap" }}>{(u as any).bio}</div> : <div style={{ fontSize: 12, color: "var(--text-subtle)", background: "var(--bg-soft)", border: "1px dashed var(--line-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>无简介</div>}
                         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
                           {(u as any).medals?.map((m: any) => (
                             <span key={m.id} style={{ display: "inline-flex", gap: 4, alignItems: "center", background: m.medal.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{m.medal.icon} {m.medal.name}</span>
                           ))}
-                          {(u as any).medals?.length === 0 && <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>暂无勋章</span>}
+                          {(u as any).medals?.length === 0 && <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>暂无勋章 — 可在勋章 Tab 授予</span>}
                         </div>
-                        <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: MONO }}>邮箱验证: {u.emailVerified ? "已验证" : "未验证"} · 头像: {(u as any).avatarUrl ? "已设" : "默认"}</div>
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          <Link href={`/u/${encodeURIComponent(u.username)}`} style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600, border: "1px solid var(--line)", padding: "4px 8px", borderRadius: 999, background: "var(--panel)" }}>查看主页 →</Link>
+                          <Link href={`/u/${encodeURIComponent(u.username)}?tab=favs`} style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line-soft)", padding: "4px 8px", borderRadius: 999, background: "var(--panel)" }}>{u._count.threads} 收藏</Link>
+                        </div>
                       </div>
                       <div style={{ display: "grid", gap: 10 }}>
-                        <details style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 10 }}>
+                        <details style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 10 }} open>
                           <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700 }}>修改资料</summary>
                           <form action={adminUpdateUserAction} style={{ display: "grid", gap: 8, marginTop: 10 }}>
                             <input type="hidden" name="userId" value={u.id} />
@@ -534,7 +552,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
           })}
         </ListCard>
       </div>
-      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, textAlign: "center" }}>点行展开详情 · 邮箱/用户名改后需唯一 · 密码重置后旧会话失效</div>
+      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, textAlign: "center" }}>点行展开详情 · 顶部输入即时过滤 · 邮箱/用户名改后需唯一 · 密码重置后旧会话失效</div>
     </div>
   );
 }
