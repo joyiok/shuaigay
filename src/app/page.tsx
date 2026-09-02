@@ -60,21 +60,21 @@ export default async function HomePage({
     <div style={{ display: "grid", gap: 12 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
-      {/* Banner — 参考图 */}
+      {/* Banner — 纸质 ZINE 快改 */}
       <div className="banner">
         <div className="banner-left">
           <h2 className="banner-title">
-            连接兴趣<span> · </span>遇见同好<span> · </span>分享精彩
+            进来坐坐<span>，</span>有话直说
           </h2>
-          <p className="banner-sub">在 SHUAI GAY 社区，找到属于你的圈子 👋</p>
+          <p className="banner-sub">不端着，不审判 — 吹水、求助、分享，随手丢一个帖子就行</p>
           <div className="banner-features">
-            <span className="banner-feature"><i>💬</i><span><b>自由交流</b><br />畅所欲言</span></span>
-            <span className="banner-feature"><i>📚</i><span><b>知识分享</b><br />共同成长</span></span>
-            <span className="banner-feature"><i>📦</i><span><b>资源互助</b><br />共享共赢</span></span>
-            <span className="banner-feature"><i>💖</i><span><b>友好社区</b><br />温暖有爱</span></span>
+            <span className="banner-feature"><i>◐</i><span><b>随便聊</b><br />想说就说</span></span>
+            <span className="banner-feature"><i>✎</i><span><b>干货</b><br />有用就上</span></span>
+            <span className="banner-feature"><i>⧉</i><span><b>资源</b><br />互帮互助</span></span>
+            <span className="banner-feature"><i>♡</i><span><b>当自己家</b><br />别客气</span></span>
           </div>
         </div>
-        <div className="banner-illu" aria-hidden>🌅</div>
+        <div className="banner-illu" aria-hidden>✂︎ 纸现场</div>
       </div>
 
       {/* 顶部筛选 - 全站时间线 */}
@@ -96,7 +96,7 @@ export default async function HomePage({
           </Link>
         </div>
         <Link href="/c/general/new" className="btn-publish">
-          ✏️ 发布帖子
+          发个帖子
         </Link>
       </div>
 
@@ -158,13 +158,13 @@ export default async function HomePage({
         )}
       </div>
 
-      <div className="bottom-banner">
+      <div className="bottom-banner" style={{ background: "var(--panel)", border: "2px solid var(--line)", boxShadow: "4px 4px 0 var(--line)", borderRadius: 12 }}>
         <div>
-          <div style={{ fontWeight: 800, color: "var(--brand)", fontSize: 14 }}>分享你的想法，遇见志同道合的朋友</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}>精彩的讨论正在发生，你的声音很重要 · 😊</div>
+          <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 14, fontFamily: "Space Grotesk, sans-serif" }}>别憋着，想说就丢上来</div>
+          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "JetBrains Mono, monospace" }}>水帖也算贡献 — 先发，再慢慢聊</div>
         </div>
         <Link href="/c/general/new" className="btn-publish" style={{ flexShrink: 0 }}>
-          💬 立即参与讨论
+          去发帖
         </Link>
       </div>
     </div>
