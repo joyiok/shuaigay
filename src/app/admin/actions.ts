@@ -19,7 +19,7 @@ import { banUser, unbanUser } from "@/lib/ban";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 
-const ADMIN_TAB = (tab: string) => `/admin?tab=${tab}` as const;
+const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
 /** 管理操作统一鉴权:非 ADMIN 一律回登录页 */
 async function requireAdmin(): Promise<string> {

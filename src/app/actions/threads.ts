@@ -246,7 +246,7 @@ export async function createThreadAction(formData: FormData): Promise<void> {
               type: "pending",
               title: `新主题待审：${title.data.slice(0, 20)}`,
               body: pendingReason ?? "需审核",
-              link: `/admin?tab=pending`,
+              link: `/admin/pending`,
             })),
           });
         }
@@ -403,7 +403,7 @@ export async function replyAction(formData: FormData): Promise<void> {
               type: "pending",
               title: `新回帖待审：${content.data.slice(0, 20)}`,
               body: pendingReasonReply ?? "需审核",
-              link: `/admin?tab=pending`,
+              link: `/admin/pending`,
             })),
           });
         }
