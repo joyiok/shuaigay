@@ -90,8 +90,18 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 
 /* 全局链接过渡 */
 a { transition: color 0.14s ease, background 0.14s ease, opacity 0.14s ease; }
-button { transition: all 0.14s ease; }
-button:active { transform: scale(0.98); }
+button { transition: transform 0.14s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.14s ease, background 0.14s ease, color 0.14s ease, border-color 0.14s ease, filter 0.14s ease; touch-action: manipulation; -webkit-tap-highlight-color: transparent; will-change: transform; }
+button:hover:not(:disabled) { filter: brightness(1.02); transform: translate(-1px,-1px); }
+button:active:not(:disabled) { transform: translate(1px,1px) scale(0.96) !important; box-shadow: 1px 1px 0 var(--line) !important; filter: brightness(0.96); transition-duration: 70ms; }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+a.btn-publish, a.tab, a.post-rating-btn { transition: transform 0.14s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.14s ease, filter 0.14s ease; display: inline-flex; touch-action: manipulation; }
+a.btn-publish:hover, a.tab:hover { transform: translate(-1px,-1px); filter: brightness(1.02); }
+a.btn-publish:active, a.tab:active { transform: translate(1px,1px) scale(0.96) !important; box-shadow: 1px 1px 0 var(--line) !important; }
+button:disabled { opacity: 0.45; cursor: not-allowed; transform: none !important; box-shadow: none !important; filter: none !important; }
+/* 纸质按钮统一按压：外硬内软 — hover 上浮，active 下陷 */
+.btn-publish:hover, .tab:hover, .post-rating-btn:hover, .paper-btn:hover { transform: translate(-1px,-1px); }
+.btn-publish:active, .tab:active, .post-rating-btn:active, .paper-btn:active { transform: translate(1px,1px) scale(0.97) !important; }
+.post-rating-btn:active { box-shadow: 1px 1px 0 var(--line) !important; }
 
 /* 顶部 — 白底 + 细线 + 居中 1280 */
 .site-header {
