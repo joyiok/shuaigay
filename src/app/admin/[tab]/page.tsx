@@ -51,6 +51,7 @@ import { ConfirmForm, NativeConfirmForm } from "../ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
 
 export const metadata = { title: "管理后台" };
 
@@ -179,9 +180,7 @@ export default async function AdminPage({
       </div>
 
       {error && ERRORS[error] && (
-        <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>
-          {ERRORS[error]}
-        </p>
+        <HumanizedFeedback type="error" title="操作没成功" message={ERRORS[error]} suggestion="检查下输入，或刷新重试" />
       )}
 
       {adminFlag && active === "threads" && <ThreadsTab />}
@@ -358,7 +357,7 @@ async function ThreadsTab() {
               </form>
               <ConfirmForm
                 action={adminDeleteThreadAction}
-                message={`确认删除主题「${t.title}」？\n该主题下的全部回帖与附件将被级联删除，此操作不可恢复。`}
+                message={`删除主题「${t.title}」？\n• 下面的回帖和附件会一起没了\n• 收藏和浏览也会失效\n• 不可恢复，确定删？`}
               >
                 <input type="hidden" name="threadId" value={t.id} />
                 <button type="submit" style={paperDangerBtn}>
@@ -407,7 +406,7 @@ async function PostsTab() {
             <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(p.createdAt)}</span>
             <ConfirmForm
               action={adminDeletePostAction}
-              message={`确认删除该帖子？\n作者：${p.author.username}\n所在主题：${p.thread.title.slice(0, 40)}\n附件与相关举报将一并清理，不可恢复。`}
+              message={`删除这条回帖？\n• 作者：${p.author.username} · 主题：${p.thread.title.slice(0, 40)}\n• 附件和相关举报会一起清掉\n• 不可恢复，确定删？`}
             >
               <input type="hidden" name="postId" value={p.id} />
               <button type="submit" style={paperDangerBtn}>
@@ -531,12 +530,12 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
                     </div>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", paddingTop: 8, borderTop: "1px dashed var(--line-soft)" }}>
                       {ban ? (
-                        !isSelf && <NativeConfirmForm action={unbanUserAction} message={`确认解封「${u.username}」？`}><input type="hidden" name="userId" value={u.id} /><button type="submit" style={paperBtn}>解封</button></NativeConfirmForm>
+                        !isSelf && <NativeConfirmForm action={unbanUserAction} message={`解封「${u.username}」？\n解封后他就能正常登录和发帖了，历史封禁记录会保留。`}><input type="hidden" name="userId" value={u.id} /><button type="submit" style={paperBtn}>解封</button></NativeConfirmForm>
                       ) : (
-                        !isSelf && <ConfirmForm action={banUserAction} message={`封禁「${u.username}」？`} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="hidden" name="userId" value={u.id} /><input name="reason" placeholder="原因" maxLength={200} style={{ ...paperInput, width: 100 }} /><input type="number" name="durationDays" placeholder="天数" style={{ ...paperInput, width: 70 }} /><button type="submit" style={paperDangerBtn}>封禁</button></ConfirmForm>
+                        !isSelf && <ConfirmForm action={banUserAction} message={`封禁「${u.username}」？\n封禁后他无法登录/发帖，历史内容保留，时间到了自动解封，永久封禁请留空天数。`} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="hidden" name="userId" value={u.id} /><input name="reason" placeholder="原因" maxLength={200} style={{ ...paperInput, width: 100 }} /><input type="number" name="durationDays" placeholder="天数" style={{ ...paperInput, width: 70 }} /><button type="submit" style={paperDangerBtn}>封禁</button></ConfirmForm>
                       )}
                       {!isSelf && (
-                        <ConfirmForm action={setUserRoleAction} message={u.role === "ADMIN" ? `取消「${u.username}」管理员？` : `设「${u.username}」为管理员？`}><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="role" value={u.role === "ADMIN" ? "USER" : "ADMIN"} /><button type="submit" style={paperBtn}>{u.role === "ADMIN" ? "取消管理员" : "设为管理员"}</button></ConfirmForm>
+                        <ConfirmForm action={setUserRoleAction} message={u.role === "ADMIN" ? `取消「${u.username}」的管理员？\n他将失去后台所有权限，但仍是普通会员。` : `设「${u.username}」为管理员？\n他将获得置顶/删帖/封禁等全部后台权限，请确认信任。`}><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="role" value={u.role === "ADMIN" ? "USER" : "ADMIN"} /><button type="submit" style={paperBtn}>{u.role === "ADMIN" ? "取消管理员" : "设为管理员"}</button></ConfirmForm>
                       )}
                       <form action={addPointsAction} style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto" }}>
                         <input type="hidden" name="userId" value={u.id} />
@@ -651,7 +650,7 @@ async function BoardsTab() {
                   <input type="hidden" name="boardId" value={b.id} />
                   <button title={(b as unknown as { requireApproval: boolean }).requireApproval ? "关闭审核" : "开启审核"} style={{ height: 30, padding: "0 8px", border: "1.5px solid var(--line)", background: (b as unknown as { requireApproval: boolean }).requireApproval ? "#EDE9FE" : "var(--panel)", color: (b as unknown as { requireApproval: boolean }).requireApproval ? "#7C3AED" : "var(--text)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{(b as unknown as { requireApproval: boolean }).requireApproval ? "需审核" : "免审"}</button>
                 </form>
-                <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
+                <ConfirmForm action={deleteBoardAction} message={`删除版块「${b.name}」？\n• 该版块下 ${b._count.threads} 个主题 + 全部回帖/附件会一起没了\n• 相关举报会静默结案\n• 版块本身消失，不可恢复，确定吗？`}>
                   <input type="hidden" name="boardId" value={b.id} />
                   <button type="submit" style={{ height: 30, padding: "0 10px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>删除</button>
                 </ConfirmForm>
@@ -754,7 +753,7 @@ async function BoardsTab() {
                 </form>
               </details>
               <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>
-                <ConfirmForm action={clearBoardAction} message={`确认清空版块「${b.name}」？\n该版块下 ${b._count.threads} 个主题将被全部删除（保留版块本身），不可恢复！`}>
+                <ConfirmForm action={clearBoardAction} message={`清空「${b.name}」？\n• 会删光该版块下 ${b._count.threads} 个主题（回帖/附件一起）\n• 版块壳子还在，可继续用\n• 不可恢复，确定清空？`}>
                   <input type="hidden" name="boardId" value={b.id} />
                   <button type="submit" style={{ height: 28, padding: "0 10px", border: "1.5px solid var(--line)", background: "var(--panel)", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>清空</button>
                 </ConfirmForm>
@@ -859,7 +858,7 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
               <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <ConfirmForm
                   action={reviewReportAction}
-                  message={`确认删除被举报的${isThread ? "主题" : "帖子"}并结案该举报？`}
+                  message={`删除被举报的${isThread ? "主题" : "帖子"}并结案？\n• 目标内容会直接删掉，举报人会收到“已处理”通知\n• 删了就回不来了，确定吗？`}
                 >
                   <input type="hidden" name="reportId" value={r.id} />
                   <input type="hidden" name="action" value={isThread ? "delete_thread" : "delete_post"} />
@@ -932,7 +931,7 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <form action={approveThreadAction}><input type="hidden" name="threadId" value={t.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
-                  <ConfirmForm action={rejectThreadAction} message={`确认驳回并删除主题「${t.title}」？`}><input type="hidden" name="threadId" value={t.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                  <ConfirmForm action={rejectThreadAction} message={`驳回并删除主题「${t.title}」？\n• 主题 + 楼下所有回帖/附件都会被删\n• 作者会收到“被驳回”通知\n• 不可恢复，确定吗？`}><input type="hidden" name="threadId" value={t.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
                 </div>
               </li>
             ))}
@@ -946,7 +945,7 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <form action={approvePostAction}><input type="hidden" name="postId" value={p.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
-                  <ConfirmForm action={rejectPostAction} message={`确认驳回并删除该回帖？`}><input type="hidden" name="postId" value={p.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                  <ConfirmForm action={rejectPostAction} message={`驳回这条回帖？\n• 回帖 + 附件会被删，楼主会收到通知\n• 不可恢复，确定吗？`}><input type="hidden" name="postId" value={p.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
                 </div>
               </li>
             ))}
@@ -997,7 +996,7 @@ async function MedalsTab() {
                   <input name="reason" placeholder="理由" maxLength={100} style={{ height: 28, width: 90, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 11 }} />
                   <button type="submit" style={{ height: 28, padding: "0 8px", background: "var(--text)", color: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>授予</button>
                 </form>
-                <ConfirmForm action={deleteMedalAction} message={`确认删除勋章「${m.name}」？拥有该勋章的用户将一并失去。`}><input type="hidden" name="id" value={m.id} /><button type="submit" style={{ height: 28, padding: "0 8px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>删除</button></ConfirmForm>
+                <ConfirmForm action={deleteMedalAction} message={`删除勋章「${m.name}」？\n• 已拥有它的用户会一并失去\n• 不可恢复，确定删？`}><input type="hidden" name="id" value={m.id} /><button type="submit" style={{ height: 28, padding: "0 8px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>删除</button></ConfirmForm>
               </div>
             </li>
           ))}
@@ -1275,7 +1274,7 @@ async function WordsTab() {
             </span>
             <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(w.createdAt)}</span>
             <span style={{ marginLeft: "auto" }}>
-              <NativeConfirmForm action={removeSensitiveWordAction} message={`确认移除敏感词「${w.word}」？`}>
+              <NativeConfirmForm action={removeSensitiveWordAction} message={`移除敏感词「${w.word}」？\n• 移除后含该词的内容将不再被拦/待审\n• 确定移除？`}>
                 <input type="hidden" name="id" value={w.id} />
                 <button type="submit" style={paperDangerBtn}>移除</button>
               </NativeConfirmForm>
