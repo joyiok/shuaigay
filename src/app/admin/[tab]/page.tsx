@@ -457,6 +457,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
                 {u.id === currentUserId && <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontSize: 11 }}>（自己）</span>}
               </span>
               <div style={{ color: "var(--text-subtle)", fontSize: 11, fontFamily: MONO }}>{u.email}</div>
+              <div style={{ color: "var(--text-subtle)", fontSize: 10, fontFamily: MONO, marginTop: 2 }}>注册IP: {(u as any).registrationIp ?? "—"} · 末登IP: {(u as any).lastLoginIp ?? "—"}</div>
             </div>
             <LevelBadge points={u.points} role={u.role} />
             {modMap.get(u.id) && (

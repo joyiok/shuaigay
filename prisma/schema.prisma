@@ -29,6 +29,11 @@ model User {
   emailVerified Boolean  @default(false)
   // 头像 storage 相对路径(storedName);未设置时全站回退到首字母占位
   avatarUrl    String?
+  registrationIp String?
+  lastLoginIp    String?
+  lastLoginAt    DateTime?
+  lastActiveIp   String?
+  lastActiveAt   DateTime?
   createdAt    DateTime @default(now())
 
   threads           Thread[]           @relation("ThreadAuthor")
@@ -50,6 +55,7 @@ model User {
   bans              Ban[]
   auditLogs          AuditLog[]         @relation("AuditActor")
   medals            UserMedal[]
+  ipLogs            UserIpLog[]
 }
 
 /** 邮箱验证 / 找回密码的一次性令牌:库里只存哈希,明文只在邮件链接里出现一次 */
@@ -349,6 +355,19 @@ model UserMedal {
   @@unique([userId, medalId])
   @@index([userId])
   @@index([medalId])
+}
+
+model UserIpLog {
+  id        String   @id @default(cuid())
+  userId    String
+  ip        String
+  action    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([ip, createdAt])
 }
 
 /// 管理后台操作审计:每个 admin action 成功后写一条,后台「审计日志」Tab 展示最近 50 条

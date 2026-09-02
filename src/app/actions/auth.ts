@@ -84,8 +84,9 @@ export async function registerAction(formData: FormData): Promise<void> {
   try {
     user = await db.$transaction(async (tx) => {
       const u = await tx.user.create({
-        data: { email, username, passwordHash },
+        data: { email, username, passwordHash, registrationIp: ip, lastLoginIp: ip, lastLoginAt: new Date(), lastActiveIp: ip, lastActiveAt: new Date() },
       });
+      await tx.userIpLog.create({ data: { userId: u.id, ip, action: "register" } }).catch(() => {});
       if (inviteCode) {
         const inviterId = await consumeInvite(tx, inviteCode);
         if (!inviterId) {
@@ -108,6 +109,8 @@ export async function registerAction(formData: FormData): Promise<void> {
   }
 
   logger.info("auth.register", { userId: user.id, email, username, ip });
+  // 非事务内补一次 IP 日志兜底（事务内已写，此处忽略错误）
+  await db.userIpLog.create({ data: { userId: user.id, ip, action: "register" } }).catch(() => {});
 
   // 发送验证邮件(失败不阻断注册)
   try {
@@ -161,6 +164,9 @@ export async function loginAction(formData: FormData): Promise<void> {
   }
 
   logger.info("auth.login", { userId: user.id, email, ip });
+  // 记录登录 IP
+  await db.user.update({ where: { id: user.id }, data: { lastLoginIp: ip, lastLoginAt: new Date(), lastActiveIp: ip, lastActiveAt: new Date() } }).catch(() => {});
+  await db.userIpLog.create({ data: { userId: user.id, ip, action: "login" } }).catch(() => {});
   await createSession(user.id);
   redirect(safeNext(formData.get("next")));
 }

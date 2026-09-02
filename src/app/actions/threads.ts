@@ -255,6 +255,9 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     });
     threadId = thread.id;
     logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip, status: threadStatus, reason: pendingReason });
+    // 记录活跃 IP
+    void db.user.update({ where: { id: user.id }, data: { lastActiveIp: ip, lastActiveAt: new Date() } }).catch(() => {});
+    void db.userIpLog.create({ data: { userId: user.id, ip, action: "post" } }).catch(() => {});
     if (!pending) {
       revalidateTag("stats");
       revalidateTag("threads");
@@ -410,6 +413,8 @@ export async function replyAction(formData: FormData): Promise<void> {
       }
     });
     logger.info("post.reply", { userId: user.id, threadId, ip, status: postStatusReply });
+    void db.user.update({ where: { id: user.id }, data: { lastActiveIp: ip, lastActiveAt: new Date() } }).catch(() => {});
+    void db.userIpLog.create({ data: { userId: user.id, ip, action: "reply" } }).catch(() => {});
     if (!pendingReply) {
       revalidateTag("stats");
       revalidateTag("threads");

@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { siteUrl } from "@/lib/site";
 import { updateBioAction, toggleFollowAction } from "@/app/actions/user";
+import { isAdmin } from "@/lib/permissions";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
 import AvatarUploader from "@/components/AvatarUploader";
 import UserAvatar from "@/components/UserAvatar";
@@ -63,9 +64,10 @@ export default async function UserPage({
   if (!user) notFound();
   // _count.favorites may be missing type-wise — fetch separately when needed
   const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
-  const userMedals = await db.userMedal.findMany({ where: { userId: user.id }, include: { medal: true } }).catch(() => [] as any[]);
   const me = meEarly;
   const isSelf = me?.id === user.id;
+  const userMedals = await db.userMedal.findMany({ where: { userId: user.id }, include: { medal: true } }).catch(() => [] as any[]);
+  const ipLogs = me && isAdmin(me) ? await db.userIpLog.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 5 }).catch(() => [] as any[]) : [];
 
   // 主题 Tab:最近发的主题
   const threads =
@@ -293,6 +295,11 @@ export default async function UserPage({
                 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>积分 </span>
                 {user.points}
               </span>
+              {me && isAdmin(me) && (
+                <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>
+                  注册IP: {user.registrationIp ?? "—"} · 末登IP: {user.lastLoginIp ?? "—"}
+                </span>
+              )}
               <span>
                 <span style={{ color: "var(--text-subtle)" }}>主题 </span>
                 <strong>{user._count.threads}</strong>
@@ -319,6 +326,25 @@ export default async function UserPage({
           <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line-soft)" }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8 }}>头像设置</div>
             <AvatarUploader username={user.username} initialUrl={avSrc} />
+          </div>
+        )}
+
+        {/* 管理员可见 IP 轨迹 */}
+        {me && isAdmin(me) && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", marginBottom: 6 }}>IP 轨迹 · 仅管理员可见</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px" }}>
+              注册: {user.registrationIp ?? "—"} · 末登: {user.lastLoginIp ?? "—"} {user.lastLoginAt ? `(${new Date(user.lastLoginAt).toLocaleString("zh-CN")})` : ""} · 末活跃: {user.lastActiveIp ?? "—"}
+            </div>
+            {ipLogs.length > 0 && (
+              <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
+                {ipLogs.map((log: any) => (
+                  <div key={log.id} style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace", display: "flex", gap: 8, justifyContent: "space-between", background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 6, padding: "4px 8px" }}>
+                    <span>{log.ip}</span><span>{log.action}</span><span>{new Date(log.createdAt).toLocaleString("zh-CN")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
