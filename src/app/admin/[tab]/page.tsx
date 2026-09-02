@@ -13,8 +13,10 @@ import {
   addSensitiveWordAction,
   adminDeletePostAction,
   adminDeleteThreadAction,
+  adminResetPasswordAction,
   adminToggleLockAction,
   adminTogglePinAction,
+  adminUpdateUserAction,
   approvePostAction,
   approveThreadAction,
   awardMedalAction,
@@ -428,7 +430,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
   const users = await db.user.findMany({
     orderBy: { createdAt: "asc" },
     take: 200,
-    include: { _count: { select: { posts: true, threads: true } } },
+    include: { _count: { select: { posts: true, threads: true } }, medals: { include: { medal: true } } },
   });
   const bans = await listActiveBans(users.map((u) => u.id));
   const mods = await db.boardModerator.findMany({
@@ -443,116 +445,101 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
   }
 
   return (
-    <div className="card" style={{ overflow: "hidden" }}>
-      <PaperCardHeader title="用户管理" count={`${users.length} 人`} sub="角色变更需二次确认" />
-      <ListCard>
-        {users.map((u, i) => {
-          const ban = bans.get(u.id);
-          return (
-          <Row key={u.id} last={i === users.length - 1}>
-            <UserAvatar username={u.username} avatarUrl={u.avatarUrl ?? null} size={28} radius={8} />
-            <div style={{ minWidth: 0 }}>
-              <span style={{ fontWeight: 700, fontSize: 13, fontFamily: GROTESK }}>
-                {u.username}
-                {u.id === currentUserId && <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontSize: 11 }}>（自己）</span>}
-              </span>
-              <div style={{ color: "var(--text-subtle)", fontSize: 11, fontFamily: MONO }}>{u.email}</div>
-              <div style={{ color: "var(--text-subtle)", fontSize: 10, fontFamily: MONO, marginTop: 2 }}>注册IP: {(u as any).registrationIp ?? "—"} · 末登IP: {(u as any).lastLoginIp ?? "—"}</div>
-            </div>
-            <LevelBadge points={u.points} role={u.role} />
-            {modMap.get(u.id) && (
-              <span style={tapeBadge} title={modMap.get(u.id)!.join("、")}>
-                MOD · {modMap.get(u.id)!.slice(0, 2).join("、")}{modMap.get(u.id)!.length > 2 ? "…" : ""}
-              </span>
-            )}
-            {ban && (
-              <span
-                style={{ ...tapeBadge, background: "var(--danger-soft)", color: "var(--danger)", borderColor: "#fecaca" }}
-                title={ban.reason}
-              >
-                封禁中{ban.expiresAt ? ` · 至 ${formatDate(ban.expiresAt)}` : " · 永久"}
-              </span>
-            )}
-            <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>
-              {u.points} 分 · {u._count.threads} 主题 · {u._count.posts} 回复 · {formatDate(u.createdAt)}
-            </span>
-            <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-              {ban ? (
-                u.id !== currentUserId && (
-                  <NativeConfirmForm
-                    action={unbanUserAction}
-                    message={`确认解封用户「${u.username}」？解封后即可正常登录。`}
-                  >
-                    <input type="hidden" name="userId" value={u.id} />
-                    <button type="submit" style={paperBtn}>解封</button>
-                  </NativeConfirmForm>
-                )
-              ) : (
-                u.id !== currentUserId && (
-                  <ConfirmForm
-                    action={banUserAction}
-                    message={`确认封禁用户「${u.username}」？\n封禁期内 TA 将无法登录，永久封禁请留空天数。`}
-                    style={{ display: "flex", gap: 8, alignItems: "center" }}
-                  >
-                    <input type="hidden" name="userId" value={u.id} />
-                    <input
-                      name="reason"
-                      placeholder="原因"
-                      maxLength={200}
-                      style={{ ...paperInput, width: 88 }}
-                    />
-                    <input
-                      type="number"
-                      name="durationDays"
-                      min={1}
-                      max={3650}
-                      placeholder="天数"
-                      title="留空为永久封禁"
-                      style={{ ...paperInput, width: 56, textAlign: "center" }}
-                    />
-                    <button type="submit" style={paperDangerBtn}>封禁</button>
-                  </ConfirmForm>
-                )
-              )}
-              {u.id !== currentUserId && (
-                <ConfirmForm
-                  action={setUserRoleAction}
-                  message={
-                    u.role === "ADMIN"
-                      ? `确认取消用户「${u.username}」的管理员权限？\nTA将失去后台全部管理能力。`
-                      : `确认将用户「${u.username}」设为管理员？\nTA将获得后台主题/帖子/版块等全部管理权限，请谨慎操作。`
-                  }
-                >
-                  <input type="hidden" name="userId" value={u.id} />
-                  <input type="hidden" name="role" value={u.role === "ADMIN" ? "USER" : "ADMIN"} />
-                  <button type="submit" style={paperBtn}>
-                    {u.role === "ADMIN" ? "取消管理员" : "设为管理员"}
-                  </button>
-                </ConfirmForm>
-              )}
-              <form action={addPointsAction} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="hidden" name="userId" value={u.id} />
-                <input
-                  type="number"
-                  name="points"
-                  defaultValue={10}
-                  min={-1000}
-                  max={1000}
-                  style={{ ...paperInput, width: 64, textAlign: "center" }}
-                />
-                <button style={paperDarkBtn}>加分</button>
-              </form>
-            </span>
-          </Row>
-          );
-        })}
-        {users.length === 0 && (
-          <PaperEmpty badge="0 人" title="暂无用户" description="还没有任何注册用户。" />
-        )}
-      </ListCard>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card" style={{ overflow: "hidden" }}>
+        <PaperCardHeader title="用户管理" count={`${users.length} 人`} sub="点用户名展开详情 · 改资料/重置密码/封禁均需二次确认" />
+        <ListCard>
+          {users.map((u, i) => {
+            const ban = bans.get(u.id);
+            const isSelf = u.id === currentUserId;
+            return (
+              <li key={u.id} style={{ borderBottom: i === users.length - 1 ? "none" : "1px solid var(--line-soft)", display: "grid" }}>
+                <details style={{ padding: 0 }}>
+                  <summary style={{ listStyle: "none", display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", cursor: "pointer" }}>
+                    <UserAvatar username={u.username} avatarUrl={(u as any).avatarUrl ?? null} size={32} radius={8} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 800, fontSize: 13, fontFamily: GROTESK }}>{u.username}</span>
+                        {isSelf && <span style={{ fontSize: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999, color: "var(--text-subtle)" }}>自己</span>}
+                        <LevelBadge points={u.points} role={u.role} />
+                        {modMap.get(u.id) && <span style={tapeBadge} title={modMap.get(u.id)!.join("、")}>MOD · {modMap.get(u.id)!.slice(0, 2).join("、")}</span>}
+                        {ban && <span style={{ ...tapeBadge, background: "var(--danger-soft)", color: "var(--danger)", borderColor: "#fecaca" }} title={ban.reason}>封禁中{ban.expiresAt ? ` · 至 ${formatDate(ban.expiresAt)}` : " · 永久"}</span>}
+                        {(u as any).medals?.length > 0 && <span style={{ fontSize: 11 }}>{(u as any).medals.map((m: any) => m.medal.icon).join(" ")}</span>}
+                      </div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, display: "flex", gap: 8, flexWrap: "wrap", marginTop: 2 }}>
+                        <span>{u.email}</span>
+                        <span>· {u.points}分 · {u._count.threads}主题 · {u._count.posts}回帖</span>
+                        <span style={{ display: "none" }} className="hide-mobile">· {formatDate(u.createdAt)}</span>
+                      </div>
+                      <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: MONO, marginTop: 2 }}>注册IP: {(u as any).registrationIp ?? "—"} · 末登IP: {(u as any).lastLoginIp ?? "—"}</div>
+                    </div>
+                    <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line-soft)", padding: "2px 8px", borderRadius: 999, background: "var(--bg-soft)" }}>详情 ▾</span>
+                  </summary>
+                  <div style={{ padding: "12px 14px", background: "var(--bg-soft)", borderTop: "1px solid var(--line-soft)", display: "grid", gap: 12 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+                      <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, marginBottom: 8, fontFamily: GROTESK }}>公开资料 · 链接 /u/{u.username} 可见</div>
+                        <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, marginBottom: 8, wordBreak: "break-all" }}>ID: {u.id} · 注册: {formatDate(u.createdAt)} · 上次活跃: {(u as any).lastActiveAt ? formatDate((u as any).lastActiveAt) : "—"}</div>
+                        {(u as any).bio && <div style={{ fontSize: 12, color: "var(--text-muted)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>{(u as any).bio}</div>}
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                          {(u as any).medals?.map((m: any) => (
+                            <span key={m.id} style={{ display: "inline-flex", gap: 4, alignItems: "center", background: m.medal.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700 }}>{m.medal.icon} {m.medal.name}</span>
+                          ))}
+                          {(u as any).medals?.length === 0 && <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>暂无勋章</span>}
+                        </div>
+                        <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: MONO }}>邮箱验证: {u.emailVerified ? "已验证" : "未验证"} · 头像: {(u as any).avatarUrl ? "已设" : "默认"}</div>
+                      </div>
+                      <div style={{ display: "grid", gap: 10 }}>
+                        <details style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 10 }}>
+                          <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700 }}>修改资料</summary>
+                          <form action={adminUpdateUserAction} style={{ display: "grid", gap: 8, marginTop: 10 }}>
+                            <input type="hidden" name="userId" value={u.id} />
+                            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>用户名</span><input name="username" defaultValue={u.username} pattern="[a-zA-Z0-9_-]{3,20}" style={{ ...paperInput, height: 30 }} /></label>
+                            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>邮箱</span><input name="email" defaultValue={u.email} type="email" style={{ ...paperInput, height: 30 }} /></label>
+                            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>简介</span><textarea name="bio" defaultValue={(u as any).bio ?? ""} maxLength={200} rows={2} style={{ ...paperInput, height: 60, resize: "vertical", padding: "8px 10px" }} /></label>
+                            <button type="submit" style={paperDarkBtn}>保存资料</button>
+                          </form>
+                        </details>
+                        <details style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 10 }}>
+                          <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 700, color: "var(--danger)" }}>重置密码</summary>
+                          <form action={adminResetPasswordAction} style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                            <input type="hidden" name="userId" value={u.id} />
+                            <input name="password" type="password" required minLength={8} placeholder="新密码 ≥8位" style={{ flex: 1, ...paperInput, height: 30 }} />
+                            <button type="submit" style={paperDangerBtn}>重置</button>
+                          </form>
+                          <div style={{ fontSize: 10, color: "var(--text-subtle)", marginTop: 6 }}>重置后该用户所有会话将失效，需重新登录</div>
+                        </details>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", paddingTop: 8, borderTop: "1px dashed var(--line-soft)" }}>
+                      {ban ? (
+                        !isSelf && <NativeConfirmForm action={unbanUserAction} message={`确认解封「${u.username}」？`}><input type="hidden" name="userId" value={u.id} /><button type="submit" style={paperBtn}>解封</button></NativeConfirmForm>
+                      ) : (
+                        !isSelf && <ConfirmForm action={banUserAction} message={`封禁「${u.username}」？`} style={{ display: "flex", gap: 6, alignItems: "center" }}><input type="hidden" name="userId" value={u.id} /><input name="reason" placeholder="原因" maxLength={200} style={{ ...paperInput, width: 100 }} /><input type="number" name="durationDays" placeholder="天数" style={{ ...paperInput, width: 70 }} /><button type="submit" style={paperDangerBtn}>封禁</button></ConfirmForm>
+                      )}
+                      {!isSelf && (
+                        <ConfirmForm action={setUserRoleAction} message={u.role === "ADMIN" ? `取消「${u.username}」管理员？` : `设「${u.username}」为管理员？`}><input type="hidden" name="userId" value={u.id} /><input type="hidden" name="role" value={u.role === "ADMIN" ? "USER" : "ADMIN"} /><button type="submit" style={paperBtn}>{u.role === "ADMIN" ? "取消管理员" : "设为管理员"}</button></ConfirmForm>
+                      )}
+                      <form action={addPointsAction} style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto" }}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <input type="number" name="points" defaultValue={10} style={{ ...paperInput, width: 70 }} />
+                        <button style={paperBtn}>加分</button>
+                      </form>
+                      <Link href={`/u/${encodeURIComponent(u.username)}`} style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600 }}>查看主页 →</Link>
+                    </div>
+                  </div>
+                </details>
+              </li>
+            );
+          })}
+        </ListCard>
+      </div>
+      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, textAlign: "center" }}>点行展开详情 · 邮箱/用户名改后需唯一 · 密码重置后旧会话失效</div>
     </div>
   );
 }
+
+
 
 /* ---------------- 版块管理 ---------------- */
 

@@ -187,6 +187,61 @@ export async function unbanUserAction(formData: FormData): Promise<void> {
   redirect(ADMIN_TAB("users"));
 }
 
+const updateUserSchema = z.object({
+  userId: z.string().min(1),
+  username: z.string().regex(/^[a-zA-Z0-9_-]{3,20}$/).optional(),
+  email: z.string().email().max(200).optional(),
+  bio: z.string().max(200).optional(),
+});
+
+export async function adminUpdateUserAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const username = String(formData.get("username") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const bio = String(formData.get("bio") ?? "").trim().slice(0, 200);
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!user) redirect(ADMIN_TAB("users") + "&error=not_found");
+  const data: any = {};
+  if (username) {
+    if (!/^[a-zA-Z0-9_-]{3,20}$/.test(username)) redirect(ADMIN_TAB("users") + "&error=invalid");
+    const dup = await db.user.findFirst({ where: { username, id: { not: userId } }, select: { id: true } });
+    if (dup) redirect(ADMIN_TAB("users") + "&error=username_taken");
+    data.username = username;
+  }
+  if (email) {
+    const parsed = z.string().email().safeParse(email);
+    if (!parsed.success) redirect(ADMIN_TAB("users") + "&error=invalid");
+    const dup = await db.user.findFirst({ where: { email, id: { not: userId } }, select: { id: true } });
+    if (dup) redirect(ADMIN_TAB("users") + "&error=email_taken");
+    data.email = email;
+  }
+  if (formData.has("bio")) data.bio = bio;
+  if (Object.keys(data).length === 0) redirect(ADMIN_TAB("users") + "&error=invalid");
+  await db.user.update({ where: { id: userId }, data });
+  await db.auditLog.create({ data: { actorId, action: "update_user", targetType: "user", targetId: userId, detail: JSON.stringify(data).slice(0, 100) } }).catch(() => {});
+  logger.info("admin.update_user", { actorId, userId, data });
+  revalidateTag("users");
+  redirect(ADMIN_TAB("users"));
+}
+
+export async function adminResetPasswordAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (password.length < 8 || password.length > 72) redirect(ADMIN_TAB("users") + "&error=invalid");
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
+  if (!user) redirect(ADMIN_TAB("users") + "&error=not_found");
+  const { hashPassword } = await import("@/lib/auth");
+  const passwordHash = await hashPassword(password);
+  await db.user.update({ where: { id: userId }, data: { passwordHash } });
+  await db.session.deleteMany({ where: { userId } }).catch(() => {});
+  await db.auditLog.create({ data: { actorId, action: "reset_password", targetType: "user", targetId: userId } }).catch(() => {});
+  logger.info("admin.reset_password", { actorId, userId });
+  revalidateTag("users");
+  redirect(ADMIN_TAB("users"));
+}
+
 /* ---------------- 版块管理 ---------------- */
 
 const boardSlugSchema = z
