@@ -97,14 +97,15 @@ model Session {
 }
 
 model Board {
-  id          String   @id @default(cuid())
-  slug        String   @unique
-  name        String
-  description String?
-  order       Int      @default(0)
-  isHidden    Boolean  @default(false)
-  isLocked    Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  id               String   @id @default(cuid())
+  slug             String   @unique
+  name             String
+  description      String?
+  order            Int      @default(0)
+  isHidden         Boolean  @default(false)
+  isLocked         Boolean  @default(false)
+  requireApproval  Boolean  @default(false)
+  createdAt        DateTime @default(now())
 
   threads    Thread[]
   categories ThreadCategory[]
@@ -195,6 +196,7 @@ model Thread {
   pinned     Boolean  @default(false)
   locked     Boolean  @default(false)
   views      Int      @default(0)
+  status     String   @default("approved")
   createdAt  DateTime @default(now())
   // 列表按此字段游标分页,回复时更新
   lastPostAt DateTime @default(now())
@@ -209,6 +211,7 @@ model Thread {
   @@index([boardId, lastPostAt])
   @@index([boardId, categoryId, lastPostAt])
   @@index([pinned])
+  @@index([status])
 }
 
 model Post {
@@ -217,6 +220,7 @@ model Post {
   authorId  String
   // 只存 Markdown 原文,渲染在读取时做(写时渲染会把脏数据固化进库)
   contentMd String
+  status    String   @default("approved")
   createdAt DateTime @default(now())
 
   thread      Thread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
@@ -226,6 +230,7 @@ model Post {
   ratings     PostRating[] @relation("PostRatings")
 
   @@index([threadId, createdAt])
+  @@index([status])
 }
 
 /** 帖子编辑历史:每次编辑落一条,旧/新原文都留档 */

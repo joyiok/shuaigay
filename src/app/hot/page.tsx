@@ -99,6 +99,7 @@ export default async function HotPage({
                 <UserAvatar username={t.author.username} avatarUrl={t.author.avatarUrl} size={36} radius={10} />
                 <div className="post-body">
                   <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
+                    {(t as any).status === "pending" && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700, flexShrink: 0 }}>待审</span>}
                     <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }} title={t.title}>
                       {t.title}
                     </Link>

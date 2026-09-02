@@ -15,6 +15,8 @@ import {
   adminDeleteThreadAction,
   adminToggleLockAction,
   adminTogglePinAction,
+  approvePostAction,
+  approveThreadAction,
   banUserAction,
   clearBoardAction,
   createBoardAction,
@@ -22,7 +24,10 @@ import {
   deleteBoardAction,
   deleteCategoryAction,
   mergeBoardAction,
+  toggleBoardApprovalAction,
   moveCategoryAction,
+  rejectPostAction,
+  rejectThreadAction,
   renameCategoryAction,
   toggleBoardHiddenAction,
   toggleBoardLockedAction,
@@ -49,6 +54,7 @@ const TABS = [
   { key: "users", label: "用户管理" },
   { key: "boards", label: "版块管理" },
   { key: "reports", label: "举报队列" },
+  { key: "pending", label: "待审队列" },
   { key: "words", label: "敏感词" },
   { key: "audit", label: "审计日志" },
   { key: "stats", label: "数据统计" },
@@ -80,6 +86,7 @@ const ACTION_LABELS: Record<string, string> = {
   update_board: "编辑版块",
   toggle_hidden: "隐藏/显示",
   toggle_locked: "锁定/解锁版块",
+  toggle_approval: "开启/关闭审核",
   clear_board: "清空版块",
   merge_board: "合并版块",
   review_report: "处理举报",
@@ -134,7 +141,7 @@ export default async function AdminPage({
       </div>
     );
   }
-  const visibleTabs = adminFlag ? TABS : TABS.filter((t) => t.key === "reports");
+  const visibleTabs = adminFlag ? TABS : TABS.filter((t) => t.key === "reports" || t.key === "pending");
   const active = visibleTabs.some((t) => t.key === tab) ? (tab as string) : adminFlag ? "threads" : "reports";
 
   return (
@@ -166,6 +173,7 @@ export default async function AdminPage({
       {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
       {adminFlag && active === "boards" && <BoardsTab />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
+      {active === "pending" && <PendingTab boardScope={modBoards} />}
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
       {adminFlag && active === "stats" && <StatsTab />}
@@ -618,6 +626,10 @@ async function BoardsTab() {
                   <input type="hidden" name="boardId" value={b.id} />
                   <button title={(b as unknown as { isLocked: boolean }).isLocked ? "解锁" : "锁定发帖"} style={{ height: 30, padding: "0 8px", border: "1.5px solid var(--line)", background: (b as unknown as { isLocked: boolean }).isLocked ? "#FFF7A8" : "var(--panel)", color: "var(--text)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{(b as unknown as { isLocked: boolean }).isLocked ? "已锁定" : "锁定"}</button>
                 </form>
+                <form action={toggleBoardApprovalAction}>
+                  <input type="hidden" name="boardId" value={b.id} />
+                  <button title={(b as unknown as { requireApproval: boolean }).requireApproval ? "关闭审核" : "开启审核"} style={{ height: 30, padding: "0 8px", border: "1.5px solid var(--line)", background: (b as unknown as { requireApproval: boolean }).requireApproval ? "#EDE9FE" : "var(--panel)", color: (b as unknown as { requireApproval: boolean }).requireApproval ? "#7C3AED" : "var(--text)", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>{(b as unknown as { requireApproval: boolean }).requireApproval ? "需审核" : "免审"}</button>
+                </form>
                 <ConfirmForm action={deleteBoardAction} message={`确认删除版块「${b.name}（/${b.slug}）」？\n该版块下 ${b._count.threads} 个主题及其全部回帖、附件将级联删除，且相关举报将静默结案。此操作不可恢复！`}>
                   <input type="hidden" name="boardId" value={b.id} />
                   <button type="submit" style={{ height: 30, padding: "0 10px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 8, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>删除</button>
@@ -852,6 +864,74 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
           <PaperEmpty badge="0 条" title="暂无待处理" description="队列已清空，没有待处理的举报。" />
         )}
       </ListCard>
+    </div>
+  );
+}
+
+/* ---------------- 待审队列 ---------------- */
+
+async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
+  let threads = await db.thread.findMany({
+    where: { status: "pending" },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+    include: { author: { select: { username: true } }, board: { select: { name: true, slug: true } } },
+  });
+  let posts = await db.post.findMany({
+    where: { status: "pending" },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+    include: { author: { select: { username: true } }, thread: { select: { id: true, title: true, board: { select: { name: true, slug: true } } } } },
+  });
+  if (boardScope) {
+    threads = threads.filter((t) => boardScope.has((t as any).boardId));
+    posts = posts.filter((p) => boardScope.has((p as any).thread.boardId));
+  }
+  const total = threads.length + posts.length;
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card" style={{ overflow: "hidden" }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div className="quick-title" style={{ margin: 0 }}>待审队列 <span>主题 {threads.length} · 回帖 {posts.length} {boardScope ? "· 仅自己版块" : ""}</span></div>
+          <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>新人/版块审核/敏感词 → 待审</span>
+        </div>
+        {threads.length === 0 && posts.length === 0 ? (
+          <div style={{ padding: 24, textAlign: "center", color: "var(--text-subtle)", fontSize: 13 }}>
+            <div style={{ fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>暂无待审</div>
+            <div style={{ fontSize: 12 }}>新人、需审核版块或命中敏感词的内容会在此出现</div>
+          </div>
+        ) : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+            {threads.map((t) => (
+              <li key={t.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审主题</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <Link href={threadHref(t.id, t.title)} style={{ fontWeight: 700, fontSize: 13, color: "var(--text)" }}>{t.title}</Link>
+                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 2 }}>{t.board.name} · {t.author.username} · {formatDate(t.createdAt)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <form action={approveThreadAction}><input type="hidden" name="threadId" value={t.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
+                  <ConfirmForm action={rejectThreadAction} message={`确认驳回并删除主题「${t.title}」？`}><input type="hidden" name="threadId" value={t.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                </div>
+              </li>
+            ))}
+            {posts.map((p) => (
+              <li key={p.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                <span className="topic-badge" style={{ background: "#FFF1F0", border: "1.5px solid var(--line)", color: "var(--danger)", fontWeight: 700 }}>待审回帖</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <Link href={threadHref(p.thread.id, p.thread.title)} style={{ fontSize: 12, fontWeight: 600, color: "var(--text)" }}>{p.thread.title}</Link>
+                  <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 420, marginTop: 2 }}>{p.contentMd.slice(0, 80)}</div>
+                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 2 }}>{p.thread.board.name} · {p.author.username} · {formatDate(p.createdAt)}</div>
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <form action={approvePostAction}><input type="hidden" name="postId" value={p.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
+                  <ConfirmForm action={rejectPostAction} message={`确认驳回并删除该回帖？`}><input type="hidden" name="postId" value={p.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

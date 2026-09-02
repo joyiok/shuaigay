@@ -33,6 +33,7 @@ export interface ThreadListItem {
   authorAvatarUrl: string | null;
   replyCount: number;
   categoryName?: string | null;
+  status?: string;
 }
 
 export interface PostEditListItem {
@@ -68,6 +69,7 @@ export interface PostListItem {
   attachments: { id: string; storedName: string; fileName: string; mimeType: string; sizeBytes: number }[];
   edits: PostEditListItem[];
   rating: PostRatingView;
+  status?: string;
 }
 
 function toThreadListItem(t: ThreadRow): ThreadListItem {
@@ -82,6 +84,7 @@ function toThreadListItem(t: ThreadRow): ThreadListItem {
     authorName: t.author.username,
     authorAvatarUrl: (t.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
     replyCount: Math.max(0, t._count.posts - 1),
+    status: (t as unknown as { status: string }).status ?? "approved",
   };
 }
 
@@ -95,6 +98,7 @@ function toPostListItem(p: PostRow, rating: PostRatingView): PostListItem {
     authorRole: p.author.role,
     authorPoints: (p.author as unknown as { points: number }).points ?? 0,
     authorAvatarUrl: (p.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
+    status: (p as unknown as { status: string }).status ?? "approved",
     attachments: p.attachments.map((a) => ({
       id: a.id,
       storedName: a.storedName,
@@ -121,6 +125,8 @@ export async function listThreads(
   boardId: string,
   cursor: Cursor | null,
   categoryId: string | number | null = null,
+  viewerId: string | null = null,
+  isStaff = false,
   pageSize = 20,
 ) {
   // 兼容旧调用 listThreads(boardId, cursor, 20) — 第三参为 number 时视为 pageSize
@@ -129,20 +135,24 @@ export async function listThreads(
     categoryId = null;
   }
   const categoryFilter = categoryId ? { categoryId: String(categoryId) } : {};
+  const statusFilter = isStaff
+    ? {}
+    : viewerId
+      ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }
+      : { status: "approved" };
+  const statusCond = isStaff ? {} : viewerId ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } as any : { status: "approved" };
+  const cursorCond = cursor
+    ? {
+        OR: [
+          { lastPostAt: { lt: new Date(cursor.t) } },
+          { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
+        ],
+      }
+    : {};
+  const baseCond: any = { boardId, pinned: false, ...categoryFilter, ...statusCond };
+  const whereCond: any = cursor ? { AND: [baseCond, cursorCond] } : baseCond;
   const rows = await db.thread.findMany({
-    where: {
-      boardId,
-      pinned: false,
-      ...categoryFilter,
-      ...(cursor
-        ? {
-            OR: [
-              { lastPostAt: { lt: new Date(cursor.t) } },
-              { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } },
-            ],
-          }
-        : {}),
-    },
+    where: whereCond,
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
     take: pageSize + 1,
     include: { ...threadInclude, category: { select: { name: true } } },
@@ -161,11 +171,12 @@ export async function listThreads(
     categoryName: (t as unknown as { category: { name: string } | null }).category?.name ?? null,
   });
 
+  const pinnedWhere: any = isStaff ? { boardId, pinned: true, ...categoryFilter } : viewerId ? { boardId, pinned: true, ...categoryFilter, OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } : { boardId, pinned: true, ...categoryFilter, status: "approved" };
   const pinned = cursor
     ? []
     : (
         await db.thread.findMany({
-          where: { boardId, pinned: true, ...categoryFilter },
+          where: pinnedWhere,
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, category: { select: { name: true } } },
@@ -206,6 +217,7 @@ export async function searchThreads(
 ) {
   const rows = await db.thread.findMany({
     where: {
+      status: "approved",
       ...(boardId ? { boardId } : { board: { isHidden: false } }),
       AND: [
         {
@@ -242,6 +254,7 @@ export async function searchPosts(
   const rows = await db.post.findMany({
     where: {
       contentMd: { contains: q, mode: "insensitive" },
+      status: "approved",
       ...(boardId ? { thread: { boardId } } : { thread: { board: { isHidden: false } } }),
       ...(cursor ? { OR: [{ createdAt: { lt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
@@ -277,6 +290,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   const rows = await db.thread.findMany({
     where: {
       pinned: false,
+      status: "approved",
       board: { isHidden: false },
       ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
@@ -292,7 +306,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
     ? []
     : (
         await db.thread.findMany({
-          where: { pinned: true, board: { isHidden: false } },
+          where: { pinned: true, status: "approved", board: { isHidden: false } },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, board: { select: { slug: true, name: true } } },
@@ -313,13 +327,26 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   };
 }
 
-export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSize = 50, authorId: string | null = null) {
+export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSizeOrStaff: number | boolean = 50, authorIdOrPageSize: string | number | null = null, maybeAuthorId: string | null = null) {
+  // 兼容旧调用: listPosts(id, cursor, viewerId, 50, authorId) vs 新调用: listPosts(id, cursor, viewerId, isStaff, 50, authorId)
+  let isStaff = false;
+  let pageSize = 50;
+  let authorId: string | null = null;
+  if (typeof pageSizeOrStaff === "boolean") {
+    isStaff = pageSizeOrStaff;
+    pageSize = typeof authorIdOrPageSize === "number" ? authorIdOrPageSize : 50;
+    authorId = typeof authorIdOrPageSize === "string" ? authorIdOrPageSize : maybeAuthorId;
+  } else if (typeof pageSizeOrStaff === "number") {
+    pageSize = pageSizeOrStaff;
+    authorId = authorIdOrPageSize as string | null;
+  }
+  const statusCondPost: any = isStaff ? {} : viewerId ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } : { status: "approved" };
+  const authorCond = authorId ? { authorId } : {};
+  const cursorCondPost: any = cursor ? { OR: [{ createdAt: { gt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { gt: cursor.id } }] } : {};
+  const baseCondPost: any = { threadId, ...authorCond, ...statusCondPost };
+  const wherePost: any = cursor ? { AND: [baseCondPost, cursorCondPost] } : baseCondPost;
   const rows = await db.post.findMany({
-    where: {
-      threadId,
-      ...(authorId ? { authorId } : {}),
-      ...(cursor ? { OR: [{ createdAt: { gt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { gt: cursor.id } }] } : {}),
-    },
+    where: wherePost,
     orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
     take: pageSize + 1,
     include: postInclude,

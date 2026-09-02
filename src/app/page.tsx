@@ -173,12 +173,14 @@ export default async function HomePage({
 
 function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
   const badge = boardBadge(t.boardName);
+  const isPending = t.status === "pending";
   return (
-    <li className="post-item" style={{ gap: 12 }}>
+    <li className="post-item" style={{ gap: 12, opacity: isPending ? 0.7 : 1 }}>
       <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={36} radius={10} />
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
+          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700, flexShrink: 0 }}>待审</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }} title={t.title}>
             {t.title}
           </Link>

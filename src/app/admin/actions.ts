@@ -494,6 +494,18 @@ export async function toggleBoardLockedAction(formData: FormData): Promise<void>
   redirect(ADMIN_TAB("boards"));
 }
 
+export async function toggleBoardApprovalAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const boardId = String(formData.get("boardId") ?? "");
+  const board = await db.board.findUnique({ where: { id: boardId }, select: { requireApproval: true } });
+  if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
+  await db.board.update({ where: { id: boardId }, data: { requireApproval: !board.requireApproval } });
+  await db.auditLog.create({ data: { actorId, action: "toggle_approval", targetType: "board", targetId: boardId, detail: String(!board.requireApproval) } }).catch(() => {});
+  logger.info("admin.toggle_approval", { actorId, boardId, requireApproval: !board.requireApproval });
+  revalidateTag("boards");
+  redirect(ADMIN_TAB("boards"));
+}
+
 export async function clearBoardAction(formData: FormData): Promise<void> {
   const actorId = await requireAdmin();
   const boardId = String(formData.get("boardId") ?? "");
@@ -533,6 +545,88 @@ export async function mergeBoardAction(formData: FormData): Promise<void> {
   revalidateTag("threads");
   revalidatePath("/");
   redirect(ADMIN_TAB("boards"));
+}
+
+/* ---------------- 待审队列 ---------------- */
+
+export async function approveThreadAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({ where: { id: threadId }, select: { id: true, boardId: true, authorId: true, title: true, status: true } });
+  if (!thread) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (thread.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
+  await db.thread.update({ where: { id: threadId }, data: { status: "approved" } });
+  await db.post.updateMany({ where: { threadId, authorId: thread.authorId }, data: { status: "approved" } });
+  // 补发积分
+  const { THREAD_POINTS } = await import("@/lib/levels");
+  await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: THREAD_POINTS } } }).catch(() => {});
+  await db.notification.create({ data: { userId: thread.authorId, type: "system", title: "主题已过审", body: `你的主题「${thread.title.slice(0, 20)}」已通过审核`, link: `/t/${threadId}` } }).catch(() => {});
+  await db.auditLog.create({ data: { actorId: staff.id, action: "approve_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
+  logger.info("admin.approve_thread", { actorId: staff.id, threadId });
+  revalidateTag("threads");
+  revalidateTag("boards");
+  revalidateTag("pending");
+  redirect(ADMIN_TAB("pending"));
+}
+
+export async function rejectThreadAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({ where: { id: threadId }, select: { id: true, boardId: true, status: true } });
+  if (!thread) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (thread.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
+  const atts = await db.attachment.findMany({ where: { post: { threadId } }, select: { storedName: true } });
+  await db.thread.delete({ where: { id: threadId } });
+  const storage = getStorage();
+  await Promise.all(atts.map((a) => storage.remove(a.storedName)));
+  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
+  logger.info("admin.reject_thread", { actorId: staff.id, threadId });
+  revalidateTag("threads");
+  revalidateTag("pending");
+  redirect(ADMIN_TAB("pending"));
+}
+
+export async function approvePostAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const postId = String(formData.get("postId") ?? "");
+  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true, threadId: true, authorId: true, status: true, thread: { select: { boardId: true } } } });
+  if (!post) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(post.thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (post.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
+  await db.post.update({ where: { id: postId }, data: { status: "approved" } });
+  await db.thread.update({ where: { id: post.threadId }, data: { lastPostAt: new Date() } });
+  const { REPLY_POINTS } = await import("@/lib/levels");
+  await db.user.update({ where: { id: post.authorId }, data: { points: { increment: REPLY_POINTS } } }).catch(() => {});
+  // 通知被提及和收藏者（与正常回帖一致，简化：仅通知楼主）
+  const thread = await db.thread.findUnique({ where: { id: post.threadId }, select: { authorId: true } });
+  if (thread && thread.authorId !== post.authorId) {
+    await db.notification.create({ data: { userId: thread.authorId, type: "reply", title: "你的主题有新回帖（审核后）", body: "", link: `/t/${post.threadId}` } }).catch(() => {});
+  }
+  await db.auditLog.create({ data: { actorId: staff.id, action: "approve_post", targetType: "post", targetId: postId } }).catch(() => {});
+  logger.info("admin.approve_post", { actorId: staff.id, postId });
+  revalidateTag("threads");
+  revalidateTag("pending");
+  redirect(ADMIN_TAB("pending"));
+}
+
+export async function rejectPostAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const postId = String(formData.get("postId") ?? "");
+  const post = await db.post.findUnique({ where: { id: postId }, select: { id: true, thread: { select: { boardId: true } }, status: true } });
+  if (!post) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(post.thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
+  if (post.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
+  const atts = await db.attachment.findMany({ where: { postId }, select: { storedName: true } });
+  await db.post.delete({ where: { id: postId } });
+  const storage = getStorage();
+  await Promise.all(atts.map((a) => storage.remove(a.storedName)));
+  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_post", targetType: "post", targetId: postId } }).catch(() => {});
+  logger.info("admin.reject_post", { actorId: staff.id, postId });
+  revalidateTag("threads");
+  revalidateTag("pending");
+  redirect(ADMIN_TAB("pending"));
 }
 
 /* ---------------- 敏感词 ---------------- */

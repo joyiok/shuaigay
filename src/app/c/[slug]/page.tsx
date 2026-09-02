@@ -33,8 +33,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-async function loadBoardPage(boardId: string, cursor: Cursor | null, categoryId: string | null) {
-  const { pinned, items, nextCursor } = await listThreads(boardId, cursor, categoryId);
+async function loadBoardPage(boardId: string, cursor: Cursor | null, categoryId: string | null, viewerId: string | null = null, isStaff = false) {
+  const { pinned, items, nextCursor } = await listThreads(boardId, cursor, categoryId, viewerId, isStaff);
   return { pinned, items, nextCursor };
 }
 
@@ -48,10 +48,10 @@ export default async function BoardPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ cursor?: string; error?: string; cat?: string }>;
+  searchParams: Promise<{ cursor?: string; error?: string; cat?: string; pending?: string }>;
 }) {
   const { slug } = await params;
-  const { cursor: rawCursor, error, cat: rawCat } = await searchParams;
+  const { cursor: rawCursor, error, cat: rawCat, pending } = await searchParams;
   const board = await db.board.findUnique({ where: { slug } });
   if (!board) notFound();
   const viewer = await getCurrentUser();
@@ -66,7 +66,7 @@ export default async function BoardPage({
 
   let loaded: Awaited<ReturnType<typeof loadBoardPage>>;
   try {
-    loaded = await loadBoardPage(board.id, decodeCursor(rawCursor), categoryId);
+    loaded = await loadBoardPage(board.id, decodeCursor(rawCursor), categoryId, viewer?.id ?? null, viewerIsStaff);
   } catch {
     return <ErrorState title="加载版块失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
@@ -135,6 +135,9 @@ export default async function BoardPage({
       {error && ERRORS[error] && (
         <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>{ERRORS[error]}</p>
       )}
+      {pending && (
+        <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
+      )}
 
       <div className="topic-toolbar">
         <div className="tab-bar">
@@ -178,12 +181,14 @@ export default async function BoardPage({
 }
 
 function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
+  const isPending = (t as any).status === "pending";
   return (
-    <li className="post-item">
+    <li className="post-item" style={{ opacity: isPending ? 0.7 : 1 }}>
       <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">置顶</span>}
+          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
           {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1 }}>{t.title}</Link>

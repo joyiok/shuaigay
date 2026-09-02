@@ -17,6 +17,7 @@ import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { containsSensitive } from "@/lib/sensitive";
 import { assertNotBanned } from "@/lib/ban";
+import { fetchApprovalBoard, fetchApprovalUser, needsApproval } from "@/lib/approval";
 
 // 限流阈值:生产用默认值;本地调试或反复跑 e2e 可经 .env 调大(见 .env.example)
 const THREAD_RATE_LIMIT = Number(process.env.RATE_LIMIT_THREAD) || 5;
@@ -159,10 +160,6 @@ export async function createThreadAction(formData: FormData): Promise<void> {
   if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
     redirect(`/c/${board.slug}/new?error=captcha_failed`);
   }
-  if ((await containsSensitive(title.data)) || (await containsSensitive(content.data))) {
-    logger.info("moderation.blocked_sensitive", { userId: user.id, action: "createThread", ip });
-    redirect(`/c/${board.slug}/new?error=sensitive`);
-  }
   // 发帖限流:同一用户 / IP 每分钟 N 次
   if (
     !(await checkRateLimit(`thread:${user.id}`, THREAD_RATE_LIMIT, 60)) ||
@@ -182,6 +179,13 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     ? await persistFiles(storage, prepared, user.id)
     : [];
 
+  // 审核判定 A/B/C
+  const approvalUser = await fetchApprovalUser(user.id);
+  const approvalBoard = await fetchApprovalBoard(board.id);
+  const { pending, reason: pendingReason } = approvalUser && approvalBoard ? await needsApproval(approvalUser, approvalBoard, title.data, content.data, _isStaffForCreate) : { pending: false, reason: null };
+  const threadStatus = pending ? "pending" : "approved";
+  const postStatus = pending ? "pending" : "approved";
+
   // redirect 会抛 NEXT_REDIRECT,不能被 try 捕获,所以库操作和跳转分开
   const mentionedUsers = await findMentionedUsers(content.data, user.id);
   let threadId: string;
@@ -193,10 +197,12 @@ export async function createThreadAction(formData: FormData): Promise<void> {
           authorId: user.id,
           title: title.data,
           categoryId,
+          status: threadStatus,
           posts: {
             create: {
               authorId: user.id,
               contentMd: content.data,
+              status: postStatus,
               attachments: attachmentRows.length
                 ? { create: attachmentRows }
                 : undefined,
@@ -204,11 +210,13 @@ export async function createThreadAction(formData: FormData): Promise<void> {
           },
         },
       });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { points: { increment: THREAD_POINTS } },
-      });
-      if (mentionedUsers.length) {
+      if (!pending) {
+        await tx.user.update({
+          where: { id: user.id },
+          data: { points: { increment: THREAD_POINTS } },
+        });
+      }
+      if (!pending && mentionedUsers.length) {
         const notifyIds = planMentionNotifications({
           actorId: user.id,
           mentionedUserIds: mentionedUsers.map((u) => u.id),
@@ -225,21 +233,43 @@ export async function createThreadAction(formData: FormData): Promise<void> {
           });
         }
       }
+      if (pending) {
+        // 通知版主/管理员待审
+        const mods = await tx.boardModerator.findMany({ where: { boardId: board.id }, select: { userId: true } });
+        const admins = await tx.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+        const recipients = new Set<string>([...mods.map((m) => m.userId), ...admins.map((a) => a.id)]);
+        recipients.delete(user.id);
+        if (recipients.size) {
+          await tx.notification.createMany({
+            data: [...recipients].map((uid) => ({
+              userId: uid,
+              type: "pending",
+              title: `新主题待审：${title.data.slice(0, 20)}`,
+              body: pendingReason ?? "需审核",
+              link: `/admin?tab=pending`,
+            })),
+          });
+        }
+      }
       return t;
     });
     threadId = thread.id;
-    logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip });
-    // B：缓存失效 — 统计与热帖随新帖变化
-    revalidateTag("stats");
-    revalidateTag("threads");
-    revalidateTag("boards");
-    revalidatePath("/");
-    revalidatePath(`/c/${board.slug}`);
+    logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip, status: threadStatus, reason: pendingReason });
+    if (!pending) {
+      revalidateTag("stats");
+      revalidateTag("threads");
+      revalidateTag("boards");
+      revalidatePath("/");
+      revalidatePath(`/c/${board.slug}`);
+    } else {
+      revalidateTag("pending");
+    }
   } catch (e) {
     await Promise.all(attachmentRows.map((r) => storage.remove(r.storedName)));
     logger.error("thread.create_failed", { userId: user.id, error: String(e) });
     throw e;
   }
+  if (pending) redirect(`/c/${board.slug}?pending=1`);
   redirect(`/t/${threadId}`);
 }
 
@@ -271,10 +301,6 @@ export async function replyAction(formData: FormData): Promise<void> {
   const ip = await clientIp();
   if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip))) {
     redirect(`/t/${thread.id}?error=captcha_failed`);
-  }
-  if (await containsSensitive(content.data)) {
-    logger.info("moderation.blocked_sensitive", { userId: user.id, action: "reply", threadId, ip });
-    redirect(`/t/${thread.id}?error=sensitive`);
   }
   // 回帖限流:同一用户 / IP 每分钟 N 次
   if (
@@ -312,6 +338,11 @@ export async function replyAction(formData: FormData): Promise<void> {
     alreadyNotifiedIds: new Set(notifyPlan.map((n) => n.userId)),
   });
 
+  const approvalUserReply = await fetchApprovalUser(user.id);
+  const approvalBoardReply = await fetchApprovalBoard(thread.board.id);
+  const { pending: pendingReply, reason: pendingReasonReply } = approvalUserReply && approvalBoardReply ? await needsApproval(approvalUserReply, approvalBoardReply, "", content.data, _isStaffReply) : { pending: false, reason: null };
+  const postStatusReply = pendingReply ? "pending" : "approved";
+
   try {
     await db.$transaction(async (tx) => {
       await tx.post.create({
@@ -319,20 +350,23 @@ export async function replyAction(formData: FormData): Promise<void> {
           threadId: thread.id,
           authorId: user.id,
           contentMd: content.data,
+          status: postStatusReply,
           attachments: attachmentRows.length
             ? { create: attachmentRows }
             : undefined,
         },
       });
-      await tx.thread.update({
-        where: { id: thread.id },
-        data: { lastPostAt: new Date() },
-      });
-      await tx.user.update({
-        where: { id: user.id },
-        data: { points: { increment: REPLY_POINTS } },
-      });
-      if (notifyPlan.length) {
+      if (!pendingReply) {
+        await tx.thread.update({
+          where: { id: thread.id },
+          data: { lastPostAt: new Date() },
+        });
+        await tx.user.update({
+          where: { id: user.id },
+          data: { points: { increment: REPLY_POINTS } },
+        });
+      }
+      if (!pendingReply && notifyPlan.length) {
         await tx.notification.createMany({
           data: notifyPlan.map(({ userId: uid, kind: type }) => ({
             userId: uid,
@@ -346,7 +380,7 @@ export async function replyAction(formData: FormData): Promise<void> {
           })),
         });
       }
-      if (favoriteNotifyIds.length) {
+      if (!pendingReply && favoriteNotifyIds.length) {
         await tx.notification.createMany({
           data: favoriteNotifyIds.map((uid) => ({
             userId: uid,
@@ -357,17 +391,39 @@ export async function replyAction(formData: FormData): Promise<void> {
           })),
         });
       }
+      if (pendingReply) {
+        const mods = await tx.boardModerator.findMany({ where: { boardId: thread.board.id }, select: { userId: true } });
+        const admins = await tx.user.findMany({ where: { role: "ADMIN" }, select: { id: true } });
+        const recipients = new Set<string>([...mods.map((m) => m.userId), ...admins.map((a) => a.id)]);
+        recipients.delete(user.id);
+        if (recipients.size) {
+          await tx.notification.createMany({
+            data: [...recipients].map((uid) => ({
+              userId: uid,
+              type: "pending",
+              title: `新回帖待审：${content.data.slice(0, 20)}`,
+              body: pendingReasonReply ?? "需审核",
+              link: `/admin?tab=pending`,
+            })),
+          });
+        }
+      }
     });
-    logger.info("post.reply", { userId: user.id, threadId, ip });
-    revalidateTag("stats");
-    revalidateTag("threads");
-    revalidatePath(`/t/${thread.id}`);
-    revalidatePath("/");
+    logger.info("post.reply", { userId: user.id, threadId, ip, status: postStatusReply });
+    if (!pendingReply) {
+      revalidateTag("stats");
+      revalidateTag("threads");
+      revalidatePath(`/t/${thread.id}`);
+      revalidatePath("/");
+    } else {
+      revalidateTag("pending");
+    }
   } catch (e) {
     await Promise.all(attachmentRows.map((r) => storage.remove(r.storedName)));
     logger.error("post.reply_failed", { userId: user.id, threadId, error: String(e) });
     throw e;
   }
+  if (pendingReply) redirect(`/t/${thread.id}?pending=1`);
   redirect(`/t/${thread.id}`);
 }
 

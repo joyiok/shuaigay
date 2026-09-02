@@ -98,7 +98,8 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null, opOnly: bool
   });
   if (!thread) return null;
   const user = await getCurrentUser();
-  const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, 50, opOnly ? thread.authorId : null);
+  const isStaffForPosts = user ? (user.role === "ADMIN" || await isBoardModerator(user.id, thread.board.id)) : false;
+  const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, isStaffForPosts, 50, opOnly ? thread.authorId : null);
   return { thread, user, items, nextCursor };
 }
 
@@ -107,10 +108,10 @@ export default async function ThreadPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ cursor?: string; error?: string; filter?: string }>;
+  searchParams: Promise<{ cursor?: string; error?: string; filter?: string; pending?: string }>;
 }) {
   const { id } = await params;
-  const { cursor: rawCursor, error, filter: rawFilter } = await searchParams;
+  const { cursor: rawCursor, error, filter: rawFilter, pending } = await searchParams;
   const opOnly = rawFilter === "op";
   let loaded: Awaited<ReturnType<typeof loadThreadPage>>;
   try {
@@ -127,6 +128,7 @@ export default async function ThreadPage({
   const admin = isAdmin(user);
   const isBoardStaff = admin || (user ? await isBoardModerator(user.id, (thread as unknown as { board: { id: string } }).board.id) : false);
   if ((thread as unknown as { board: { isHidden: boolean } }).board.isHidden && !isBoardStaff) notFound();
+  if ((thread as unknown as { status: string }).status === "pending" && user?.id !== thread.authorId && !isBoardStaff) notFound();
   const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
   const isFav = user
     ? !!(await db.favorite
@@ -190,6 +192,7 @@ export default async function ThreadPage({
       <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
+          {(thread as any).status === "pending" && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
           {thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
           {threadCategory && <span className={`topic-badge ${catToneClass(threadCategory.name)}`}>{threadCategory.name}</span>}
@@ -260,6 +263,9 @@ export default async function ThreadPage({
       {error && ERRORS[error] && (
         <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>{ERRORS[error]}</p>
       )}
+      {pending && (
+        <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
+      )}
 
       <div className="card" style={{ overflow: "hidden" }}>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
@@ -274,6 +280,7 @@ export default async function ThreadPage({
                   <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
                   <LevelBadge points={p.authorPoints} role={p.authorRole} />
+                  {(p as any).status === "pending" && <span style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>待审</span>}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
                   <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>#{idx + 1}</span>
                   <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
