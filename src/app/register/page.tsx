@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { registerAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
 
 export const metadata: Metadata = {
   title: "注册",
@@ -10,13 +11,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/register" },
 };
 
-const ERRORS: Record<string, string> = {
-  invalid: "输入格式不对(用户名 3-20 位字母数字下划线,密码至少 8 位)",
-  email_taken: "该邮箱已注册",
-  username_taken: "该用户名已被占用",
-  ratelimited: "尝试太频繁,请稍后再试",
-  invite_invalid: "邀请码无效或已被用完",
-  captcha_failed: "人机验证未通过，请重新验证后重试",
+const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
+  invalid: { title: "格式不太对", msg: "用户名 3-20 位字母/数字/_/-，密码至少 8 位。", tip: "试试 shuaigay_01 这种，再加个 8 位以上的密码" },
+  email_taken: { title: "邮箱已注册", msg: "这个邮箱已经有账号了。", tip: "直接去登录，或用另一个邮箱" },
+  username_taken: { title: "用户名被占了", msg: "换个更骚的名字？", tip: "加个数字或下划线，比如 shuaigay_02" },
+  ratelimited: { title: "手速太快", msg: "尝试太频繁，喝口水再试。", tip: "等 1 分钟，系统在保护你" },
+  invite_invalid: { title: "邀请码不对", msg: "邀请码无效或已被用完。", tip: "找邀请人要个新的，或先不填邀请码直接注册" },
+  captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },
 };
 
 export default async function RegisterPage({
@@ -40,7 +41,7 @@ export default async function RegisterPage({
         </div>
 
         {error && ERRORS[error] && (
-          <div style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 12px", fontSize: 12, marginBottom: 12, boxShadow: "2px 2px 0 rgba(220,38,38,0.08)", fontWeight: 600 }}>{ERRORS[error]}</div>
+          <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>
         )}
         {inviteCode && (
           <div style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", borderRadius: 10, padding: "10px 12px", fontSize: 12, marginBottom: 12, boxShadow: "2px 2px 0 var(--line)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { loginAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
 
 export const metadata: Metadata = {
   title: "登录",
@@ -10,12 +11,12 @@ export const metadata: Metadata = {
   alternates: { canonical: "/login" },
 };
 
-const ERRORS: Record<string, string> = {
-  invalid: "输入格式不对",
-  wrong: "邮箱或密码不正确",
-  ratelimited: "尝试太频繁,请稍后再试",
-  captcha_failed: "人机验证未通过，请重新验证后重试",
-  banned: "账号已被封禁，请联系管理员（403）",
+const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
+  invalid: { title: "少填了点", msg: "邮箱和密码都得填。", tip: "检查下是不是漏了" },
+  wrong: { title: "邮箱或密码不对", msg: "要么邮箱错，要么密码错。", tip: "试试找回密码，或检查大小写" },
+  ratelimited: { title: "试太多次了", msg: "系统怕你是机器人，歇 10 分钟。", tip: "等会再试，或清下缓存" },
+  captcha_failed: { title: "验证没过", msg: "人机验证失败。", tip: "刷新一下重验" },
+  banned: { title: "账号被封了", msg: "封禁中，暂时登不了。", tip: "联系管理员或等解封" },
 };
 
 export default async function LoginPage({
@@ -38,9 +39,9 @@ export default async function LoginPage({
         </div>
 
         {error && ERRORS[error] && (
-          <div style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 10, padding: "10px 12px", fontSize: 12, marginBottom: 12, boxShadow: "2px 2px 0 rgba(220,38,38,0.08)", fontWeight: 600 }}>{ERRORS[error]}</div>
+          <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>
         )}
-        {reset && <div style={{ background: "#DCFCE7", color: "#166534", border: "1.5px solid #86EFAC", borderRadius: 10, padding: "10px 12px", fontSize: 12, marginBottom: 12, fontWeight: 600 }}>密码已重置，请用新密码登录</div>}
+        {reset && <div style={{ marginBottom: 12 }}><HumanizedFeedback type="success" title="密码已重置" message="用新密码登录就行。" suggestion="别再忘了，加个密码管理器？" /></div>}
 
         <form action={loginAction} style={{ display: "grid", gap: 12 }}>
           {next && <input type="hidden" name="next" value={next} />}
