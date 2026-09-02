@@ -49,6 +49,7 @@ model User {
   verificationTokens VerificationToken[]
   bans              Ban[]
   auditLogs          AuditLog[]         @relation("AuditActor")
+  medals            UserMedal[]
 }
 
 /** 邮箱验证 / 找回密码的一次性令牌:库里只存哈希,明文只在邮件链接里出现一次 */
@@ -322,6 +323,32 @@ model Invite {
   inviter User @relation("InviteOwner", fields: [inviterId], references: [id], onDelete: Cascade)
 
   @@index([inviterId])
+}
+
+model Medal {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  icon        String   @default("🏅")
+  color       String   @default("#FFF7A8")
+  createdAt   DateTime @default(now())
+
+  users UserMedal[]
+}
+
+model UserMedal {
+  id        String   @id @default(cuid())
+  userId    String
+  medalId   String
+  reason    String?
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  medal Medal @relation(fields: [medalId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, medalId])
+  @@index([userId])
+  @@index([medalId])
 }
 
 /// 管理后台操作审计:每个 admin action 成功后写一条,后台「审计日志」Tab 展示最近 50 条

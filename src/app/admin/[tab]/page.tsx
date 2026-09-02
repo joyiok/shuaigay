@@ -17,13 +17,17 @@ import {
   adminTogglePinAction,
   approvePostAction,
   approveThreadAction,
+  awardMedalAction,
   banUserAction,
   clearBoardAction,
   createBoardAction,
   createCategoryAction,
+  createMedalAction,
   deleteBoardAction,
   deleteCategoryAction,
+  deleteMedalAction,
   mergeBoardAction,
+  revokeMedalAction,
   toggleBoardApprovalAction,
   moveCategoryAction,
   rejectPostAction,
@@ -55,6 +59,7 @@ const TABS = [
   { key: "boards", label: "版块管理" },
   { key: "reports", label: "举报队列" },
   { key: "pending", label: "待审队列" },
+  { key: "medals", label: "勋章" },
   { key: "words", label: "敏感词" },
   { key: "audit", label: "审计日志" },
   { key: "stats", label: "数据统计" },
@@ -71,6 +76,8 @@ const ERRORS: Record<string, string> = {
   dup_moderator: "该用户已是此版块版主",
   user_not_found: "用户不存在",
   cat_exists: "同名分类已存在",
+  medal_exists: "同名勋章已存在",
+  medal_owned: "该用户已拥有此勋章",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -100,6 +107,10 @@ const ACTION_LABELS: Record<string, string> = {
   delete_category: "删除分类",
   rename_category: "重命名分类",
   move_category: "移动分类",
+  create_medal: "创建勋章",
+  delete_medal: "删除勋章",
+  award_medal: "授予勋章",
+  revoke_medal: "移除勋章",
 };
 
 export default async function AdminPage({
@@ -177,6 +188,7 @@ export default async function AdminPage({
       {adminFlag && active === "boards" && <BoardsTab />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
       {active === "pending" && <PendingTab boardScope={modBoards} />}
+      {adminFlag && active === "medals" && <MedalsTab />}
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
       {adminFlag && active === "stats" && <StatsTab />}
@@ -934,6 +946,66 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
             ))}
           </ul>
         )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------------- 勋章 ---------------- */
+
+async function MedalsTab() {
+  const medals = await db.medal.findMany({ orderBy: { createdAt: "asc" }, include: { _count: { select: { users: true } } } });
+  const users = await db.user.findMany({ orderBy: { username: "asc" }, take: 20, select: { id: true, username: true } });
+  return (
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card" style={{ padding: 16 }}>
+        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "Space Grotesk, sans-serif" }}>新建勋章 <span>{medals.length} 枚</span></div>
+        <form action={createMedalAction} style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 120px", gap: 10 }}>
+            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 700 }}>名称</span><input name="name" required maxLength={20} placeholder="勋章名" style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 10px", fontSize: 13 }} /></label>
+            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 700 }}>图标</span><input name="icon" placeholder="🏅" maxLength={4} style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 10px", fontSize: 13, textAlign: "center" }} /></label>
+            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 700 }}>颜色</span><input name="color" type="color" defaultValue="#FFF7A8" style={{ height: 32, width: "100%", border: "1.5px solid var(--line)", borderRadius: 8, padding: 2 }} /></label>
+            <div style={{ display: "flex", alignItems: "end" }}><button type="submit" style={{ height: 32, flex: 1, background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>创建</button></div>
+          </div>
+          <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 700 }}>描述 <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>可选</span></span><input name="description" maxLength={100} placeholder="一句话介绍" style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 10px", fontSize: 13 }} /></label>
+        </form>
+      </div>
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)" }}><div className="quick-title" style={{ margin: 0 }}>勋章列表 <span>{medals.length} 枚 · 点击授予</span></div></div>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+          {medals.map((m) => (
+            <li key={m.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <span style={{ width: 36, height: 36, borderRadius: 10, background: m.color, border: "1.5px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 18, boxShadow: "1px 1px 0 var(--line)" }}>{m.icon}</span>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{m.name} <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 11 }}>· {m._count.users} 人拥有</span></div>
+                <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{m.description ?? "暂无描述"}</div>
+              </div>
+              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                <form action={awardMedalAction} style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                  <input type="hidden" name="medalId" value={m.id} />
+                  <select name="userId" required style={{ height: 28, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 11, minWidth: 100 }}>
+                    <option value="">选用户</option>
+                    {users.map((u) => (<option key={u.id} value={u.id}>{u.username}</option>))}
+                  </select>
+                  <input name="reason" placeholder="理由" maxLength={100} style={{ height: 28, width: 90, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 11 }} />
+                  <button type="submit" style={{ height: 28, padding: "0 8px", background: "var(--text)", color: "var(--panel)", border: "1px solid var(--line)", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer" }}>授予</button>
+                </form>
+                <ConfirmForm action={deleteMedalAction} message={`确认删除勋章「${m.name}」？拥有该勋章的用户将一并失去。`}><input type="hidden" name="id" value={m.id} /><button type="submit" style={{ height: 28, padding: "0 8px", border: "1.5px solid #fecaca", background: "var(--danger-soft)", color: "var(--danger)", borderRadius: 6, fontSize: 11, cursor: "pointer" }}>删除</button></ConfirmForm>
+              </div>
+            </li>
+          ))}
+          {medals.length === 0 && <li style={{ padding: 24, textAlign: "center", color: "var(--text-subtle)" }}>暂无勋章</li>}
+        </ul>
+      </div>
+
+      <div className="card" style={{ padding: 16 }}>
+        <div className="quick-title" style={{ margin: "0 0 10px" }}>移除勋章</div>
+        <form action={revokeMedalAction} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <select name="userId" required style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 8px", fontSize: 12, minWidth: 120 }}><option value="">用户</option>{users.map((u) => (<option key={u.id} value={u.id}>{u.username}</option>))}</select>
+          <select name="medalId" required style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 8px", fontSize: 12, minWidth: 120 }}><option value="">勋章</option>{medals.map((m) => (<option key={m.id} value={m.id}>{m.name}</option>))}</select>
+          <button type="submit" style={{ height: 32, padding: "0 12px", border: "1.5px solid var(--line)", background: "var(--panel)", borderRadius: 8, fontSize: 12, cursor: "pointer" }}>移除</button>
+        </form>
       </div>
     </div>
   );

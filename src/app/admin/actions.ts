@@ -629,6 +629,74 @@ export async function rejectPostAction(formData: FormData): Promise<void> {
   redirect(ADMIN_TAB("pending"));
 }
 
+/* ---------------- 勋章 ---------------- */
+
+const medalNameSchema = z.string().trim().min(1).max(20);
+const medalDescSchema = z.string().trim().max(100).optional();
+const medalIconSchema = z.string().trim().min(1).max(4);
+const medalColorSchema = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/);
+
+export async function createMedalAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const name = medalNameSchema.safeParse(formData.get("name"));
+  const desc = medalDescSchema.safeParse(formData.get("description") ?? "");
+  const icon = medalIconSchema.safeParse(formData.get("icon") ?? "🏅");
+  const color = medalColorSchema.safeParse(formData.get("color") ?? "#FFF7A8");
+  if (!name.success) redirect(ADMIN_TAB("medals") + "&error=invalid");
+  const dup = await db.medal.findUnique({ where: { name: name.data } });
+  if (dup) redirect(ADMIN_TAB("medals") + "&error=medal_exists");
+  await db.medal.create({ data: { name: name.data, description: desc.success ? desc.data || null : null, icon: icon.success ? icon.data : "🏅", color: color.success ? color.data : "#FFF7A8" } });
+  await db.auditLog.create({ data: { actorId, action: "create_medal", targetType: "medal", detail: name.data } }).catch(() => {});
+  logger.info("admin.create_medal", { actorId, name: name.data });
+  revalidateTag("medals");
+  redirect(ADMIN_TAB("medals"));
+}
+
+export async function deleteMedalAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const id = String(formData.get("id") ?? "");
+  const m = await db.medal.findUnique({ where: { id }, select: { id: true, name: true } });
+  if (!m) redirect(ADMIN_TAB("medals") + "&error=not_found");
+  await db.medal.delete({ where: { id } });
+  await db.auditLog.create({ data: { actorId, action: "delete_medal", targetType: "medal", targetId: id, detail: m.name } }).catch(() => {});
+  logger.info("admin.delete_medal", { actorId, id });
+  revalidateTag("medals");
+  redirect(ADMIN_TAB("medals"));
+}
+
+export async function awardMedalAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const medalId = String(formData.get("medalId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 100) || null;
+  const [user, medal] = await Promise.all([
+    db.user.findUnique({ where: { id: userId }, select: { id: true, username: true } }),
+    db.medal.findUnique({ where: { id: medalId }, select: { id: true, name: true } }),
+  ]);
+  if (!user || !medal) redirect(ADMIN_TAB("medals") + "&error=not_found");
+  const dup = await db.userMedal.findUnique({ where: { userId_medalId: { userId, medalId } } });
+  if (dup) redirect(ADMIN_TAB("medals") + "&error=medal_owned");
+  await db.userMedal.create({ data: { userId, medalId, reason } });
+  await db.notification.create({ data: { userId, type: "medal", title: `获得新勋章：${medal.name}`, body: reason ?? medal.name, link: `/u/${encodeURIComponent(user.username)}` } }).catch(() => {});
+  await db.auditLog.create({ data: { actorId, action: "award_medal", targetType: "user", targetId: userId, detail: medal.name } }).catch(() => {});
+  logger.info("admin.award_medal", { actorId, userId, medalId });
+  revalidateTag("medals");
+  redirect(ADMIN_TAB("medals"));
+}
+
+export async function revokeMedalAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const userId = String(formData.get("userId") ?? "");
+  const medalId = String(formData.get("medalId") ?? "");
+  const um = await db.userMedal.findUnique({ where: { userId_medalId: { userId, medalId } } });
+  if (!um) redirect(ADMIN_TAB("medals") + "&error=not_found");
+  await db.userMedal.delete({ where: { id: um.id } });
+  await db.auditLog.create({ data: { actorId, action: "revoke_medal", targetType: "user", targetId: userId } }).catch(() => {});
+  logger.info("admin.revoke_medal", { actorId, userId, medalId });
+  revalidateTag("medals");
+  redirect(ADMIN_TAB("medals"));
+}
+
 /* ---------------- 敏感词 ---------------- */
 
 export async function addSensitiveWordAction(formData: FormData): Promise<void> {

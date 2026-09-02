@@ -130,6 +130,12 @@ export default async function ThreadPage({
   if ((thread as unknown as { board: { isHidden: boolean } }).board.isHidden && !isBoardStaff) notFound();
   if ((thread as unknown as { status: string }).status === "pending" && user?.id !== thread.authorId && !isBoardStaff) notFound();
   const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
+  const authorIds = [...new Set(items.map((p) => p.authorId))];
+  const medalsByUser = authorIds.length ? await db.userMedal.findMany({ where: { userId: { in: authorIds } }, include: { medal: true } }).then((rows: any[]) => {
+    const m = new Map<string, any[]>();
+    for (const r of rows) { const arr = m.get(r.userId) ?? []; arr.push(r.medal); m.set(r.userId, arr); }
+    return m;
+  }).catch(() => new Map<string, any[]>()) : new Map<string, any[]>();
   const isFav = user
     ? !!(await db.favorite
         .findUnique({ where: { userId_threadId: { userId: user.id, threadId: thread.id } }, select: { id: true } })
@@ -280,6 +286,9 @@ export default async function ThreadPage({
                   <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
                   <LevelBadge points={p.authorPoints} role={p.authorRole} />
+                  {(medalsByUser.get(p.authorId) ?? []).map((med: any) => (
+                    <span key={med.id} title={`${med.name} · ${med.description ?? ""}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, background: med.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{med.icon} {med.name}</span>
+                  ))}
                   {(p as any).status === "pending" && <span style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>待审</span>}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
                   <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>#{idx + 1}</span>

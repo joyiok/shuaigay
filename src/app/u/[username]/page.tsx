@@ -63,6 +63,7 @@ export default async function UserPage({
   if (!user) notFound();
   // _count.favorites may be missing type-wise — fetch separately when needed
   const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
+  const userMedals = await db.userMedal.findMany({ where: { userId: user.id }, include: { medal: true } }).catch(() => [] as any[]);
   const me = meEarly;
   const isSelf = me?.id === user.id;
 
@@ -203,6 +204,11 @@ export default async function UserPage({
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{user.username}</h1>
               <LevelBadge points={user.points} role={user.role} />
+              {userMedals.map((um: any) => (
+                <span key={um.id} title={`${um.medal.name}${um.reason ? " · " + um.reason : ""} · ${um.medal.description ?? ""}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: um.medal.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700, boxShadow: "1px 1px 0 var(--line)" }}>
+                  <span>{um.medal.icon}</span>{um.medal.name}
+                </span>
+              ))}
               {isSelf && (
                 <Link
                   href="/invite"
