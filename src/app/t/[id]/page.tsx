@@ -76,13 +76,14 @@ export async function generateMetadata({
   const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
   const url = `${siteUrl}${threadHref(id, thread.title)}`;
   const keywords = [thread.title, thread.board.name, thread.author.username, "SHUAI GAY", "论坛", "社区"];
+  const og = `${siteUrl}/api/og?title=${encodeURIComponent(thread.title)}&board=${encodeURIComponent(thread.board.name)}&author=${encodeURIComponent(thread.author.username)}`;
   return {
     title,
     description,
     keywords,
     alternates: { canonical: url },
-    openGraph: { title, description, type: "article", url, siteName: "SHUAI GAY 社区", locale: "zh_CN", authors: [thread.author.username] },
-    twitter: { card: "summary_large_image", title, description },
+    openGraph: { title, description, type: "article", url, siteName: "SHUAI GAY 社区", locale: "zh_CN", authors: [thread.author.username], images: [{ url: og, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title, description, images: [og] },
   };
 }
 

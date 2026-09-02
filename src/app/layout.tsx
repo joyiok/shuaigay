@@ -25,7 +25,7 @@ export const metadata: Metadata = {
   authors: [{ name: "SHUAI GAY" }],
   creator: "SHUAI GAY",
   category: "community",
-  alternates: { canonical: siteOrigin },
+  alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml` } },
   openGraph: {
     type: "website",
     siteName: "SHUAI GAY 论坛",
@@ -33,11 +33,13 @@ export const metadata: Metadata = {
     description: "连接兴趣 · 遇见同好 · 分享精彩 — 原创极简风格的高性能社区。",
     locale: "zh_CN",
     url: siteOrigin,
+    images: [{ url: `${siteOrigin}/api/og?title=${encodeURIComponent("SHUAI GAY 论坛")}`, width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "SHUAI GAY 论坛",
     description: "开放 · 克制 · 高效 — 原创极简风格的社区。",
+    images: [`${siteOrigin}/api/og?title=${encodeURIComponent("SHUAI GAY 论坛")}`],
   },
   robots: {
     index: true,
@@ -362,6 +364,8 @@ export default async function RootLayout({
             <Link href="/sitemap.xml">Sitemap</Link>
             <span aria-hidden>·</span>
             <Link href="/robots.txt">Robots</Link>
+            <span aria-hidden>·</span>
+            <Link href="/rss.xml">RSS</Link>
             <span aria-hidden>·</span>
             <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
           </div>

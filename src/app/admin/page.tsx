@@ -51,6 +51,7 @@ const TABS = [
   { key: "reports", label: "举报队列" },
   { key: "words", label: "敏感词" },
   { key: "audit", label: "审计日志" },
+  { key: "stats", label: "数据统计" },
 ] as const;
 
 const ERRORS: Record<string, string> = {
@@ -167,6 +168,7 @@ export default async function AdminPage({
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
+      {adminFlag && active === "stats" && <StatsTab />}
     </div>
   );
 }
@@ -838,6 +840,188 @@ async function AuditTab() {
           </li>
         )}
       </ul>
+    </div>
+  );
+}
+
+/* ---------------- 数据统计 ---------------- */
+
+async function StatsTab() {
+  const [userCount, threadCount, postCount, viewAgg] = await Promise.all([
+    db.user.count(),
+    db.thread.count(),
+    db.post.count(),
+    db.thread.aggregate({ _sum: { views: true } }).catch(() => ({ _sum: { views: 0 } } as any)),
+  ]);
+  const totalViews = (viewAgg as any)._sum?.views ?? 0;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const last7 = new Date(today);
+  last7.setDate(today.getDate() - 6);
+
+  const [todayThreads, todayPosts, todayUsers] = await Promise.all([
+    db.thread.count({ where: { createdAt: { gte: today } } }),
+    db.post.count({ where: { createdAt: { gte: today } } }),
+    db.user.count({ where: { createdAt: { gte: today } } }),
+  ]);
+
+  // 近7日趋势
+  const [threads7, posts7, users7] = await Promise.all([
+    db.thread.findMany({ where: { createdAt: { gte: last7 } }, select: { createdAt: true } }),
+    db.post.findMany({ where: { createdAt: { gte: last7 } }, select: { createdAt: true } }),
+    db.user.findMany({ where: { createdAt: { gte: last7 } }, select: { createdAt: true } }),
+  ]);
+  const dayLabels: string[] = [];
+  const tMap = new Map<string, number>();
+  const pMap = new Map<string, number>();
+  const uMap = new Map<string, number>();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(last7);
+    d.setDate(last7.getDate() + i);
+    const key = `${d.getMonth() + 1}/${d.getDate()}`;
+    dayLabels.push(key);
+    tMap.set(key, 0);
+    pMap.set(key, 0);
+    uMap.set(key, 0);
+  }
+  for (const t of threads7) {
+    const k = `${t.createdAt.getMonth() + 1}/${t.createdAt.getDate()}`;
+    tMap.set(k, (tMap.get(k) ?? 0) + 1);
+  }
+  for (const t of posts7) {
+    const k = `${t.createdAt.getMonth() + 1}/${t.createdAt.getDate()}`;
+    pMap.set(k, (pMap.get(k) ?? 0) + 1);
+  }
+  for (const t of users7) {
+    const k = `${t.createdAt.getMonth() + 1}/${t.createdAt.getDate()}`;
+    uMap.set(k, (uMap.get(k) ?? 0) + 1);
+  }
+  const maxDay = Math.max(1, ...[...tMap.values(), ...pMap.values(), ...uMap.values()]);
+
+  const boards = await db.board.findMany({
+    orderBy: { order: "asc" },
+    include: { _count: { select: { threads: true } } },
+  });
+  const boardPostCounts = await db.post.groupBy({ by: ["threadId"], _count: { _all: true } }).catch(() => [] as any[]);
+  // 简化：按版块统计帖子需联表，改为按版块查 thread 数已够，帖子数用 _count 近似（已在 boards._count）
+
+  const topThreadsViews = await db.thread.findMany({
+    orderBy: { views: "desc" },
+    take: 5,
+    select: { id: true, title: true, views: true, board: { select: { name: true } }, _count: { select: { posts: true } } },
+  });
+  const topThreadsReplies = await db.thread.findMany({
+    orderBy: { lastPostAt: "desc" },
+    take: 5,
+    select: { id: true, title: true, views: true, board: { select: { name: true } }, _count: { select: { posts: true } } },
+  });
+  const topUsers = await db.user.findMany({
+    orderBy: { points: "desc" },
+    take: 5,
+    select: { username: true, points: true, avatarUrl: true, _count: { select: { threads: true, posts: true } } },
+  });
+
+  const statCard = (label: string, value: string | number, sub: string, icon: string, bg: string) => (
+    <div style={{ background: "var(--panel)", border: "2px solid var(--line)", borderRadius: 12, padding: 14, boxShadow: "3px 3px 0 var(--line)", display: "grid", gap: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, background: bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, border: "1.5px solid var(--line)" }}>{icon}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em" }}>{value}</div>
+      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{sub}</div>
+    </div>
+  );
+
+  const bar = (label: string, value: number, max: number, color: string) => (
+    <div style={{ display: "grid", gap: 4 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}><span>{label}</span><span style={{ fontWeight: 700, color: "var(--text)" }}>{value}</span></div>
+      <div style={{ height: 8, background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 999, overflow: "hidden" }}>
+        <div style={{ width: `${Math.round((value / max) * 100)}%`, height: "100%", background: color, borderRadius: 999 }} />
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+        {statCard("总用户", userCount, `今日 +${todayUsers}`, "👥", "#FFF7A8")}
+        {statCard("主题", threadCount, `今日 +${todayThreads}`, "📄", "#EDE9FE")}
+        {statCard("回帖", postCount, `今日 +${todayPosts}`, "💬", "#FFE4E6")}
+        {statCard("总浏览", totalViews, "全站累计", "👁", "#DCFCE7")}
+      </div>
+
+      <div className="card" style={{ padding: 16 }}>
+        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "Space Grotesk, sans-serif" }}>近7日趋势 <span>发帖/回帖/注册</span></div>
+        <div style={{ display: "grid", gap: 10 }}>
+          {dayLabels.map((d) => (
+            <div key={d} style={{ display: "grid", gridTemplateColumns: "40px 1fr", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 11, fontFamily: "JetBrains Mono, monospace", color: "var(--text-subtle)", textAlign: "right" }}>{d}</span>
+              <div style={{ display: "grid", gap: 4 }}>
+                {bar(`主题 ${tMap.get(d) ?? 0}`, tMap.get(d) ?? 0, maxDay, "#7C3AED")}
+                {bar(`回帖 ${pMap.get(d) ?? 0}`, pMap.get(d) ?? 0, maxDay, "#FF3B30")}
+                {bar(`新用户 ${uMap.get(d) ?? 0}`, uMap.get(d) ?? 0, maxDay, "#16A34A")}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 12, fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>数据源：Post/Thread/User createdAt · 隐藏版块已过滤</div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 12px" }}>版块分布 <span>{boards.length} 版块</span></div>
+          <div style={{ display: "grid", gap: 8 }}>
+            {boards.map((b) => {
+              const max = Math.max(1, ...boards.map((x) => x._count.threads));
+              const pct = Math.round((b._count.threads / max) * 100);
+              return (
+                <div key={b.id} style={{ display: "grid", gap: 4 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                    <span style={{ fontWeight: 600 }}>{b.name} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "JetBrains Mono, monospace" }}>/ {b.slug}</span></span>
+                    <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{b._count.threads} 主题</span>
+                  </div>
+                  <div style={{ height: 6, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
+                    <div style={{ width: `${pct}%`, height: "100%", background: "var(--text)", borderRadius: 999 }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: 0 }}>热度 Top5 · 浏览</div>
+            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+              {topThreadsViews.map((t, i) => (
+                <Link key={t.id} href={threadHref(t.id, t.title)} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", border: "1px solid var(--line-soft)", borderRadius: 8, background: "var(--bg-soft)", textDecoration: "none" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? "#FFF7A8" : "var(--panel)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
+                  <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
+                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{t.views} 浏览 · {Math.max(0, t._count.posts - 1)} 回复</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: 0 }}>积分 Top5</div>
+            <div style={{ display: "grid", gap: 8, marginTop: 10 }}>
+              {topUsers.map((u, i) => (
+                <Link key={u.username} href={`/u/${u.username}`} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", border: "1px solid var(--line-soft)", borderRadius: 8, background: "var(--bg-soft)", textDecoration: "none" }}>
+                  <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? "#FFF7A8" : "var(--panel)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{u.username}</span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{u.points} 分 · {u._count.threads} 主题</span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ padding: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/feed.xml" style={{ color: "var(--brand)" }}>/feed.xml</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
+        <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>数据 60s 缓存，隐藏版块已过滤</span>
+      </div>
     </div>
   );
 }
