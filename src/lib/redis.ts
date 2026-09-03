@@ -11,9 +11,10 @@ export function getRedis(): Redis | null {
   if (globalForRedis.redis !== undefined) return globalForRedis.redis;
 
   const redis = new Redis(process.env.REDIS_URL, {
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+    // lazyConnect=true 时必须手动 connect()，否则首个命令会因
+    // enableOfflineQueue=false 直接抛 Stream isn't writeable。改用自动连接。
+    maxRetriesPerRequest: 2,
+    enableOfflineQueue: true,
     retryStrategy: (times) => Math.min(times * 1000, 10_000),
   });
   // 防止 error 事件无人监听导致进程崩溃,降级逻辑在各调用方里做

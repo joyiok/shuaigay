@@ -1,0 +1,14 @@
+# 避免本地 .env（含开发口令/密钥）被 COPY . . 烤进镜像的 standalone/.env
+# compose 生产环境变量会覆盖，但烤进去仍有泄漏风险且易误用 localhost:5433
+.env
+.env.local
+.env.production
+node_modules/
+.next/
+out/
+uploads/*
+!uploads/.gitkeep
+backups/
+test-results/
+playwright-report/
+.git/
