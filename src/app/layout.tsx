@@ -11,6 +11,7 @@ import { getCachedActiveUsers, getCachedBoards, getCachedCategoryCloud, getCache
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
+import NotificationBell from "@/components/NotificationBell";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
 import ForumNav from "@/components/ForumNav";
 
@@ -74,13 +75,19 @@ export default async function RootLayout({
   ]);
   const { userCount, threadCount, postCount } = stats;
 
-  // 私信未读数（实时，不缓存）
+  // 私信未读数 + 通知未读数（实时，不缓存）
   let unreadCount = 0;
+  let notifUnread = 0;
   if (user) {
     try {
-      unreadCount = await db.directMessage.count({
-        where: { receiverId: user.id, read: false },
-      });
+      [unreadCount, notifUnread] = await Promise.all([
+        db.directMessage.count({
+          where: { receiverId: user.id, read: false },
+        }),
+        db.notification.count({
+          where: { userId: user.id, read: false },
+        }),
+      ]);
     } catch {}
   }
 
@@ -128,7 +135,8 @@ export default async function RootLayout({
         <header className="site-header top">
           <div className="bar">
             <Link href="/" className="brand" aria-label="SHUAI GAY 论坛首页">
-              <span className="brand-mark">SG</span> SHUAI <i>GAY</i>
+              <span className="brand-mark">SG</span>
+              <span style={{ fontFamily: '"Space Grotesk", "IBM Plex Sans", sans-serif', letterSpacing: '-0.03em' }}>SHUAI&nbsp;<i>GAY</i></span>
             </Link>
             <MobileDrawer
               boards={boards.map((b) => ({ slug: b.slug, name: b.name, threads: (b as any)._count?.threads ?? 0 }))}
@@ -140,45 +148,46 @@ export default async function RootLayout({
             />
             <ForumNav boards={boards.map((b) => ({ slug: b.slug, name: b.name }))} />
             <SearchAutocomplete variant="header" placeholder="搜索关键词" />
-            <div className="nav-mine" style={{ display: "flex" }}>
+            <div className="nav-mine" style={{ display: "flex", alignItems: "center" }}>
               {user ? (
                 <>
-                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ display: "inline-flex", alignItems: "center" }} aria-label={`${user.username} 头像`}>
-                    <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={40} radius={10} />
+                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ display: "inline-flex", alignItems: "center", borderRadius: 12 }} aria-label={`${user.username} 头像`}>
+                    <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={34} radius={10} />
                   </Link>
+                  <NotificationBell initialUnread={notifUnread} />
                   <Link
                     href="/messages"
-                    style={{ position: "relative", display: "inline-flex", alignItems: "center", color: "var(--text-muted)" }}
+                    style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-muted)", padding: "6px 10px", borderRadius: 999, fontWeight: 600 }}
                   >
                     私信
                     {unreadCount > 0 && (
                       <span
                         style={{
-                          marginLeft: 4,
                           background: "var(--danger)",
                           color: "#fff",
                           fontSize: 10,
-                          fontWeight: 700,
-                          padding: "1px 5px",
+                          fontWeight: 800,
+                          padding: "1px 6px",
                           borderRadius: 999,
-                          minWidth: 16,
+                          minWidth: 18,
                           textAlign: "center",
-                          lineHeight: 1.4,
+                          lineHeight: 1.5,
                           display: "inline-flex",
                           alignItems: "center",
                           justifyContent: "center",
+                          boxShadow: "0 0 0 2px #fff",
                         }}
                       >
                         {unreadCount > 99 ? "99+" : unreadCount}
                       </span>
                     )}
                   </Link>
-                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 600 }}>
+                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 700, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {user.username}
                   </Link>
                   {user.role === "ADMIN" && (
                     <>
-                      <Link href="/admin" style={{ color: "var(--text-muted)" }}>
+                      <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE" }}>
                         管理
                       </Link>
                       <span
@@ -186,8 +195,10 @@ export default async function RootLayout({
                           background: "var(--inverse)",
                           color: "var(--inverse-text)",
                           fontSize: 10,
-                          padding: "2px 6px",
+                          fontWeight: 800,
+                          padding: "3px 8px",
                           borderRadius: 999,
+                          letterSpacing: "0.04em",
                         }}
                       >
                         管理员
@@ -195,10 +206,10 @@ export default async function RootLayout({
                     </>
                   )}
                   {online !== null && (
-                    <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{online} 人在线</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <form action={logoutAction} style={{ display: "inline" }}>
-                    <button type="submit" style={{ color: "var(--text-muted)", fontSize: 12 }}>
+                    <button type="submit" style={{ color: "var(--text-subtle)", fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 999 }}>
                       退出
                     </button>
                   </form>
@@ -206,19 +217,21 @@ export default async function RootLayout({
               ) : (
                 <>
                   {online !== null && (
-                    <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{online} 人在线</span>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
-                  <Link href="/login" style={{ color: "var(--text-muted)" }}>
+                  <Link href="/login" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "7px 12px" }}>
                     登录
                   </Link>
                   <Link
                     href="/register"
                     style={{
-                      background: "var(--brand)",
-                      color: "#fff",
-                      padding: "4px 14px",
+                      background: "linear-gradient(180deg, #26262C, #101014)",
+                      color: "#FFFBF2",
+                      padding: "8px 18px",
                       borderRadius: 999,
-                      fontWeight: 600,
+                      fontWeight: 700,
+                      border: "2px solid var(--line)",
+                      boxShadow: "2px 2px 0 var(--line)",
                     }}
                   >
                     注册
@@ -241,51 +254,51 @@ export default async function RootLayout({
               {/* 欢迎卡 — 参考图 */}
               <div className="welcome-card">
                 <div style={{ position: "relative", zIndex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>欢迎来到</div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--brand)", display: "flex", alignItems: "center", gap: 6 }}>
-                    SHUAI GAY 社区 <span>🎉</span>
+                  <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "var(--violet)", background: "var(--violet-soft)", border: "1px solid #DDD6FE", padding: "3px 10px", borderRadius: 999, marginBottom: 8 }}>✦ 新人必看</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text)", display: "flex", alignItems: "center", gap: 6, letterSpacing: "-0.02em" }}>
+                    SHUAI GAY 社区
                   </div>
-                  <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 4, lineHeight: 1.5 }}>加入我们，发现更多精彩内容</div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 5, lineHeight: 1.6 }}>进来坐坐，有话直说 — 吹水、求助、分享都欢迎</div>
                   {!user && (
-                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                      <Link href="/login" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 32, border: "1px solid var(--line)", borderRadius: 999, background: "#fff", fontSize: 13, fontWeight: 600 }}>登录</Link>
-                      <Link href="/register" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 32, background: "linear-gradient(135deg,#7c3aed,#ec4899)", color: "#fff", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(124,58,237,0.24)" }}>注册</Link>
+                    <div style={{ display: "flex", gap: 8, marginTop: 13 }}>
+                      <Link href="/login" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 34, border: "1.5px solid var(--line)", borderRadius: 999, background: "#fff", fontSize: 13, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)" }}>登录</Link>
+                      <Link href="/register" style={{ flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", height: 34, background: "linear-gradient(180deg, #26262C, #101014)", color: "#FFFBF2", border: "1.5px solid var(--line)", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)" }}>免费注册 →</Link>
                     </div>
                   )}
                   {user && (
-                    <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
-                      <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={28} radius={8} />
-                      <span style={{ fontWeight: 600, color: "var(--text)" }}>{user.username}</span>
-                      <span>· 已登录</span>
+                    <div style={{ marginTop: 13, display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: "var(--text-muted)", background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 12, padding: "8px 10px" }}>
+                      <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={30} radius={9} />
+                      <span style={{ fontWeight: 700, color: "var(--text)" }}>{user.username}</span>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--success)", fontWeight: 700 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)" }} />在线</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* 社区数据 — 4 宫格，参考图 */}
+              {/* 社区数据 — 4 宫格 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">社区数据</div>
+                  <div className="quick-title">社区数据 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)", fontFamily: '"JetBrains Mono", monospace' }}>live</span></div>
                   <div className="stat-grid">
                     <div className="stat-item">
-                      <div className="stat-icon" style={{ background: "#ede9fe", color: "#7c3aed" }}>👥</div>
+                      <div className="stat-icon" style={{ background: "#EDE9FE", color: "#7C3AED" }}>◐</div>
                       <div className="stat-num">{userCount}</div>
-                      <div className="stat-label">注册用户</div>
+                      <div className="stat-label">成员</div>
                     </div>
                     <div className="stat-item">
-                      <div className="stat-icon" style={{ background: "#ecfdf5", color: "#10b981" }}>📄</div>
+                      <div className="stat-icon" style={{ background: "#ECFDF5", color: "#059669" }}>✎</div>
                       <div className="stat-num">{threadCount}</div>
-                      <div className="stat-label">主题数</div>
+                      <div className="stat-label">主题</div>
                     </div>
                     <div className="stat-item">
-                      <div className="stat-icon" style={{ background: "#fffbeb", color: "#f59e0b" }}>💬</div>
+                      <div className="stat-icon" style={{ background: "#FFF7D6", color: "#B45309" }}>≋</div>
                       <div className="stat-num">{postCount}</div>
-                      <div className="stat-label">帖子数</div>
+                      <div className="stat-label">回帖</div>
                     </div>
                     <div className="stat-item">
-                      <div className="stat-icon" style={{ background: "#f0fdf4", color: "#16a34a" }}>●</div>
+                      <div className="stat-icon" style={{ background: "#F0FDF4", color: "#16A34A" }}>●</div>
                       <div className="stat-num">{online ?? 1}</div>
-                      <div className="stat-label">在线人数</div>
+                      <div className="stat-label">在线</div>
                     </div>
                   </div>
                 </div>
@@ -294,26 +307,26 @@ export default async function RootLayout({
               {/* 热门话题 — 版块 + 热帖分开，信息更清晰 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">热门话题 <Link href="/hot" style={{ fontSize: 11, color: "var(--brand)", fontWeight: 500 }}>榜单</Link></div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: hotTopics.length ? 12 : 0 }}>
+                  <div className="quick-title">热门话题 <Link href="/hot">热榜 →</Link></div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: hotTopics.length ? 13 : 0 }}>
                     {boards.map((b) => (
-                      <Link key={b.id} href={`/c/${b.slug}`} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 500, transition: "all 0.14s" }}>
-                        <span style={{ color: "var(--brand)", fontWeight: 700 }}>{b.name}</span>
-                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11, color: "var(--text-muted)", fontWeight: 600 }}>{(b as any)._count.threads}</span>
+                      <Link key={b.id} href={`/c/${b.slug}`} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: "1.5px solid var(--line)", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 600, boxShadow: "2px 2px 0 rgba(22,22,26,0.12)" }}>
+                        <span style={{ color: "var(--text)", fontWeight: 700 }}>{b.name}</span>
+                        <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line-faint)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-muted)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{(b as any)._count.threads}</span>
                       </Link>
                     ))}
                   </div>
                   {hotTopics.length > 0 && (
                     <>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", letterSpacing: "0.04em", textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ width: 3, height: 12, borderRadius: 999, background: "var(--brand)" }} /> 最新热帖
+                      <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-subtle)", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", gap: 7 }}>
+                        <span style={{ width: 3, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #7C3AED, #EC4899)" }} /> 最新热帖
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         {hotTopics.map((t: any, idx: number) => (
-                          <Link key={t.id} href={threadHref(t.id, t.title)} title={t.title} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--bg-soft)", fontSize: 12, color: "var(--text)", minWidth: 0, transition: "all 0.14s", textDecoration: "none" }}>
-                            <span style={{ width: 20, height: 20, borderRadius: 6, background: idx === 0 ? "#fef3c7" : idx === 1 ? "#ede9fe" : "#f3f4f6", color: idx === 0 ? "#d97706" : idx === 1 ? "#7c3aed" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0 }}>{idx + 1}</span>
-                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>{t.title}</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "#fff", border: "1px solid var(--line)", padding: "1px 6px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0 }}>💬 {Math.max(0, (t._count?.posts ?? 1) - 1)}</span>
+                          <Link key={t.id} href={threadHref(t.id, t.title)} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: idx === 0 ? "#FFFEF5" : "#fff", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
+                            <span style={{ width: 22, height: 22, borderRadius: 7, background: idx === 0 ? "#FEF3C7" : idx === 1 ? "#EDE9FE" : idx === 2 ? "#FCE7F3" : "#F4F4F5", color: idx === 0 ? "#B45309" : idx === 1 ? "#7C3AED" : idx === 2 ? "#DB2777" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, border: "1px solid rgba(22,22,26,0.08)" }}>{idx + 1}</span>
+                            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{t.title}</span>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "2px 7px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.max(0, (t._count?.posts ?? 1) - 1)} 回</span>
                           </Link>
                         ))}
                       </div>
@@ -322,15 +335,15 @@ export default async function RootLayout({
                 </div>
               </div>
 
-              {/* 活跃用户 — 参考图 */}
+              {/* 活跃用户 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">活跃用户</div>
-                  <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 4 }}>
+                  <div className="quick-title">活跃用户 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>online</span></div>
+                  <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
                     {(activeUsers.length ? activeUsers : [{ username: "admin", avatarUrl: null }, { username: "atbr", avatarUrl: null }, { username: "seaf", avatarUrl: null }]).map((u: any, i: number) => (
-                      <Link key={u.username + i} href={`/u/${u.username}`} style={{ display: "grid", justifyItems: "center", gap: 4, minWidth: 48, textAlign: "center" }}>
-                        <UserAvatar username={u.username} avatarUrl={u.avatarUrl} size={44} radius={12} />
-                        <span style={{ fontSize: 11, color: "var(--text-muted)", maxWidth: 48, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.username.slice(0, 6)}</span>
+                      <Link key={u.username + i} href={`/u/${u.username}`} style={{ display: "grid", justifyItems: "center", gap: 5, minWidth: 52, textAlign: "center", padding: "4px", borderRadius: 12 }}>
+                        <span style={{ borderRadius: 14, padding: 2, background: "#fff", border: "1.5px solid var(--line-faint)", display: "inline-flex" }}><UserAvatar username={u.username} avatarUrl={u.avatarUrl} size={42} radius={11} /></span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", maxWidth: 52, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.username.slice(0, 7)}</span>
                       </Link>
                     ))}
                   </div>
@@ -380,13 +393,13 @@ export default async function RootLayout({
               {/* 社区公告 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">社区公告 <Link href="/c/general" style={{ fontSize: 11, color: "var(--brand)" }}>更多 ›</Link></div>
-                  <Link href="/c/general" style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-muted)" }}>
-                    <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--brand)", flexShrink: 0 }} />
-                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 500 }}>社区发帖规范及注意事项</span>
-                    <span style={{ background: "#fef2f2", color: "#ef4444", fontSize: 10, padding: "2px 6px", borderRadius: 999, border: "1px solid #fecaca" }}>置顶</span>
+                  <div className="quick-title">社区公告 <Link href="/c/general">更多 ›</Link></div>
+                  <Link href="/c/general" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
+                    <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--danger)", boxShadow: "0 0 0 3px var(--danger-soft)", flexShrink: 0 }} />
+                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>社区发帖规范及注意事项</span>
+                    <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>
                   </Link>
-                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 6, textAlign: "right" }}>2026-08-20</div>
+                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: '"JetBrains Mono", monospace' }}>2026-08-20 · 已置顶</div>
                 </div>
               </div>
             </aside>
@@ -396,7 +409,7 @@ export default async function RootLayout({
         <FloatingNewThread firstBoardSlug={boards[0]?.slug ?? null} />
 
         <footer className="footer">
-          <div className="runtime-info">© 2026 SHUAI GAY · 开放 · 克制 · 高效</div>
+          <div className="runtime-info" style={{ fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>© 2026 SHUAI GAY <span style={{ fontWeight: 500, color: "var(--text-subtle)" }}>· 开放 · 克制 · 高效</span></div>
           <div className="footer-links">
             <Link href="/">首页</Link>
             <span aria-hidden>·</span>

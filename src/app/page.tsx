@@ -57,24 +57,25 @@ export default async function HomePage({
   const isEmpty = pinned.length === 0 && items.length === 0;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 14 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
-      {/* Banner — 纸质 ZINE 快改 */}
+      {/* Banner — 纸质 ZINE hero */}
       <div className="banner">
         <div className="banner-left">
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "var(--violet)", background: "#fff", border: "1.5px solid var(--line)", padding: "4px 11px", borderRadius: 999, marginBottom: 10, boxShadow: "2px 2px 0 var(--line)", fontFamily: '"JetBrains Mono", monospace' }}>✦ 今天也在营业中</div>
           <h2 className="banner-title">
             进来坐坐<span>，</span>有话直说
           </h2>
-          <p className="banner-sub">不端着，不审判 — 吹水、求助、分享，随手丢一个帖子就行</p>
+          <p className="banner-sub">不端着 · 不审判 — 吹水、求助、分享，随手丢一个帖子就行</p>
           <div className="banner-features">
-            <span className="banner-feature"><i>◐</i><span><b>随便聊</b><br />想说就说</span></span>
-            <span className="banner-feature"><i>✎</i><span><b>干货</b><br />有用就上</span></span>
-            <span className="banner-feature"><i>⧉</i><span><b>资源</b><br />互帮互助</span></span>
-            <span className="banner-feature"><i>♡</i><span><b>当自己家</b><br />别客气</span></span>
+            <span className="banner-feature"><i>◐</i><span><b>随便聊</b><span>想说就说</span></span></span>
+            <span className="banner-feature"><i>✎</i><span><b>干货</b><span>有用就上</span></span></span>
+            <span className="banner-feature"><i>⧉</i><span><b>资源</b><span>互帮互助</span></span></span>
+            <span className="banner-feature"><i>♡</i><span><b>当自己家</b><span>别客气</span></span></span>
           </div>
         </div>
-        <div className="banner-illu" aria-hidden>✂︎ 纸现场</div>
+        <div className="banner-illu" aria-hidden>✂︎<span style={{ fontSize: 13, fontWeight: 800, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: "0.06em", marginLeft: 6 }}>纸现场</span></div>
       </div>
 
       {/* 顶部筛选 - 全站时间线 */}
@@ -89,14 +90,14 @@ export default async function HomePage({
           <Link href="/search" className="tab">
             搜索
           </Link>
-          <Link href="/hot" className="tab">🔥 热门</Link>
-          <Link href="/search?type=post" className="tab">⭐ 精华</Link>
+          <Link href="/hot" className="tab">热榜</Link>
+          <Link href="/search?type=post" className="tab">帖子</Link>
           <Link href="/?filter=unreplied" className="tab">
             待回复
           </Link>
         </div>
         <Link href="/c/general/new" className="btn-publish">
-          发个帖子
+          <span aria-hidden>+</span> 发个帖子
         </Link>
       </div>
 
@@ -109,30 +110,23 @@ export default async function HomePage({
           <ThreadRow key={t.id} t={t} />
         ))}
         {isEmpty && (
-          <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13, flexDirection: "column", alignItems: "center", gap: 6, padding: "24px 14px" }}>
-            <div style={{ fontWeight: 600, color: "var(--text)" }}>还没有帖子</div>
+          <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", fontSize: 13, flexDirection: "column", alignItems: "center", gap: 7, padding: "36px 14px", border: "2px dashed var(--line-faint)", background: "#fff" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: "var(--bg-soft)", border: "1.5px solid var(--line)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, boxShadow: "2px 2px 0 var(--line)" }}>✎</div>
+            <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 14 }}>还没有帖子</div>
             <div style={{ fontSize: 12 }}>去板块发第一帖，首页会自动聚合全站内容</div>
-            <Link href="/c/general" style={{ marginTop: 6, display: "inline-flex", height: 30, padding: "0 12px", border: "1px solid var(--line)", borderRadius: 999, background: "var(--panel)", fontSize: 12 }}>
+            <Link href="/c/general" className="tab" style={{ marginTop: 8 }}>
               去版块看看 →
             </Link>
           </li>
         )}
       </ul>
 
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 4 }}>
         {nextCursor ? (
           <Link
             href={`/?cursor=${nextCursor}`}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: 32,
-              padding: "0 14px",
-              border: "1px solid var(--line)",
-              borderRadius: 999,
-              background: "var(--panel)",
-              fontSize: 13,
-            }}
+            className="tab"
+            style={{ height: 36, padding: "0 18px" }}
           >
             下一页 →
           </Link>
@@ -142,29 +136,22 @@ export default async function HomePage({
         {rawCursor && (
           <Link
             href="/"
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              height: 32,
-              padding: "0 14px",
-              border: "1px solid var(--line)",
-              borderRadius: 999,
-              background: "var(--panel)",
-              fontSize: 13,
-            }}
+            className="tab"
+            style={{ height: 36, padding: "0 18px" }}
           >
             回首页
           </Link>
         )}
       </div>
 
-      <div className="bottom-banner" style={{ background: "var(--panel)", border: "2px solid var(--line)", boxShadow: "4px 4px 0 var(--line)", borderRadius: 12 }}>
-        <div>
-          <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 14, fontFamily: "Space Grotesk, sans-serif" }}>别憋着，想说就丢上来</div>
-          <div style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2, fontFamily: "JetBrains Mono, monospace" }}>水帖也算贡献 — 先发，再慢慢聊</div>
+      <div className="bottom-banner">
+        <div style={{ position: "relative", zIndex: 1 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#FFE94A", fontFamily: '"JetBrains Mono", monospace', marginBottom: 6 }}>✦ 新帖速达</div>
+          <div style={{ fontWeight: 800, color: "#fff", fontSize: 16, letterSpacing: "-0.02em" }}>别憋着，想说就丢上来</div>
+          <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>水帖也算贡献 — 先发，再慢慢聊</div>
         </div>
-        <Link href="/c/general/new" className="btn-publish" style={{ flexShrink: 0 }}>
-          去发帖
+        <Link href="/c/general/new" className="btn-publish" style={{ flexShrink: 0, position: "relative", zIndex: 1 }}>
+          去发帖 →
         </Link>
       </div>
     </div>
@@ -174,45 +161,46 @@ export default async function HomePage({
 function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
   const badge = boardBadge(t.boardName);
   const isPending = t.status === "pending";
+  const isHot = t.replyCount > 8;
   return (
-    <li className="post-item" style={{ gap: 12, opacity: isPending ? 0.7 : 1 }}>
-      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={36} radius={10} />
+    <li className="post-item" style={{ opacity: isPending ? 0.72 : 1 }}>
+      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={38} radius={11} />
       <div className="post-body">
-        <div className="post-title-row" style={{ gap: 8, alignItems: "center" }}>
-          {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
-          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700, flexShrink: 0 }}>待审</span>}
-          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }} title={t.title}>
+        <div className="post-title-row">
+          {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>⬆ 置顶</span>}
+          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>待审</span>}
+          <Link href={threadHref(t.id, t.title)} className="post-title" title={t.title}>
             {t.title}
           </Link>
           <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, flexShrink: 0 }}>
             {t.boardName}
           </span>
         </div>
-        <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
-          <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
-          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(t.lastPostAt).split(" ")[0]}</span>
-          {t.replyCount > 8 && <span style={{ background: "#fef3c7", color: "#d97706", border: "1px solid #fde68a", padding: "1px 6px", borderRadius: 999, fontSize: 10, fontWeight: 700 }}>热门</span>}
+        <div className="post-meta">
+          <span style={{ fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
+          <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(t.lastPostAt).split(" ")[0]}</span>
+          {isHot && <span style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: "0.02em" }}>🔥 热门</span>}
         </div>
       </div>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, flexShrink: 0, textAlign: "right" }} className="post-right">
-        <div style={{ display: "flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 12 }}>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 5, flexShrink: 0, textAlign: "right" }} className="post-right">
+        <div style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 12 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" />
-              <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.7" />
+              <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.7" />
             </svg>
             {t.views ?? 0}
           </span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5, background: isHot ? "var(--inverse)" : "#fff", color: isHot ? "#FFFBF2" : "var(--text-muted)", border: "1.5px solid var(--line)", padding: "3px 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
             </svg>
             {t.replyCount}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--text-subtle)" }}>
-          <span style={{ fontWeight: 600, color: "var(--text)", maxWidth: 80, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.authorName}</span>
-          <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={20} radius={6} />
+          <span style={{ fontWeight: 600, color: "var(--text-muted)", maxWidth: 88, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.authorName}</span>
+          <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={20} radius={7} />
         </div>
       </div>
     </li>

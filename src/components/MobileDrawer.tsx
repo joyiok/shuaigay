@@ -229,6 +229,9 @@ export default function MobileDrawer({
                         </span>
                       )}
                     </Link>
+                    <Link href="/notifications" className="mobile-drawer-link" onClick={close}>
+                      通知
+                    </Link>
                     <Link href="/messages" className="mobile-drawer-link" onClick={close}>
                       私信
                       {unreadCount > 0 && (
