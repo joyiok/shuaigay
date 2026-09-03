@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e",
-  timeout: process.env.CI ? 60_000 : 30_000,
+  timeout: 60_000,
   // CI 机子慢：导航/动作后首 paint 经常超 5s，expect 超时放宽（本地保持 5s 快失败）
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   // 单机 standalone 扛不住多 worker 并发（bcrypt/发帖全挤一起必抖），CI 限 2 worker

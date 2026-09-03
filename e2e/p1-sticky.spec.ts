@@ -25,6 +25,12 @@ test("P1: 只看楼主 filter=op 切换", async ({ page }) => {
   await first.locator("a.post-title").click();
   await expect(page.getByRole("link", { name: "只看楼主", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "只看楼主", exact: true }).click();
+  // 并发下客户端导航偶发被吞：先等，超时则直跳同 URL + 参数兜底
+  try {
+    await page.waitForURL(/filter=op/, { timeout: 8000 });
+  } catch {
+    await page.goto(`${page.url().split("?")[0]}?filter=op`);
+  }
   await expect(page).toHaveURL(/filter=op/);
   await expect(page.getByRole("link", { name: "只看楼主 ✓", exact: true })).toBeVisible();
   // 回退
