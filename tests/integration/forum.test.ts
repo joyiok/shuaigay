@@ -159,4 +159,44 @@ describe.skipIf(!shouldRun)("论坛数据层(需要数据库)", () => {
 
     await db!.ban.deleteMany({ where: { userId: user.id } });
   });
+
+  it("通知收件箱:创建 → 未读计数 → 单条已读 → 全部已读", async () => {
+    const user = await db!.user.create({
+      data: {
+        email: `n@${suffix}.test`,
+        username: `ntf${suffix}`.slice(0, 20),
+        passwordHash: "x",
+      },
+    });
+    await db!.notification.createMany({
+      data: [
+        { userId: user.id, type: "reply", title: "有人回复了你", link: "/t/1" },
+        { userId: user.id, type: "mention", title: "有人@了你", body: "hi" },
+      ],
+    });
+    expect(
+      await db!.notification.count({ where: { userId: user.id, read: false } }),
+    ).toBe(2);
+
+    const first = await db!.notification.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: "asc" },
+    });
+    await db!.notification.updateMany({
+      where: { id: first!.id, userId: user.id },
+      data: { read: true },
+    });
+    expect(
+      await db!.notification.count({ where: { userId: user.id, read: false } }),
+    ).toBe(1);
+
+    await db!.notification.updateMany({
+      where: { userId: user.id, read: false },
+      data: { read: true },
+    });
+    expect(
+      await db!.notification.count({ where: { userId: user.id, read: false } }),
+    ).toBe(0);
+    // 用户删除级联清通知，靠 afterEach 邮件后缀清理
+  });
 });

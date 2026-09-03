@@ -33,7 +33,7 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
   await page.fill('input[name="email"]', `${username}@test.dev`);
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "password123");
-  await page.getByRole("button", { name: "注册", exact: true }).click();
+  await page.getByRole("button", { name: "注册" }).click();
   await expect(page.locator("header")).toContainText(username);
 
   // 关注 admin

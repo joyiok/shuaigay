@@ -4,8 +4,9 @@ const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
 // 提交按钮一律用可访问名称定位：
 // 布局顶部栏的「搜索」表单也是 type=submit，不能使用宽泛的 button[type="submit"] 选择器
+// 人性化文案后按钮带后缀（“注册 — 去吹水”“登录 →”），用子串匹配兼容
 function submitButton(page: import("@playwright/test").Page, name: string) {
-  return page.getByRole("button", { name, exact: true });
+  return page.getByRole("button", { name });
 }
 
 test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {

@@ -181,12 +181,12 @@ export default function NotificationBell({ initialUnread = 0 }: { initialUnread?
               borderBottom: "1px solid var(--line-soft)",
             }}
           >
-            <span style={{ fontSize: 13, fontWeight: 700 }}>通知</span>
+            <Link href="/notifications" onClick={() => setOpen(false)} style={{ fontSize: 13, fontWeight: 800, color: "var(--text)" }}>通知</Link>
             {unread > 0 && (
               <button
                 type="button"
                 onClick={() => markRead()}
-                style={{ fontSize: 12, color: "var(--brand)", fontWeight: 600 }}
+                style={{ fontSize: 12, color: "var(--violet)", fontWeight: 700 }}
               >
                 全部已读
               </button>
@@ -260,6 +260,22 @@ export default function NotificationBell({ initialUnread = 0 }: { initialUnread?
               );
             })}
           </ul>
+          <Link
+            href="/notifications"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "block",
+              textAlign: "center",
+              padding: "10px 14px",
+              fontSize: 12.5,
+              fontWeight: 700,
+              color: "var(--violet)",
+              borderTop: "1px solid var(--line-soft)",
+              background: "var(--bg-soft)",
+            }}
+          >
+            查看全部通知 →
+          </Link>
         </div>
       )}
     </div>
