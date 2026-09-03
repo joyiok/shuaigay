@@ -41,13 +41,15 @@ async function requireStaff(): Promise<{ id: string; boardScope: Set<string> | n
 /* ---------------- 主题管理 ---------------- */
 
 export async function adminTogglePinAction(formData: FormData): Promise<void> {
-  const actorId = await requireAdmin();
+  const staff = await requireStaff();
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { pinned: true },
+    select: { pinned: true, boardId: true },
   });
   if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
+  const actorId = staff.id;
   await db.thread.update({
     where: { id: threadId },
     data: { pinned: !thread.pinned },
@@ -60,13 +62,15 @@ export async function adminTogglePinAction(formData: FormData): Promise<void> {
 }
 
 export async function adminToggleLockAction(formData: FormData): Promise<void> {
-  const actorId = await requireAdmin();
+  const staff = await requireStaff();
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { locked: true },
+    select: { locked: true, boardId: true },
   });
   if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
+  const actorId = staff.id;
   await db.thread.update({
     where: { id: threadId },
     data: { locked: !thread.locked },
@@ -78,13 +82,15 @@ export async function adminToggleLockAction(formData: FormData): Promise<void> {
 }
 
 export async function adminDeleteThreadAction(formData: FormData): Promise<void> {
-  const actorId = await requireAdmin();
+  const staff = await requireStaff();
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { id: true },
+    select: { id: true, boardId: true },
   });
   if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
+  const actorId = staff.id;
   await deleteThread(threadId);
   await db.auditLog.create({ data: { actorId, action: "delete_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.delete_thread", { actorId, threadId });
@@ -98,13 +104,15 @@ export async function adminDeleteThreadAction(formData: FormData): Promise<void>
 /* ---------------- 帖子管理 ---------------- */
 
 export async function adminDeletePostAction(formData: FormData): Promise<void> {
-  const actorId = await requireAdmin();
+  const staff = await requireStaff();
   const postId = String(formData.get("postId") ?? "");
   const post = await db.post.findUnique({
     where: { id: postId },
-    select: { id: true },
+    select: { id: true, thread: { select: { boardId: true } } },
   });
   if (!post) redirect(ADMIN_TAB("posts") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(post.thread.boardId)) redirect(ADMIN_TAB("posts") + "&error=forbidden");
+  const actorId = staff.id;
   await deletePost(postId);
   await db.auditLog.create({ data: { actorId, action: "delete_post", targetType: "post", targetId: postId } }).catch(() => {});
   logger.info("admin.delete_post", { actorId, postId });

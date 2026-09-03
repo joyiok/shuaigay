@@ -32,6 +32,17 @@ export function verifyPassword(plain: string, hash: string): Promise<boolean> {
   return bcrypt.compare(plain, hash);
 }
 
+/** 改密成功后踢掉其它会话：本会话 cookie 保留，其它设备需重登 */
+export async function destroyOtherSessions(userId: string): Promise<number> {
+  const jar = await cookies();
+  const token = jar.get(SESSION_COOKIE)?.value;
+  const whereMe = token ? { NOT: { tokenHash: hashToken(token) } } : {};
+  const r = await db.session
+    .deleteMany({ where: { userId, ...whereMe } })
+    .catch(() => ({ count: 0 }));
+  return r.count;
+}
+
 export async function createSession(userId: string): Promise<void> {
   // token 本体只存 cookie,库里只存哈希:拖库也伪造不了会话
   const token = randomBytes(32).toString("base64url");

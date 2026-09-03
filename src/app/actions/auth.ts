@@ -6,7 +6,9 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import {
   createSession,
+  destroyOtherSessions,
   destroySession,
+  getCurrentUser,
   hashPassword,
   verifyPassword,
 } from "@/lib/auth";
@@ -177,6 +179,41 @@ export async function logoutAction(): Promise<void> {
   await destroySession();
   logger.info("auth.logout", {});
   redirect("/");
+}
+
+/* -------- 登录态自助改密码 -------- */
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(72),
+  newPassword: z.string().min(8).max(72),
+});
+
+export async function changePasswordAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  const back = `/u/${encodeURIComponent(user.username)}`;
+  const parsed = changePasswordSchema.safeParse({
+    currentPassword: formData.get("currentPassword"),
+    newPassword: formData.get("newPassword"),
+  });
+  if (!parsed.success) redirect(`${back}?error=invalid`);
+  const { currentPassword, newPassword } = parsed.data;
+  if (currentPassword === newPassword) redirect(`${back}?error=same_password`);
+  const dbUser = await db.user.findUnique({
+    where: { id: user.id },
+    select: { passwordHash: true },
+  });
+  if (!dbUser || !(await verifyPassword(currentPassword, dbUser.passwordHash))) {
+    logger.warn("auth.password_change_denied", { userId: user.id });
+    redirect(`${back}?error=wrong_password`);
+  }
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(newPassword) },
+  });
+  const killed = await destroyOtherSessions(user.id);
+  logger.info("auth.password_changed", { userId: user.id, killedSessions: killed });
+  redirect(`${back}?ok=password_changed`);
 }
 
 /* -------- 找回密码 -------- */

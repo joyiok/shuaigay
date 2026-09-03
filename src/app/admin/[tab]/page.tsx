@@ -71,6 +71,7 @@ const TABS = [
 const ERRORS: Record<string, string> = {
   invalid: "输入格式不对",
   not_found: "目标不存在或已被删除",
+  forbidden: "无权操作该版块内容",
   slug_taken: "版块 slug 已被占用",
   self_role: "不能修改自己的角色",
   self_ban: "不能封禁自己",
@@ -158,7 +159,10 @@ export default async function AdminPage({
       </div>
     );
   }
-  const visibleTabs = adminFlag ? TABS : TABS.filter((t) => t.key === "reports" || t.key === "pending");
+  // 版主可见自己版块的主题/帖子管理 + 举报/待审；用户/版块/勋章/敏感词/审计/统计仅管理员
+  const visibleTabs = adminFlag
+    ? TABS
+    : TABS.filter((t) => t.key === "threads" || t.key === "posts" || t.key === "reports" || t.key === "pending");
   const active = visibleTabs.some((t) => t.key === tab) ? (tab as string) : adminFlag ? "threads" : "reports";
 
   return (
@@ -183,8 +187,8 @@ export default async function AdminPage({
         <HumanizedFeedback type="error" title="操作没成功" message={ERRORS[error]} suggestion="检查下输入，或刷新重试" />
       )}
 
-      {adminFlag && active === "threads" && <ThreadsTab />}
-      {adminFlag && active === "posts" && <PostsTab />}
+      {active === "threads" && <ThreadsTab boardScope={modBoards} />}
+      {active === "posts" && <PostsTab boardScope={modBoards} />}
       {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
       {adminFlag && active === "boards" && <BoardsTab />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
@@ -318,8 +322,9 @@ function Row({ children, last }: { children: React.ReactNode; last?: boolean }) 
 
 /* ---------------- 主题管理 ---------------- */
 
-async function ThreadsTab() {
+async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
   const threads = await db.thread.findMany({
+    where: boardScope ? { boardId: { in: [...boardScope] } } : undefined,
     orderBy: { lastPostAt: "desc" },
     take: 100,
     include: {
@@ -331,7 +336,7 @@ async function ThreadsTab() {
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
-      <PaperCardHeader title="主题管理" count={`最近 ${threads.length} 条`} sub="删除需二次确认" />
+      <PaperCardHeader title="主题管理" count={`最近 ${threads.length} 条`} sub={boardScope ? "仅自己版块 · 删除需二次确认" : "删除需二次确认"} />
       <ListCard>
         {threads.map((t, i) => (
           <Row key={t.id} last={i === threads.length - 1}>
@@ -377,8 +382,9 @@ async function ThreadsTab() {
 
 /* ---------------- 帖子管理 ---------------- */
 
-async function PostsTab() {
+async function PostsTab({ boardScope }: { boardScope: Set<string> | null }) {
   const posts = await db.post.findMany({
+    where: boardScope ? { thread: { boardId: { in: [...boardScope] } } } : undefined,
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
@@ -389,7 +395,7 @@ async function PostsTab() {
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
-      <PaperCardHeader title="帖子管理" count={`最近 ${posts.length} 条`} sub="删除需二次确认" />
+      <PaperCardHeader title="帖子管理" count={`最近 ${posts.length} 条`} sub={boardScope ? "仅自己版块 · 删除需二次确认" : "删除需二次确认"} />
       <ListCard>
         {posts.map((p, i) => (
           <Row key={p.id} last={i === posts.length - 1}>

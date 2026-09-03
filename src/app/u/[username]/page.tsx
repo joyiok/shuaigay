@@ -13,6 +13,8 @@ import AvatarUploader from "@/components/AvatarUploader";
 import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
+import HumanizedFeedback from "@/components/HumanizedFeedback";
+import { changePasswordAction } from "@/app/actions/auth";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass } from "@/lib/format";
 import { levelForPoints, nextLevelForPoints, permsForPoints, LEVELS } from "@/lib/levels";
@@ -49,10 +51,10 @@ export default async function UserPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; error?: string; ok?: string }>;
 }) {
   const { username } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, error, ok } = await searchParams;
   const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : "topics";
   // 收藏仅本人可见
   const meEarly = await getCurrentUser();
@@ -373,8 +375,26 @@ export default async function UserPage({
           </div>
         )}
 
+        {/* 本人操作反馈：改密成功/失败 */}
+        {isSelf && (error === "wrong_password" || error === "same_password" || error === "invalid") && (
+          <div style={{ marginTop: 14 }}>
+            <HumanizedFeedback
+              type="error"
+              title={error === "wrong_password" ? "原密码不对" : error === "same_password" ? "新旧一样" : "格式不对"}
+              message={error === "wrong_password" ? "原密码没对上，改密失败。" : error === "same_password" ? "新密码和原密码相同，换一个。" : "新密码 8-72 位，检查下再试。"}
+              suggestion={error === "wrong_password" ? "忘了就走忘记密码邮件" : "再想一个"}
+            />
+          </div>
+        )}
+        {isSelf && ok === "password_changed" && (
+          <div style={{ marginTop: 14 }}>
+            <HumanizedFeedback type="success" title="密码已换好" message="其它设备已下线，本机继续用。" suggestion="新密码记牢" />
+          </div>
+        )}
+
         {/* 本人可编辑 bio / 未登录提示 */}
         {isSelf ? (
+          <>
           <form
             action={updateBioAction}
             style={{
@@ -422,6 +442,72 @@ export default async function UserPage({
               </button>
             </div>
           </form>
+
+          {/* 本人自助改密码：验原密码 + 踢其它会话 */}
+          <form
+            action={changePasswordAction}
+            style={{
+              marginTop: 14,
+              paddingTop: 14,
+              borderTop: "1px solid var(--line-soft)",
+              display: "grid",
+              gap: 8,
+            }}
+          >
+            <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>
+              修改密码(改后其它设备下线)
+            </label>
+            <input
+              type="password"
+              name="currentPassword"
+              placeholder="原密码"
+              autoComplete="current-password"
+              required
+              style={{
+                width: "100%",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <input
+              type="password"
+              name="newPassword"
+              placeholder="新密码(8-72 位)"
+              autoComplete="new-password"
+              minLength={8}
+              maxLength={72}
+              required
+              style={{
+                width: "100%",
+                border: "1px solid var(--line)",
+                borderRadius: 6,
+                padding: "8px 12px",
+                fontSize: 13,
+                outline: "none",
+              }}
+            />
+            <div>
+              <button
+                type="submit"
+                style={{
+                  height: 30,
+                  padding: "0 14px",
+                  background: "var(--panel)",
+                  color: "var(--text)",
+                  borderRadius: 6,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  border: "1px solid var(--line)",
+                }}
+              >
+                换密码
+              </button>
+            </div>
+          </form>
+          </>
         ) : !me ? (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
             <AuthRequired title="登录后可编辑个人简介" description="当前为访客身份，登录后可修改头像、简介等个人信息。" next={`/u/${encodeURIComponent(user.username)}`} />
