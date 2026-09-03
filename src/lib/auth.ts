@@ -19,8 +19,13 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+// bcrypt 成本：生产默认 12；测试/本地 e2e 可设 BCRYPT_ROUNDS=4 提速
+// （bcryptjs 纯 JS 实现，cost 12 单次 ~200ms+ 阻塞事件循环，并发注册时单机直接被打满）
+const BCRYPT_ROUNDS = Math.min(14, Math.max(4, Number(process.env.BCRYPT_ROUNDS ?? 12) || 12));
+export { BCRYPT_ROUNDS };
+
 export function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, 12);
+  return bcrypt.hash(plain, BCRYPT_ROUNDS);
 }
 
 export function verifyPassword(plain: string, hash: string): Promise<boolean> {

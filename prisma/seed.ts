@@ -43,6 +43,29 @@ async function main() {
     console.log(`seed 敏感词 ${defaults.length} 个`);
   }
 
+  // 默认话题分类(若表为空)：侧边话题标签/版块内筛选开箱即有内容
+  const catCount = await db.threadCategory.count();
+  if (catCount === 0) {
+    const defaults: { boardSlug: string; name: string; order: number }[] = [
+      { boardSlug: "general", name: "灌水", order: 1 },
+      { boardSlug: "general", name: "求助", order: 2 },
+      { boardSlug: "tech", name: "折腾", order: 1 },
+      { boardSlug: "tech", name: "分享", order: 2 },
+      { boardSlug: "life", name: "日常", order: 1 },
+      { boardSlug: "resource", name: "互助", order: 1 },
+    ];
+    for (const c of defaults) {
+      const board = await db.board.findUnique({ where: { slug: c.boardSlug }, select: { id: true } });
+      if (!board) continue;
+      await db.threadCategory.upsert({
+        where: { boardId_name: { boardId: board.id, name: c.name } },
+        update: {},
+        create: { boardId: board.id, name: c.name, order: c.order },
+      });
+    }
+    console.log(`seed 默认分类 ${defaults.length} 个`);
+  }
+
   console.log(`seed 完成:管理员 ${adminEmail} + 默认版块`);
 }
 

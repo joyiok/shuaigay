@@ -20,10 +20,16 @@ async function approvePendingThread(page: import("@playwright/test").Page, title
   const row = page.locator("li", { hasText: "待审主题" }).filter({ hasText: title }).first();
   await expect(row).toBeVisible();
   const href = await row.locator("a").first().getAttribute("href");
+  // 等审核 POST 落袋再 reload：已在同 URL 时 waitForURL 会瞬间返回，
+  // 直接 reload 会取消在途请求导致审核丢失（和关注按钮同类竞态）
+  const approved = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
   await row.getByRole("button", { name: "通过" }).click();
-  await page.waitForURL("**/admin/pending*", { timeout: 15000 });
+  await approved;
   await page.reload();
-  await expect(row).toHaveCount(0);
+  // 等新 DOM 落定再断言：reload 后旧行会留一会儿，直接断言必抖
+  await page.waitForLoadState("domcontentloaded", { timeout: 20000 });
+  // 并发下 reload 的 SSR 可能很慢，这个断言单独给足时间
+  await expect(row).toHaveCount(0, { timeout: 15000 });
   return href;
 }
 
@@ -48,21 +54,8 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   await submitButton(page, "发布").click();
   await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
 
-  // 管理员在待审队列通过该主题
-  await page.goto("/login");
-  await page.fill('input[name="email"]', "admin@example.com");
-  await page.fill('input[name="password"]', "changeme123");
-  await submitButton(page, "登录").click();
-  await expect(page.locator("header")).toContainText("admin");
-  await page.goto("/admin/pending");
-  const pendingRow = page.locator("li", { hasText: "待审主题" }).filter({ hasText: e2eTitle }).first();
-  await expect(pendingRow).toBeVisible();
-  const threadHref = await pendingRow.locator("a").first().getAttribute("href");
-  await pendingRow.getByRole("button", { name: "通过" }).click();
-  // server action redirect 回同页可能命中路由缓存，显式重载拿新鲜待审队列
-  await page.waitForURL("**/admin/pending*", { timeout: 15000 });
-  await page.reload();
-  await expect(pendingRow).toHaveCount(0);
+  // 管理员在待审队列通过该主题（复用 helper：等新 DOM 落定再断言）
+  const threadHref = await approvePendingThread(page, e2eTitle);
 
   // 通过后主题可见，Markdown 正常渲染
   await page.goto(threadHref ?? "/");
@@ -184,13 +177,12 @@ test("@提及：渲染链接、去重与邮箱/代码块边界", async ({ page }
   await expect(mentionLink.first()).toContainText("@admin");
   // 去重：页面里 @admin 出现多次但链接去重后至少 1 个，不会把邮箱变成链接
   await expect(page.getByText("foo@bar.com")).toBeVisible();
-  // 敏感词拦截：发帖含敏感词转待审（pending=1 + 审核提示），而非直接报错
+  // 敏感词：管理员免审，发帖含敏感词直接过审落到主题页（新人/普通用户则转待审）
   await page.goto("/c/general/new");
   await page.fill('input[name="title"]', `敏感词-${uniq2}`);
   await page.fill('textarea[name="content"]', "这里有傻逼应被拦截");
   await submitButton(page, "发布").click();
-  await expect(page).toHaveURL(/pending=1/);
-  await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
+  await expect(page.getByRole("heading", { name: `敏感词-${uniq2}` })).toBeVisible();
 });
 
 test("举报：未登录卡片、创建、去重、限流与敏感词", async ({ page }) => {

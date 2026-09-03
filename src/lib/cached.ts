@@ -84,7 +84,8 @@ export const getCachedHotRanking = unstable_cache(
     try {
       const since = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
       const rows = await db.thread.findMany({
-        where: { board: { isHidden: false }, createdAt: { gte: since } },
+        // 待审主题不对任何人上榜：访客点进去是 404，作者自己去待审队列看
+        where: { board: { isHidden: false }, status: "approved", createdAt: { gte: since } },
         orderBy: [{ views: "desc" }, { lastPostAt: "desc" }],
         take: 100,
         select: {

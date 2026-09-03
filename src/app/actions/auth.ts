@@ -18,7 +18,9 @@ import { logger } from "@/lib/logger";
 import { isUserBanned } from "@/lib/ban";
 
 // 用户不存在时也做一次同价哈希比较,防止时序侧信道探测邮箱是否已注册
-const DUMMY_HASH = bcrypt.hashSync("timing-equalizer", 12);
+// 成本与 hashPassword 一致（BCRYPT_ROUNDS），否则比较耗时不同就露馅了
+import { BCRYPT_ROUNDS } from "@/lib/auth";
+const DUMMY_HASH = bcrypt.hashSync("timing-equalizer", BCRYPT_ROUNDS);
 
 /** 只接受站内相对路径,防开放重定向 */
 function safeNext(raw: FormDataEntryValue | null): string {

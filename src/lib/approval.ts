@@ -25,6 +25,8 @@ export async function needsApproval(
   content: string,
   isStaff = false,
 ): Promise<{ pending: boolean; reason: string | null }> {
+  // 版主/管理员在自己可管的版块发帖回帖免审（调用方已限定 boardScope）
+  if (isStaff) return { pending: false, reason: null };
   if (!isStaff && board.requireApproval) return { pending: true, reason: "版块开启审核" };
   // 等级不足发外链需审核
   const { hasLink } = await import("./levels");

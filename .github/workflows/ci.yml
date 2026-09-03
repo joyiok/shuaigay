@@ -49,6 +49,8 @@ jobs:
       UPLOAD_DIR: /tmp/forum-uploads
       STORAGE_DRIVER: local
       # e2e / 集成测试连续注册，放宽限流避免同 IP 误判
+      # bcryptjs 纯 JS 阻塞事件循环，测试用低成本省 runner
+      BCRYPT_ROUNDS: "4"
       RATE_LIMIT_REGISTER: "100"
       RATE_LIMIT_LOGIN: "100"
       RATE_LIMIT_THREAD: "100"
@@ -137,6 +139,8 @@ jobs:
       REDIS_URL: redis://localhost:6379
       UPLOAD_DIR: /tmp/forum-uploads
       STORAGE_DRIVER: local
+      # bcryptjs 纯 JS 阻塞事件循环，e2e 并发注册用低成本省 runner
+      BCRYPT_ROUNDS: "4"
       RATE_LIMIT_REGISTER: "100"
       RATE_LIMIT_LOGIN: "100"
       RATE_LIMIT_THREAD: "100"

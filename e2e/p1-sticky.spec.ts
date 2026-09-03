@@ -41,11 +41,21 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
   await page.getByRole("button", { name: "注册" }).click();
   await expect(page.locator("header")).toContainText(username);
 
-  // 关注 admin（同 URL redirect 后路由缓存可能不刷新，显式 reload 拿新鲜态）
+  // 关注 admin（同 URL redirect 后路由缓存可能不刷新：等 POST 落库再 reload 拿新鲜态，
+  // 直接 reload 会取消在途请求导致关注丢失）
+  async function toggleFollowSynced(expectName: "+ 关注" | "✓ 已关注") {
+    const button = page.getByRole("button", { name: expectName, exact: true });
+    await expect(button).toBeVisible();
+    const posted = page.waitForResponse(
+      (r) => r.request().method() === "POST" && r.url().includes("/u/admin"),
+      { timeout: 20000 },
+    );
+    await button.click();
+    await posted;
+    await page.reload();
+  }
   await page.goto("/u/admin");
-  await expect(page.getByRole("button", { name: "+ 关注", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "+ 关注", exact: true }).click();
-  await page.reload();
+  await toggleFollowSynced("+ 关注");
   await expect(page.getByRole("button", { name: "✓ 已关注", exact: true })).toBeVisible();
   await expect(page.getByText("粉丝", { exact: true })).toBeVisible();
   // 粉丝卡片出现且包含自己
@@ -54,9 +64,8 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
     page.locator(".card", { hasText: "最近粉丝" }).getByText(username),
   ).toBeVisible();
 
-  // 取关（同上，reload 拿新鲜态）
-  await page.getByRole("button", { name: "✓ 已关注", exact: true }).click();
-  await page.reload();
+  // 取关（同上，先等 POST 再刷）
+  await toggleFollowSynced("✓ 已关注");
   await expect(page.getByRole("button", { name: "+ 关注", exact: true })).toBeVisible();
 });
 
