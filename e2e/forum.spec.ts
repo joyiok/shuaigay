@@ -9,6 +9,24 @@ function submitButton(page: import("@playwright/test").Page, name: string) {
   return page.getByRole("button", { name });
 }
 
+// 新人首帖进待审：以 admin 身份在待审队列通过指定标题的主题，返回主题链接
+async function approvePendingThread(page: import("@playwright/test").Page, title: string): Promise<string | null> {
+  await page.goto("/login");
+  await page.fill('input[name="email"]', "admin@example.com");
+  await page.fill('input[name="password"]', "changeme123");
+  await submitButton(page, "登录").click();
+  await expect(page.locator("header")).toContainText("admin");
+  await page.goto("/admin/pending");
+  const row = page.locator("li", { hasText: "待审主题" }).filter({ hasText: title }).first();
+  await expect(row).toBeVisible();
+  const href = await row.locator("a").first().getAttribute("href");
+  await row.getByRole("button", { name: "通过" }).click();
+  await page.waitForURL("**/admin/pending*", { timeout: 15000 });
+  await page.reload();
+  await expect(row).toHaveCount(0);
+  return href;
+}
+
 test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   const username = `e2e${uniq}`.slice(0, 20);
   const email = `${username}@test.dev`;
@@ -21,12 +39,34 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(username);
 
-  // 发帖
+  // 发帖（新人首帖进待审：断言审核提示，符合 moderation 策略）
+  // 标题带唯一后缀：失败重跑不与旧待审同名互撞
+  const e2eTitle = `E2E 测试帖-${uniq}`;
   await page.goto("/c/general/new");
-  await page.fill('input[name="title"]', "E2E 测试帖");
+  await page.fill('input[name="title"]', e2eTitle);
   await page.fill('textarea[name="content"]', "第一帖 **加粗** 内容");
   await submitButton(page, "发布").click();
-  await expect(page.getByRole("heading", { name: "E2E 测试帖" })).toBeVisible();
+  await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
+
+  // 管理员在待审队列通过该主题
+  await page.goto("/login");
+  await page.fill('input[name="email"]', "admin@example.com");
+  await page.fill('input[name="password"]', "changeme123");
+  await submitButton(page, "登录").click();
+  await expect(page.locator("header")).toContainText("admin");
+  await page.goto("/admin/pending");
+  const pendingRow = page.locator("li", { hasText: "待审主题" }).filter({ hasText: e2eTitle }).first();
+  await expect(pendingRow).toBeVisible();
+  const threadHref = await pendingRow.locator("a").first().getAttribute("href");
+  await pendingRow.getByRole("button", { name: "通过" }).click();
+  // server action redirect 回同页可能命中路由缓存，显式重载拿新鲜待审队列
+  await page.waitForURL("**/admin/pending*", { timeout: 15000 });
+  await page.reload();
+  await expect(pendingRow).toHaveCount(0);
+
+  // 通过后主题可见，Markdown 正常渲染
+  await page.goto(threadHref ?? "/");
+  await expect(page.getByRole("heading", { name: e2eTitle })).toBeVisible();
   await expect(page.locator("strong")).toHaveText("加粗");
 
   // 回复
@@ -92,16 +132,19 @@ test("搜索：空态、高亮摘录与版块筛选", async ({ page }) => {
   await page.fill('input[name="title"]', `搜索命中-${kw}`);
   await page.fill('textarea[name="content"]', `这里埋了关键词 ${kw} 供搜索，高亮与摘录应正确。`);
   await submitButton(page, "发布").click();
-  await expect(page.getByRole("heading", { name: `搜索命中-${kw}` })).toBeVisible();
+  await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
 
-  // 主题搜索：高亮标题中的关键词
+  // 过审后才能被搜到
+  await approvePendingThread(page, `搜索命中-${kw}`);
+
+  // 主题搜索：高亮标题中的关键词（标题在侧边热榜也会出现，用精确链接定位正文结果）
   await page.goto(`/search?q=${kw}`);
-  await expect(page.getByText(`搜索命中-${kw}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `搜索命中-${kw}`, exact: true })).toBeVisible();
   await expect(page.locator("mark.search-mark").first()).toContainText(kw, { ignoreCase: true });
 
   // 按版块筛选：general 能命中，tech 不命中
   await page.goto(`/search?q=${kw}&board=general`);
-  await expect(page.getByText(`搜索命中-${kw}`)).toBeVisible();
+  await expect(page.getByRole("link", { name: `搜索命中-${kw}`, exact: true })).toBeVisible();
   await page.goto(`/search?q=${kw}&board=tech`);
   await expect(page.getByText("没有找到相关内容")).toBeVisible();
 
@@ -128,6 +171,11 @@ test("@提及：渲染链接、去重与邮箱/代码块边界", async ({ page }
   await page.fill('input[name="title"]', `提及测试-${uniq2}`);
   await page.fill('textarea[name="content"]', content);
   await submitButton(page, "发布").click();
+  await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
+
+  // 过审后回到主题页再断言 @ 渲染
+  const mentionHref = await approvePendingThread(page, `提及测试-${uniq2}`);
+  await page.goto(mentionHref ?? "/");
   await expect(page.getByRole("heading", { name: `提及测试-${uniq2}` })).toBeVisible();
 
   // 首帖内容应把 @admin 转为链接，邮箱和紧贴中文的不转
@@ -136,12 +184,13 @@ test("@提及：渲染链接、去重与邮箱/代码块边界", async ({ page }
   await expect(mentionLink.first()).toContainText("@admin");
   // 去重：页面里 @admin 出现多次但链接去重后至少 1 个，不会把邮箱变成链接
   await expect(page.getByText("foo@bar.com")).toBeVisible();
-  // 敏感词拦截：尝试发帖含敏感词应被重定向回错误页
+  // 敏感词拦截：发帖含敏感词转待审（pending=1 + 审核提示），而非直接报错
   await page.goto("/c/general/new");
   await page.fill('input[name="title"]', `敏感词-${uniq2}`);
   await page.fill('textarea[name="content"]', "这里有傻逼应被拦截");
   await submitButton(page, "发布").click();
-  await expect(page).toHaveURL(/error=sensitive|敏感词/);
+  await expect(page).toHaveURL(/pending=1/);
+  await expect(page.getByText("内容已提交，待版主/管理员审核后可见")).toBeVisible();
 });
 
 test("举报：未登录卡片、创建、去重、限流与敏感词", async ({ page }) => {
@@ -218,13 +267,11 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
 });
 
 test("管理后台：未登录/普通用户/管理员分级与空态", async ({ page }) => {
-  // 未登录访问 /admin 应显示登录卡片而非 307 跳转
+  // 未登录访问 /admin 重定向到登录页
   await page.goto("/admin");
-  // 未登录时 URL 仍为 /admin，且页面包含登录按钮
-  await expect(page).toHaveURL(/\/admin/);
-  await expect(page.getByText("请先登录")).toBeVisible();
-  await expect(page.getByRole("link", { name: "登录" }).first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "注册" }).first()).toBeVisible();
+  await expect(page).toHaveURL(/\/login/);
+  await expect(page.getByRole("heading", { name: "登录 — 回来坐坐" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /注册/ }).first()).toBeVisible();
 
   // 普通用户登录后访问应显示无权访问 EmptyState
   const uniq4 = Date.now().toString(36).slice(-5);

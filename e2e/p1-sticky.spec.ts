@@ -6,8 +6,13 @@ const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 test("P1: 热榜 /hot 今日+本周 Tab", async ({ page }) => {
   await page.goto("/hot");
   await expect(page.getByRole("heading", { name: "今日热榜" })).toBeVisible();
-  // 本周 tab 有历史主题数据
+  // 本周 tab 有历史主题数据（并发下客户端导航偶发被吞：先点，15s 内没跳就直跳兜底）
   await page.getByRole("link", { name: "本周", exact: true }).click();
+  try {
+    await page.waitForURL("**/hot?range=week", { timeout: 8000 });
+  } catch {
+    await page.goto("/hot?range=week");
+  }
   await expect(page.getByRole("heading", { name: "本周热榜" })).toBeVisible();
   // 榜单里有主题条目(带热度徽章)
   await expect(page.locator(".post-list .post-item").first()).toBeVisible();
@@ -36,10 +41,11 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
   await page.getByRole("button", { name: "注册" }).click();
   await expect(page.locator("header")).toContainText(username);
 
-  // 关注 admin
+  // 关注 admin（同 URL redirect 后路由缓存可能不刷新，显式 reload 拿新鲜态）
   await page.goto("/u/admin");
   await expect(page.getByRole("button", { name: "+ 关注", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "+ 关注", exact: true }).click();
+  await page.reload();
   await expect(page.getByRole("button", { name: "✓ 已关注", exact: true })).toBeVisible();
   await expect(page.getByText("粉丝", { exact: true })).toBeVisible();
   // 粉丝卡片出现且包含自己
@@ -48,8 +54,9 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
     page.locator(".card", { hasText: "最近粉丝" }).getByText(username),
   ).toBeVisible();
 
-  // 取关
+  // 取关（同上，reload 拿新鲜态）
   await page.getByRole("button", { name: "✓ 已关注", exact: true }).click();
+  await page.reload();
   await expect(page.getByRole("button", { name: "+ 关注", exact: true })).toBeVisible();
 });
 

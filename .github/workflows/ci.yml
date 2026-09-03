@@ -167,6 +167,17 @@ jobs:
       - name: Install Playwright chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Start standalone server (:3100)
+        # E2E_BASE_URL 已设置时 playwright 不会自动起 webServer，这里手动后台起
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          (PORT=3100 nohup node .next/standalone/server.js > /tmp/standalone.log 2>&1 &)
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3100/api/health && break
+            sleep 2
+          done
+          curl -sf http://localhost:3100/api/health
+
       - name: Run e2e
         # 保留历史兜底：本地 7/7 全绿，CI 偶发 2/7 因时序，失败时仍上传报告而非直接红
         run: npx playwright test
