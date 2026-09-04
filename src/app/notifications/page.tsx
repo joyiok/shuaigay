@@ -179,7 +179,7 @@ export default async function NotificationsPage({
                 <div className="post-title-row">
                   {typeBadge(n.type)}
                   {n.link ? (
-                    <Link href={n.link} className="post-title" title={n.title}>
+                    <Link href={n.link} prefetch={false} className="post-title" title={n.title}>
                       {n.title}
                     </Link>
                   ) : (

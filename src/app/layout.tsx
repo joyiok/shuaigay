@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Crimson_Pro, IBM_Plex_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { trackAndCountOnline } from "@/lib/online";
@@ -14,6 +15,12 @@ import UserAvatar from "@/components/UserAvatar";
 import NotificationBell from "@/components/NotificationBell";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
 import ForumNav from "@/components/ForumNav";
+
+const crimsonPro = Crimson_Pro({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-crimson", display: "swap" });
+const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-plex", display: "swap" });
+const jetMono = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-jet", display: "swap" });
+const grotesk = Space_Grotesk({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-grotesk", display: "swap" });
+const fontVars = `${crimsonPro.variable} ${plexSans.variable} ${jetMono.variable} ${grotesk.variable}`;
 
 const site = siteUrl();
 const siteOrigin = site.origin;
@@ -121,7 +128,7 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" className={fontVars}>
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
@@ -136,7 +143,7 @@ export default async function RootLayout({
           <div className="bar">
             <Link href="/" className="brand" aria-label="SHUAI GAY 论坛首页">
               <span className="brand-mark">SG</span>
-              <span style={{ fontFamily: '"Space Grotesk", "IBM Plex Sans", sans-serif', letterSpacing: '-0.03em' }}>SHUAI&nbsp;<i>GAY</i></span>
+              <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>SHUAI&nbsp;<i>GAY</i></span>
             </Link>
             <MobileDrawer
               boards={boards.map((b) => ({ slug: b.slug, name: b.name, threads: (b as any)._count?.threads ?? 0 }))}
@@ -278,7 +285,7 @@ export default async function RootLayout({
               {/* 社区数据 — 4 宫格 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">社区数据 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)", fontFamily: '"JetBrains Mono", monospace' }}>live</span></div>
+                  <div className="quick-title">社区数据 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace' }}>live</span></div>
                   <div className="stat-grid">
                     <div className="stat-item">
                       <div className="stat-icon" style={{ background: "#EDE9FE", color: "#7C3AED" }}>◐</div>
@@ -310,7 +317,7 @@ export default async function RootLayout({
                   <div className="quick-title">热门话题 <Link href="/hot">热榜 →</Link></div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: hotTopics.length ? 13 : 0 }}>
                     {boards.map((b) => (
-                      <Link key={b.id} href={`/c/${b.slug}`} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: "1.5px solid var(--line)", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 600, boxShadow: "2px 2px 0 rgba(22,22,26,0.12)" }}>
+                      <Link key={b.id} href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: "1.5px solid var(--line)", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 600, boxShadow: "2px 2px 0 rgba(22,22,26,0.12)" }}>
                         <span style={{ color: "var(--text)", fontWeight: 700 }}>{b.name}</span>
                         <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line-faint)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-muted)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{(b as any)._count.threads}</span>
                       </Link>
@@ -323,7 +330,7 @@ export default async function RootLayout({
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         {hotTopics.map((t: any, idx: number) => (
-                          <Link key={t.id} href={threadHref(t.id, t.title)} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: idx === 0 ? "#FFFEF5" : "#fff", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
+                          <Link key={t.id} href={threadHref(t.id, t.title)} prefetch={false} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: idx === 0 ? "#FFFEF5" : "#fff", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
                             <span style={{ width: 22, height: 22, borderRadius: 7, background: idx === 0 ? "#FEF3C7" : idx === 1 ? "#EDE9FE" : idx === 2 ? "#FCE7F3" : "#F4F4F5", color: idx === 0 ? "#B45309" : idx === 1 ? "#7C3AED" : idx === 2 ? "#DB2777" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, border: "1px solid rgba(22,22,26,0.08)" }}>{idx + 1}</span>
                             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{t.title}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "2px 7px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.max(0, (t._count?.posts ?? 1) - 1)} 回</span>
@@ -341,7 +348,7 @@ export default async function RootLayout({
                   <div className="quick-title">活跃用户 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>online</span></div>
                   <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
                     {(activeUsers.length ? activeUsers : [{ username: "admin", avatarUrl: null }, { username: "atbr", avatarUrl: null }, { username: "seaf", avatarUrl: null }]).map((u: any, i: number) => (
-                      <Link key={u.username + i} href={`/u/${u.username}`} style={{ display: "grid", justifyItems: "center", gap: 5, minWidth: 52, textAlign: "center", padding: "4px", borderRadius: 12 }}>
+                      <Link key={u.username + i} href={`/u/${u.username}`} prefetch={false} style={{ display: "grid", justifyItems: "center", gap: 5, minWidth: 52, textAlign: "center", padding: "4px", borderRadius: 12 }}>
                         <span style={{ borderRadius: 14, padding: 2, background: "#fff", border: "1.5px solid var(--line-faint)", display: "inline-flex" }}><UserAvatar username={u.username} avatarUrl={u.avatarUrl} size={42} radius={11} /></span>
                         <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-muted)", maxWidth: 52, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.username.slice(0, 7)}</span>
                       </Link>
@@ -364,6 +371,7 @@ export default async function RootLayout({
                           <Link
                             key={c.id}
                             href={`/c/${c.board.slug}?cat=${c.id}`}
+                            prefetch={false}
                             title={`${c.name} · ${c.board.name} · ${cnt} 主题`}
                             style={{
                               display: "inline-flex",
@@ -399,7 +407,7 @@ export default async function RootLayout({
                     <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>社区发帖规范及注意事项</span>
                     <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>
                   </Link>
-                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: '"JetBrains Mono", monospace' }}>2026-08-20 · 已置顶</div>
+                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace' }}>2026-08-20 · 已置顶</div>
                 </div>
               </div>
             </aside>
@@ -411,19 +419,20 @@ export default async function RootLayout({
         <footer className="footer">
           <div className="runtime-info" style={{ fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>© 2026 SHUAI GAY <span style={{ fontWeight: 500, color: "var(--text-subtle)" }}>· 开放 · 克制 · 高效</span></div>
           <div className="footer-links">
-            <Link href="/">首页</Link>
+            {/* 页脚纯导航：关预取，之前连 /robots.txt 都在预取 _rsc */}
+            <Link href="/" prefetch={false}>首页</Link>
             <span aria-hidden>·</span>
-            <Link href="/search">搜索</Link>
+            <Link href="/search" prefetch={false}>搜索</Link>
             <span aria-hidden>·</span>
-            <Link href="/sitemap.xml">Sitemap</Link>
+            <Link href="/sitemap.xml" prefetch={false}>Sitemap</Link>
             <span aria-hidden>·</span>
-            <Link href="/robots.txt">Robots</Link>
+            <Link href="/robots.txt" prefetch={false}>Robots</Link>
             <span aria-hidden>·</span>
-            <Link href="/rss.xml">RSS</Link>
+            <Link href="/rss.xml" prefetch={false}>RSS</Link>
             <span aria-hidden>·</span>
-            <Link href="/atom.xml">Atom</Link>
+            <Link href="/atom.xml" prefetch={false}>Atom</Link>
             <span aria-hidden>·</span>
-            <Link href="/feed.json">JSON</Link>
+            <Link href="/feed.json" prefetch={false}>JSON</Link>
             <span aria-hidden>·</span>
             <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
           </div>

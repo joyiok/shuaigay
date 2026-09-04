@@ -226,7 +226,7 @@ function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
         <div className="post-title-row" style={{ gap: 8 }}>
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
+          <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={t.title} query={q} />
           </Link>
           <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
@@ -252,7 +252,7 @@ function PostRow({ p, q }: { p: PostSearchItem; q: string }) {
       <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={36} radius={10} />
       <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
         <div className="post-title-row" style={{ gap: 8 }}>
-          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
+          <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} prefetch={false} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={p.threadTitle} query={q} />
           </Link>
           <span className="topic-badge" style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", color: "var(--text-muted)" }}>

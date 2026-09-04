@@ -63,7 +63,7 @@ export default async function HomePage({
       {/* Banner — 纸质 ZINE hero */}
       <div className="banner">
         <div className="banner-left">
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "var(--violet)", background: "#fff", border: "1.5px solid var(--line)", padding: "4px 11px", borderRadius: 999, marginBottom: 10, boxShadow: "2px 2px 0 var(--line)", fontFamily: '"JetBrains Mono", monospace' }}>✦ 今天也在营业中</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "var(--violet)", background: "#fff", border: "1.5px solid var(--line)", padding: "4px 11px", borderRadius: 999, marginBottom: 10, boxShadow: "2px 2px 0 var(--line)", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace' }}>✦ 今天也在营业中</div>
           <h2 className="banner-title">
             进来坐坐<span>，</span>有话直说
           </h2>
@@ -75,7 +75,7 @@ export default async function HomePage({
             <span className="banner-feature"><i>♡</i><span><b>当自己家</b><span>别客气</span></span></span>
           </div>
         </div>
-        <div className="banner-illu" aria-hidden>✂︎<span style={{ fontSize: 13, fontWeight: 800, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: "0.06em", marginLeft: 6 }}>纸现场</span></div>
+        <div className="banner-illu" aria-hidden>✂︎<span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-grotesk), sans-serif', letterSpacing: "0.06em", marginLeft: 6 }}>纸现场</span></div>
       </div>
 
       {/* 顶部筛选 - 全站时间线 */}
@@ -146,7 +146,7 @@ export default async function HomePage({
 
       <div className="bottom-banner">
         <div style={{ position: "relative", zIndex: 1 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#FFE94A", fontFamily: '"JetBrains Mono", monospace', marginBottom: 6 }}>✦ 新帖速达</div>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", color: "#FFE94A", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace', marginBottom: 6 }}>✦ 新帖速达</div>
           <div style={{ fontWeight: 800, color: "#fff", fontSize: 16, letterSpacing: "-0.02em" }}>别憋着，想说就丢上来</div>
           <div style={{ fontSize: 12.5, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>水帖也算贡献 — 先发，再慢慢聊</div>
         </div>
@@ -169,7 +169,7 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
         <div className="post-title-row">
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>⬆ 置顶</span>}
           {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>待审</span>}
-          <Link href={threadHref(t.id, t.title)} className="post-title" title={t.title}>
+          <Link href={threadHref(t.id, t.title)} className="post-title" title={t.title} prefetch={false}>
             {t.title}
           </Link>
           <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}`, flexShrink: 0 }}>

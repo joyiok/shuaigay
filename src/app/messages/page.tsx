@@ -112,6 +112,7 @@ export default async function MessagesPage() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Link
                         href={`/messages/${encodeURIComponent(c.username)}`}
+                        prefetch={false}
                         style={{ fontWeight: 700, fontSize: 13 }}
                       >
                         {c.username}

@@ -191,7 +191,7 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
           {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
           {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
-          <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1 }}>{t.title}</Link>
+          <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1 }}>{t.title}</Link>
         </div>
         <div className="post-meta" style={{ gap: 10, marginTop: 6 }}>
           <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{t.authorName}</span>

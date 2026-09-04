@@ -575,7 +575,7 @@ export default async function UserPage({
                   <div className="post-title-row">
                     {t.pinned && <span className="topic-badge pinned">置顶</span>}
                     {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-                    <Link href={threadHref(t.id, t.title)} className="post-title">
+                    <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title">
                       {t.title}
                     </Link>
                   </div>
@@ -619,7 +619,7 @@ export default async function UserPage({
                   <div className="post-body">
                     <div className="post-title-row">
                       {isFirst && <span className="topic-badge">主题帖</span>}
-                      <Link href={threadHref(p.threadId, p.thread.title)} className="post-title" style={{ fontSize: 13 }}>
+                      <Link href={threadHref(p.threadId, p.thread.title)} prefetch={false} className="post-title" style={{ fontSize: 13 }}>
                         {p.thread.title}
                       </Link>
                     </div>
@@ -642,7 +642,7 @@ export default async function UserPage({
                       <span style={{ color: "var(--text-subtle)" }}>{p.thread.board.name}</span>
                     </div>
                   </div>
-                  <Link href={threadHref(p.threadId, p.thread.title)} className="post-tag" style={{ fontSize: 11 }}>
+                  <Link href={threadHref(p.threadId, p.thread.title)} prefetch={false} className="post-tag" style={{ fontSize: 11 }}>
                     查看
                   </Link>
                 </li>
@@ -665,7 +665,7 @@ export default async function UserPage({
                     {f.thread.pinned && <span className="topic-badge pinned">置顶</span>}
                     {f.thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
                     {f.thread.category && <span className={`topic-badge ${catToneClass(f.thread.category.name)}`}>{f.thread.category.name}</span>}
-                    <Link href={threadHref(f.thread.id, f.thread.title)} className="post-title">{f.thread.title}</Link>
+                    <Link href={threadHref(f.thread.id, f.thread.title)} prefetch={false} className="post-title">{f.thread.title}</Link>
                   </div>
                   <div className="post-meta">
                     <span>{f.thread.board.name}</span>

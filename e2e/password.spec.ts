@@ -22,8 +22,9 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.fill('input[name="currentPassword"]', "wrongpass1");
   await page.fill('input[name="newPassword"]', "newpass123");
   await page.getByRole("button", { name: "换密码" }).click();
-  await page.waitForURL("**?error=wrong_password", { timeout: 15000 }).catch(() => {});
-  await expect(page.getByText("原密码不对")).toBeVisible();
+  // 提交后只等导航、不重发：重发会取消在途跳转反而自残；60s 轮询兜底慢导航
+  await expect.poll(() => page.url(), { timeout: 60000 }).toContain("error=wrong_password");
+  await expect(page.getByText("原密码不对")).toBeVisible({ timeout: 15000 });
   // 文本出现只代表 SSR 到达，注水可能没完：等 load 再点，否则提交被吞
   await page.waitForLoadState("load", { timeout: 20000 }).catch(() => {});
 
@@ -31,8 +32,10 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.fill('input[name="currentPassword"]', "password123");
   await page.fill('input[name="newPassword"]', "newpass123");
   await page.getByRole("button", { name: "换密码" }).click();
-  await page.waitForURL("**?ok=password_changed", { timeout: 15000 });
-  await expect(page.getByText("密码已换好")).toBeVisible();
+  await page.getByRole("button", { name: "换密码" }).click();
+  // 同上：只等不重发
+  await expect.poll(() => page.url(), { timeout: 60000 }).toContain("ok=password_changed");
+  await expect(page.getByText("密码已换好")).toBeVisible({ timeout: 15000 });
 
   // 退出后旧密码登不上（断言拒绝文案同步导航，避免空断言导致后续输入被重定向清空）
   await page.getByRole("button", { name: "退出" }).first().click();

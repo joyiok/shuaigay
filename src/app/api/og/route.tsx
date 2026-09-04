@@ -95,7 +95,7 @@ export async function GET(req: Request) {
         >
           <div
             style={{
-              fontFamily: '"Crimson Pro", serif',
+              fontFamily: 'var(--font-crimson), Georgia, serif',
               fontSize: title.length > 40 ? 44 : 56,
               fontWeight: 700,
               lineHeight: 1.15,

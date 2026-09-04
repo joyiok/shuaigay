@@ -7,7 +7,8 @@ export default defineConfig({
   expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   // 单机 standalone 扛不住多 worker 并发（bcrypt/发帖全挤一起必抖），CI 限 2 worker
   workers: process.env.CI ? 2 : undefined,
-  retries: process.env.CI ? 1 : 0,
+  // 共享机 CPU 抖动大（一次导航 0.1s 一次 20s），失败重试一次兜底
+  retries: 1,
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: process.env.E2E_BASE_URL ?? "http://localhost:3100",
