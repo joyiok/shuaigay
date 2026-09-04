@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   canCreateThread,
   canDeletePost,
+  canGlobalPin,
   canModerate,
+  canModerateBoard,
+  canMoveThread,
   canReply,
   isAdmin,
 } from "@/lib/permissions";
@@ -60,5 +63,27 @@ describe("权限判断", () => {
     expect(isAdmin(null)).toBe(false);
     expect(canModerate(admin)).toBe(true);
     expect(canModerate(user)).toBe(false);
+  });
+
+  it("版块管理:管理员全版块可管,版主只管自己版块", () => {
+    expect(canModerateBoard(admin, false)).toBe(true);
+    expect(canModerateBoard(admin, true)).toBe(true);
+    expect(canModerateBoard(user, true)).toBe(true);
+    expect(canModerateBoard(user, false)).toBe(false);
+    expect(canModerateBoard(null, true)).toBe(false);
+  });
+
+  it("全局置顶仅管理员", () => {
+    expect(canGlobalPin(admin)).toBe(true);
+    expect(canGlobalPin(user)).toBe(false);
+    expect(canGlobalPin(null)).toBe(false);
+  });
+
+  it("移动主题:管理员任意搬,版主需源+目标双版块权限", () => {
+    expect(canMoveThread(admin, false, false)).toBe(true);
+    expect(canMoveThread(user, true, true)).toBe(true);
+    expect(canMoveThread(user, true, false)).toBe(false);
+    expect(canMoveThread(user, false, true)).toBe(false);
+    expect(canMoveThread(null, true, true)).toBe(false);
   });
 });

@@ -13,7 +13,10 @@ import { canDeletePost, canEditPost, canReply, isAdmin } from "@/lib/permissions
 import type { Cursor } from "@/lib/cursor";
 import {
   deletePostAction,
+  moveThreadAction,
   replyAction,
+  toggleDigestAction,
+  toggleGlobalPinAction,
   toggleLockAction,
   togglePinAction,
 } from "@/app/actions/threads";
@@ -47,6 +50,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   sensitive: { title: "有敏感词", msg: "已转待审。", tip: "等审核" },
   reason_sensitive: { title: "理由有敏感词", msg: "评分理由含敏感词。", tip: "换个说法" },
   self_rate: { title: "不能自评", msg: "不能给自己评分。", tip: "去给别人点赞" },
+  not_found: { title: "找不到了", msg: "目标不存在，可能已被删除。", tip: "回首页看看" },
 };
 
 export async function generateMetadata({
@@ -149,6 +153,10 @@ export default async function ThreadPage({
     ? await db.user.findMany({ where: { username: { in: mentionCandidates } }, select: { username: true } })
     : [];
   const existingMentions = new Set(mentionUsers.map((u) => u.username));
+  // 移动主题的目标版块下拉:仅版主/管理员需要
+  const boards = isBoardStaff
+    ? await db.board.findMany({ select: { slug: true, name: true }, orderBy: { order: "asc" } }).catch(() => [])
+    : [];
   const excerpt = (md: string) => md.replace(/\s+/g, " ").trim().slice(0, 200);
   const siteUrl = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
   const canonical = `${siteUrl}${threadHref(thread.id, thread.title)}`;
@@ -202,6 +210,8 @@ export default async function ThreadPage({
           <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
           {(thread as any).status === "pending" && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
+          {thread.globalPinned && <span className="topic-badge pinned">全局置顶</span>}
+          {thread.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
           {thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
           {threadCategory && <span className={`topic-badge ${catToneClass(threadCategory.name)}`}>{threadCategory.name}</span>}
         </div>
@@ -222,9 +232,29 @@ export default async function ThreadPage({
                   <input type="hidden" name="threadId" value={thread.id} />
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.pinned ? "取消置顶" : "置顶"}</button>
                 </form>
+                {admin && (
+                  <form action={toggleGlobalPinAction}>
+                    <input type="hidden" name="threadId" value={thread.id} />
+                    <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.globalPinned ? "取消全局置顶" : "全局置顶"}</button>
+                  </form>
+                )}
+                <form action={toggleDigestAction}>
+                  <input type="hidden" name="threadId" value={thread.id} />
+                  <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.digested ? "取消加精" : "加精"}</button>
+                </form>
                 <form action={toggleLockAction}>
                   <input type="hidden" name="threadId" value={thread.id} />
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.locked ? "解锁" : "锁定"}</button>
+                </form>
+                <form action={moveThreadAction} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                  <input type="hidden" name="threadId" value={thread.id} />
+                  <select name="targetBoardSlug" defaultValue="" required style={{ height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>
+                    <option value="" disabled>移到…</option>
+                    {boards.filter((b) => b.slug !== thread.board.slug).map((b) => (
+                      <option key={b.slug} value={b.slug}>{b.name}</option>
+                    ))}
+                  </select>
+                  <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>移动</button>
                 </form>
               </>
             )}

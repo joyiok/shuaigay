@@ -14,6 +14,7 @@ import {
   adminDeletePostAction,
   adminDeleteThreadAction,
   adminResetPasswordAction,
+  adminToggleDigestAction,
   adminToggleLockAction,
   adminTogglePinAction,
   adminUpdateUserAction,
@@ -341,6 +342,7 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
         {threads.map((t, i) => (
           <Row key={t.id} last={i === threads.length - 1}>
             {t.pinned && <span className="topic-badge pinned">置顶</span>}
+            {(t as any).digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
             {t.locked && <span className="topic-badge" style={{ background: "var(--bg-soft)", color: "var(--text-muted)", border: "1px solid var(--line)" }}>已锁</span>}
             <Link href={threadHref(t.id, t.title)} style={{ fontWeight: 700, fontSize: 13, fontFamily: GROTESK, color: "var(--text)", maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }}>
               {t.title}
@@ -355,6 +357,10 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
               <form action={adminTogglePinAction}>
                 <input type="hidden" name="threadId" value={t.id} />
                 <button style={paperBtn}>{t.pinned ? "取消置顶" : "置顶"}</button>
+              </form>
+              <form action={adminToggleDigestAction}>
+                <input type="hidden" name="threadId" value={t.id} />
+                <button style={paperBtn}>{(t as any).digested ? "取消加精" : "加精"}</button>
               </form>
               <form action={adminToggleLockAction}>
                 <input type="hidden" name="threadId" value={t.id} />

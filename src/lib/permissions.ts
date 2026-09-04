@@ -57,6 +57,34 @@ export function canModerate(user: UserLike | null): boolean {
   return isAdmin(user);
 }
 
+/**
+ * 版块级管理(置顶/加精/删帖等):管理员全版块可管,版主只管自己版块。
+ * isModerator 由调用方查 BoardModerator 得出,此处只做纯判断。
+ */
+export function canModerateBoard(user: UserLike | null, isModerator: boolean): boolean {
+  if (!user) return false;
+  return isAdmin(user) || isModerator;
+}
+
+/** 全局置顶影响首页,仅管理员可操作 */
+export function canGlobalPin(user: UserLike | null): boolean {
+  return isAdmin(user);
+}
+
+/**
+ * 移动主题:管理员任意搬;版主需同时是源版块与目标版块的版主,
+ * 防止把自己版块的内容乱倒进别人的版块。
+ */
+export function canMoveThread(
+  user: UserLike | null,
+  isSourceModerator: boolean,
+  isTargetModerator: boolean,
+): boolean {
+  if (!user) return false;
+  if (isAdmin(user)) return true;
+  return isSourceModerator && isTargetModerator;
+}
+
 export function canPostLinkForPoints(points: number): boolean {
   // 需正式会员及以上
   return points >= 30;

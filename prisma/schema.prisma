@@ -201,6 +201,10 @@ model Thread {
   authorId   String
   title      String
   pinned     Boolean  @default(false)
+  // 全局置顶:首页置顶区展示;版块内置顶区同时收录全局置顶
+  globalPinned Boolean @default(false)
+  // 加精:精华主题,列表与详情页挂 badge
+  digested     Boolean  @default(false)
   locked     Boolean  @default(false)
   views      Int      @default(0)
   status     String   @default("approved")
@@ -218,6 +222,7 @@ model Thread {
   @@index([boardId, lastPostAt])
   @@index([boardId, categoryId, lastPostAt])
   @@index([pinned])
+  @@index([globalPinned])
   @@index([status])
 }
 

@@ -61,6 +61,27 @@ export async function adminTogglePinAction(formData: FormData): Promise<void> {
   redirect(ADMIN_TAB("threads"));
 }
 
+export async function adminToggleDigestAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { digested: true, boardId: true },
+  });
+  if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
+  const actorId = staff.id;
+  await db.thread.update({
+    where: { id: threadId },
+    data: { digested: !thread.digested },
+  });
+  await db.auditLog.create({ data: { actorId, action: "toggle_digest", targetType: "thread", targetId: threadId } }).catch(() => {});
+  logger.info("admin.toggle_digest", { actorId, threadId, digested: !thread.digested });
+  revalidateTag("threads");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("threads"));
+}
+
 export async function adminToggleLockAction(formData: FormData): Promise<void> {
   const staff = await requireStaff();
   const threadId = String(formData.get("threadId") ?? "");

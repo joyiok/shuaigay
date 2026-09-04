@@ -25,6 +25,8 @@ export interface ThreadListItem {
   id: string;
   title: string;
   pinned: boolean;
+  globalPinned: boolean;
+  digested: boolean;
   locked: boolean;
   views: number;
   createdAt: Date;
@@ -77,6 +79,8 @@ function toThreadListItem(t: ThreadRow): ThreadListItem {
     id: t.id,
     title: t.title,
     pinned: t.pinned,
+    globalPinned: (t as unknown as { globalPinned: boolean }).globalPinned ?? false,
+    digested: (t as unknown as { digested: boolean }).digested ?? false,
     locked: t.locked,
     views: (t as unknown as { views: number }).views ?? 0,
     createdAt: t.createdAt,
@@ -149,7 +153,7 @@ export async function listThreads(
         ],
       }
     : {};
-  const baseCond: any = { boardId, pinned: false, ...categoryFilter, ...statusCond };
+  const baseCond: any = { boardId, pinned: false, globalPinned: false, ...categoryFilter, ...statusCond };
   const whereCond: any = cursor ? { AND: [baseCond, cursorCond] } : baseCond;
   const rows = await db.thread.findMany({
     where: whereCond,
@@ -171,7 +175,13 @@ export async function listThreads(
     categoryName: (t as unknown as { category: { name: string } | null }).category?.name ?? null,
   });
 
-  const pinnedWhere: any = isStaff ? { boardId, pinned: true, ...categoryFilter } : viewerId ? { boardId, pinned: true, ...categoryFilter, OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } : { boardId, pinned: true, ...categoryFilter, status: "approved" };
+  // 置顶区:版块置顶 + 全局置顶都收录(全局置顶是全站行为,自然也属于本版块)
+  const pinOr = [{ pinned: true }, { globalPinned: true }];
+  const pinnedWhere: any = isStaff
+    ? { boardId, ...categoryFilter, OR: pinOr }
+    : viewerId
+      ? { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
+      : { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { status: "approved" }] };
   const pinned = cursor
     ? []
     : (
@@ -289,7 +299,7 @@ export async function searchPosts(
 export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   const rows = await db.thread.findMany({
     where: {
-      pinned: false,
+      globalPinned: false,
       status: "approved",
       board: { isHidden: false },
       ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
@@ -306,7 +316,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
     ? []
     : (
         await db.thread.findMany({
-          where: { pinned: true, status: "approved", board: { isHidden: false } },
+          where: { globalPinned: true, status: "approved", board: { isHidden: false } },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, board: { select: { slug: true, name: true } } },

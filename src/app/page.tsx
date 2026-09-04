@@ -168,6 +168,7 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
       <div className="post-body">
         <div className="post-title-row">
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>⬆ 置顶</span>}
+          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>精华</span>}
           {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>待审</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" title={t.title} prefetch={false}>
             {t.title}

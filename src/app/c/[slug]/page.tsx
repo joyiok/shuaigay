@@ -187,7 +187,8 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
       <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
-          {pinned && <span className="topic-badge pinned">置顶</span>}
+          {pinned && <span className="topic-badge pinned">{t.globalPinned ? "全局置顶" : "置顶"}</span>}
+          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
           {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
           {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}

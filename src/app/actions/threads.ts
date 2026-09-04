@@ -8,6 +8,9 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   canDeletePost,
   canEditPost,
+  canGlobalPin,
+  canModerateBoard,
+  canMoveThread,
   canReply,
   isAdmin,
 } from "@/lib/permissions";
@@ -643,5 +646,108 @@ export async function toggleLockAction(formData: FormData): Promise<void> {
   logger.info("thread.toggle_lock", { userId: user.id, threadId });
   revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
+  redirect(`/t/${thread.id}`);
+}
+
+export async function toggleDigestAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/");
+
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, digested: true, board: { select: { id: true } } },
+  });
+  if (!thread) redirect("/");
+  if (!canModerateBoard(user, await isBoardModerator(user.id, thread.board.id))) redirect("/");
+
+  await db.thread.update({
+    where: { id: thread.id },
+    data: { digested: !thread.digested },
+  });
+  await db.auditLog
+    .create({ data: { actorId: user.id, action: "toggle_digest", targetType: "thread", targetId: thread.id } })
+    .catch(() => {});
+  logger.info("thread.toggle_digest", { userId: user.id, threadId });
+  revalidateTag("threads");
+  revalidatePath(`/t/${thread.id}`);
+  revalidatePath("/");
+  redirect(`/t/${thread.id}`);
+}
+
+export async function toggleGlobalPinAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/");
+
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, globalPinned: true },
+  });
+  if (!thread) redirect("/");
+  if (!canGlobalPin(user)) redirect("/");
+
+  await db.thread.update({
+    where: { id: thread.id },
+    data: { globalPinned: !thread.globalPinned },
+  });
+  await db.auditLog
+    .create({ data: { actorId: user.id, action: "toggle_global_pin", targetType: "thread", targetId: thread.id } })
+    .catch(() => {});
+  logger.info("thread.toggle_global_pin", { userId: user.id, threadId });
+  revalidateTag("threads");
+  revalidatePath(`/t/${thread.id}`);
+  revalidatePath("/");
+  redirect(`/t/${thread.id}`);
+}
+
+export async function moveThreadAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/");
+
+  const threadId = String(formData.get("threadId") ?? "");
+  const targetSlug = String(formData.get("targetBoardSlug") ?? "").trim().toLowerCase();
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, title: true, board: { select: { id: true, slug: true } } },
+  });
+  const target = targetSlug
+    ? await db.board.findUnique({
+        where: { slug: targetSlug },
+        select: { id: true, slug: true, isLocked: true },
+      })
+    : null;
+  if (!thread || !target) redirect(`/t/${threadId}?error=not_found`);
+  if (target.id === thread.board.id) redirect(`/t/${thread.id}`);
+  // 锁定的版块只有管理员能往里搬
+  if (target.isLocked && !isAdmin(user)) redirect(`/t/${thread.id}?error=board_locked`);
+  const allowed = canMoveThread(
+    user,
+    await isBoardModerator(user.id, thread.board.id),
+    await isBoardModerator(user.id, target.id),
+  );
+  if (!allowed) redirect(`/t/${thread.id}?error=forbidden`);
+
+  await db.thread.update({
+    where: { id: thread.id },
+    // 分类是按版块定义的,跨版块移动时清空,避免挂到别的版块的分类下
+    data: { boardId: target.id, categoryId: null },
+  });
+  await db.auditLog
+    .create({
+      data: {
+        actorId: user.id,
+        action: "move_thread",
+        targetType: "thread",
+        targetId: thread.id,
+        detail: `${thread.board.slug} -> ${target.slug}`,
+      },
+    })
+    .catch(() => {});
+  logger.info("thread.move", { userId: user.id, threadId, from: thread.board.slug, to: target.slug });
+  revalidateTag("threads");
+  revalidateTag("boards");
+  revalidatePath(`/t/${thread.id}`);
+  revalidatePath("/");
   redirect(`/t/${thread.id}`);
 }
