@@ -656,7 +656,7 @@ export async function toggleDigestAction(formData: FormData): Promise<void> {
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { id: true, digested: true, board: { select: { id: true } } },
+    select: { id: true, title: true, digested: true, authorId: true, board: { select: { id: true } } },
   });
   if (!thread) redirect("/");
   if (!canModerateBoard(user, await isBoardModerator(user.id, thread.board.id))) redirect("/");
@@ -665,6 +665,19 @@ export async function toggleDigestAction(formData: FormData): Promise<void> {
     where: { id: thread.id },
     data: { digested: !thread.digested },
   });
+  // 刚被加精才打扰作者,取消加精静默
+  if (!thread.digested && thread.authorId !== user.id) {
+    await db.notification
+      .create({
+        data: {
+          userId: thread.authorId,
+          type: "digest",
+          title: `你的主题「${thread.title.slice(0, 30)}」被加精了`,
+          link: `/t/${thread.id}`,
+        },
+      })
+      .catch(() => {});
+  }
   await db.auditLog
     .create({ data: { actorId: user.id, action: "toggle_digest", targetType: "thread", targetId: thread.id } })
     .catch(() => {});

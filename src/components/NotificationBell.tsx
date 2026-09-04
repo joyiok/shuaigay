@@ -221,7 +221,7 @@ export default function NotificationBell({ initialUnread = 0 }: { initialUnread?
                         flexShrink: 0,
                       }}
                     >
-                      {n.type === "reply" ? "回复" : n.type === "mention" ? "提及" : n.type === "rate" ? "点赞" : n.type === "favorite" ? "收藏" : n.type === "report" ? "举报" : "系统"}
+                      {n.type === "reply" ? "回复" : n.type === "mention" ? "提及" : n.type === "rate" ? "点赞" : n.type === "favorite" ? "收藏" : n.type === "report" ? "举报" : n.type === "follow" ? "关注" : n.type === "medal" ? "勋章" : n.type === "digest" ? "加精" : "系统"}
                     </span>
                     <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>
                       {timeAgo(n.createdAt)}

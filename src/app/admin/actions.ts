@@ -16,6 +16,7 @@ import {
 import { getStorage } from "@/lib/storage";
 import { logger } from "@/lib/logger";
 import { banUser, unbanUser } from "@/lib/ban";
+import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 
@@ -66,7 +67,7 @@ export async function adminToggleDigestAction(formData: FormData): Promise<void>
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
-    select: { digested: true, boardId: true },
+    select: { title: true, digested: true, authorId: true, boardId: true },
   });
   if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
   if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
@@ -75,6 +76,18 @@ export async function adminToggleDigestAction(formData: FormData): Promise<void>
     where: { id: threadId },
     data: { digested: !thread.digested },
   });
+  if (!thread.digested && thread.authorId !== actorId) {
+    await db.notification
+      .create({
+        data: {
+          userId: thread.authorId,
+          type: "digest",
+          title: `你的主题「${thread.title.slice(0, 30)}」被加精了`,
+          link: `/t/${threadId}`,
+        },
+      })
+      .catch(() => {});
+  }
   await db.auditLog.create({ data: { actorId, action: "toggle_digest", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.toggle_digest", { actorId, threadId, digested: !thread.digested });
   revalidateTag("threads");
@@ -780,6 +793,41 @@ export async function revokeMedalAction(formData: FormData): Promise<void> {
   logger.info("admin.revoke_medal", { actorId, userId, medalId });
   revalidateTag("medals");
   redirect(ADMIN_TAB("medals"));
+}
+
+/* ---------------- 全站公告 ---------------- */
+
+const announceSchema = z.object({
+  title: z.string().trim().min(1).max(50),
+  body: z.string().trim().max(500).optional().default(""),
+  link: z.string().trim().max(200).optional().default(""),
+});
+
+/** 全站公告:给每个用户发一条 system 通知,分块写入,记审计 */
+export async function broadcastAnnouncementAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const parsed = announceSchema.safeParse({
+    title: formData.get("title"),
+    body: formData.get("body") ?? "",
+    link: formData.get("link") ?? "",
+  });
+  if (!parsed.success) redirect(ADMIN_TAB("stats") + "&error=invalid");
+  // 链接只允许站内路径,防 open redirect
+  const rawLink = parsed.data.link.trim();
+  const link = rawLink.startsWith("/") && !rawLink.startsWith("//") ? rawLink : null;
+
+  const users = await db.user.findMany({ select: { id: true } });
+  let sent = 0;
+  for (const chunk of chunkIds(users.map((u) => u.id), 500)) {
+    const rows = buildAnnouncementRows(chunk, { title: parsed.data.title, body: parsed.data.body || undefined, link });
+    if (rows.length === 0) continue;
+    await db.notification.createMany({ data: rows });
+    sent += rows.length;
+  }
+  await db.auditLog.create({ data: { actorId, action: "broadcast_announce", targetType: "user", targetId: "-", detail: `${parsed.data.title} (${sent}人)` } }).catch(() => {});
+  logger.info("admin.broadcast_announce", { actorId, title: parsed.data.title, sent });
+  revalidateTag("notifications");
+  redirect(ADMIN_TAB("stats"));
 }
 
 /* ---------------- 敏感词 ---------------- */

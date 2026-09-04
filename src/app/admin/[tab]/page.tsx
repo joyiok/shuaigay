@@ -22,6 +22,7 @@ import {
   approveThreadAction,
   awardMedalAction,
   banUserAction,
+  broadcastAnnouncementAction,
   clearBoardAction,
   createBoardAction,
   createCategoryAction,
@@ -1252,6 +1253,19 @@ async function StatsTab() {
       <div className="card" style={{ padding: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/atom.xml" style={{ color: "var(--brand)" }}>/atom.xml</Link> · <Link href="/feed.json" style={{ color: "var(--brand)" }}>/feed.json</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
         <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>数据 60s 缓存，隐藏版块已过滤</span>
+      </div>
+
+      <div className="card" style={{ padding: 16 }}>
+        <div className="quick-title" style={{ margin: "0 0 4px" }}>全站公告 <span>发给全部 {userCount} 位用户</span></div>
+        <p style={{ fontSize: 11, color: "var(--text-subtle)", margin: "0 0 10px" }}>每人收一条系统通知（铃铛 30s 内刷新）。只发重要事：停机、规则变更、活动。</p>
+        <form action={broadcastAnnouncementAction} style={{ display: "grid", gap: 8 }}>
+          <input name="title" required maxLength={50} placeholder="标题（≤50 字），如：今晚 2 点停机维护" style={{ ...paperInput }} />
+          <input name="body" maxLength={500} placeholder="正文可选（≤500 字）" style={{ ...paperInput }} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input name="link" maxLength={200} placeholder="站内链接可选，如 /t/abc123" style={{ ...paperInput, flex: 1, minWidth: 200 }} />
+            <button type="submit" style={paperDarkBtn}>📢 全站发送</button>
+          </div>
+        </form>
       </div>
     </div>
   );

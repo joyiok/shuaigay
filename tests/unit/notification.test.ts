@@ -4,6 +4,8 @@ import {
   linkMentions,
 } from "@/lib/markdown";
 import {
+  buildAnnouncementRows,
+  chunkIds,
   excerptForNotify,
   planMentionNotifications,
   planReplyNotifications,
@@ -127,5 +129,24 @@ describe("通知计划去重", () => {
   it("通知正文去空白并截断", () => {
     expect(excerptForNotify("多  空格\n换行", 20)).toBe("多 空格 换行");
     expect(excerptForNotify("a".repeat(300), 120).length).toBe(120);
+  });
+
+  it("全站公告:去重去空,一人一行 system 通知", () => {
+    const rows = buildAnnouncementRows(["a", "b", "a", ""], { title: "停机", body: "今晚", link: "/t/1" });
+    expect(rows).toEqual([
+      { userId: "a", type: "system", title: "停机", body: "今晚", link: "/t/1" },
+      { userId: "b", type: "system", title: "停机", body: "今晚", link: "/t/1" },
+    ]);
+  });
+
+  it("全站公告:缺省 body/link 为 null", () => {
+    expect(buildAnnouncementRows(["a"], { title: "嗨" })).toEqual([
+      { userId: "a", type: "system", title: "嗨", body: null, link: null },
+    ]);
+  });
+
+  it("分块:按指定大小切分", () => {
+    expect(chunkIds(["a", "b", "c", "d", "e"], 2)).toEqual([["a", "b"], ["c", "d"], ["e"]]);
+    expect(chunkIds([], 500)).toEqual([]);
   });
 });

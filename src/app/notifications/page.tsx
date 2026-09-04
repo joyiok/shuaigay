@@ -20,6 +20,9 @@ const TYPE_LABEL: Record<string, string> = {
   rate: "点赞",
   favorite: "收藏",
   report: "举报",
+  follow: "关注",
+  medal: "勋章",
+  digest: "加精",
   system: "系统",
 };
 
@@ -29,6 +32,9 @@ const TYPE_STYLE: Record<string, { bg: string; color: string; border: string }> 
   rate: { bg: "#FDF2F8", color: "#DB2777", border: "#FBCFE8" },
   favorite: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
   report: { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
+  follow: { bg: "#ECFDF5", color: "#047857", border: "#A7F3D0" },
+  medal: { bg: "#FFF7ED", color: "#C2410C", border: "#FED7AA" },
+  digest: { bg: "#FEFCE8", color: "#A16207", border: "#FDE68A" },
   system: { bg: "#F4F4F5", color: "#52525B", border: "#E4E4E7" },
 };
 

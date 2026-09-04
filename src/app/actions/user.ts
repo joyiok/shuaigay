@@ -64,6 +64,16 @@ export async function toggleFollowAction(formData: FormData): Promise<void> {
     logger.info("follow.remove", { userId: user.id, followingId: target.id });
   } else {
     await db.follow.create({ data: { followerId: user.id, followingId: target.id } });
+    await db.notification
+      .create({
+        data: {
+          userId: target.id,
+          type: "follow",
+          title: `${user.username} 关注了你`,
+          link: `/u/${encodeURIComponent(user.username)}`,
+        },
+      })
+      .catch(() => {});
     logger.info("follow.add", { userId: user.id, followingId: target.id });
   }
 

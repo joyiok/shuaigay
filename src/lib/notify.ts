@@ -2,7 +2,16 @@
  * 通知计划:纯函数,把「谁该收到什么通知」从 server action 里抽出来,
  * 便于单测覆盖去重/排除自己的规则。
  */
-export type NotifyKind = "reply" | "mention" | "rate" | "favorite" | "report";
+export type NotifyKind =
+  | "reply"
+  | "mention"
+  | "rate"
+  | "favorite"
+  | "report"
+  | "follow"
+  | "medal"
+  | "digest"
+  | "system";
 
 export interface NotifyPlanItem {
   userId: string;
@@ -70,4 +79,46 @@ export function planFavoriteReplyNotifications(opts: {
 /** 通知正文:去空白截断 */
 export function excerptForNotify(raw: string, max = 120): string {
   return raw.replace(/\s+/g, " ").slice(0, max);
+}
+
+export interface AnnouncementInput {
+  title: string;
+  body?: string;
+  link?: string | null;
+}
+
+export interface AnnouncementRow {
+  userId: string;
+  type: NotifyKind;
+  title: string;
+  body: string | null;
+  link: string | null;
+}
+
+/** 全站公告行:去重去空,一人一行 system 通知 */
+export function buildAnnouncementRows(
+  userIds: readonly string[],
+  input: AnnouncementInput,
+): AnnouncementRow[] {
+  const seen = new Set<string>();
+  const rows: AnnouncementRow[] = [];
+  for (const id of userIds) {
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    rows.push({
+      userId: id,
+      type: "system",
+      title: input.title,
+      body: input.body ?? null,
+      link: input.link ?? null,
+    });
+  }
+  return rows;
+}
+
+/** 切块:公告逐块 createMany,避免单次写入过大 */
+export function chunkIds(ids: readonly string[], size: number): string[][] {
+  const out: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) out.push(ids.slice(i, i + size));
+  return out;
 }
