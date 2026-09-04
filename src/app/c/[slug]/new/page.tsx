@@ -18,6 +18,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 }
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import Composer from "@/components/Composer";
+import TitleDraft from "@/components/TitleDraft";
+import { draftKey } from "@/lib/draft";
 import Turnstile from "@/components/Turnstile";
 import Link from "next/link";
 import AuthRequired from "@/components/AuthRequired";
@@ -121,7 +123,9 @@ export default async function NewThreadPage({
           monospace
           maxFiles={MAX_FILES_PER_POST}
           maxBytes={maxUploadBytes()}
+          draftKey={draftKey("new", board.slug)}
         />
+        <TitleDraft storageKey={draftKey("newtitle", board.slug)} />
         <Turnstile resetSignal={error} />
         <div style={{ display: "flex", gap: 8 }}>
           <button

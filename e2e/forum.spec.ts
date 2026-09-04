@@ -350,3 +350,33 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
   await expect(page.getByText(inviter).first()).toBeVisible();
   await expect(page.getByText("登录后可编辑个人简介")).toBeVisible();
 });
+test("草稿：发帖标题+正文刷新不丢，清除后清空", async ({ page }) => {
+  const username = `df${Date.now()}${Math.floor(Math.random() * 1000)}`.slice(0, 20);
+  const title = `草稿标题-${username}`;
+  const body = `草稿正文内容-${username}`;
+
+  await page.goto("/register");
+  await page.fill('input[name="email"]', `${username}@test.dev`);
+  await page.fill('input[name="username"]', username);
+  await page.fill('input[name="password"]', "password123");
+  await page.getByRole("button", { name: "注册 — 去吹水" }).click();
+  await expect(page.locator("header")).toContainText(username);
+
+  await page.goto("/c/tech/new");
+  await page.fill('input[name="title"]', title);
+  await page.fill('textarea[name="content"]', body);
+  // 防抖 500ms 落盘，多等一拍再刷新
+  await page.waitForTimeout(900);
+  await page.reload();
+  await page.waitForLoadState("domcontentloaded", { timeout: 20000 });
+  await expect(page.locator('input[name="title"]')).toHaveValue(title, { timeout: 15000 });
+  await expect(page.locator('textarea[name="content"]')).toHaveValue(body, { timeout: 15000 });
+
+  // 清除草稿后刷新即空
+  await page.getByRole("button", { name: /草稿已自动保存/ }).click();
+  await page.waitForTimeout(900);
+  await page.reload();
+  await page.waitForLoadState("domcontentloaded", { timeout: 20000 });
+  await expect(page.locator('input[name="title"]')).toHaveValue("", { timeout: 15000 });
+  await expect(page.locator('textarea[name="content"]')).toHaveValue("", { timeout: 15000 });
+});

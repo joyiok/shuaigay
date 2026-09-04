@@ -1,8 +1,9 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import { sendMessageAction } from "@/app/actions/messages";
+import { clearDraft, draftKey, getLocalStorage, loadDraft, saveDraft } from "@/lib/draft";
 
 export default function MessageComposer({
   receiverUsername,
@@ -11,6 +12,30 @@ export default function MessageComposer({
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
+  const key = draftKey("msg", receiverUsername);
+  const [text, setText] = useState("");
+
+  // 草稿恢复:挂载后读(避开 SSR 水合 mismatch)
+  useEffect(() => {
+    const saved = loadDraft(getLocalStorage(), key);
+    if (saved) setText(saved);
+  }, [key]);
+
+  // 自动保存 + 提交清除
+  useEffect(() => {
+    const id = setTimeout(() => saveDraft(getLocalStorage(), key, text), 500);
+    return () => clearTimeout(id);
+  }, [text, key]);
+  useEffect(() => {
+    const form = formRef.current;
+    if (!form) return;
+    const onSubmit = () => {
+      clearDraft(getLocalStorage(), key);
+      setText("");
+    };
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, [key]);
 
   // Enter 发送，Shift+Enter 换行；若 @ 提及面板展开则让 MentionAutocomplete 优先处理
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -41,6 +66,8 @@ export default function MessageComposer({
           required
           rows={3}
           placeholder={`给 ${receiverUsername} 发私信… 支持 Markdown，@ 提及，回车发送 Shift+回车换行`}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
           onKeyDown={onKeyDown}
           className="composer-textarea"
           style={{ minHeight: 72 }}

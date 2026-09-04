@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import { formatBytes } from "@/lib/format";
 import { renderMarkdown } from "@/lib/markdown";
+import { clearDraft, getLocalStorage, loadDraft, saveDraft } from "@/lib/draft";
 
 const EMOJIS = ["😀", "😂", "😆", "😎", "🤔", "😍", "😭", "🔥"];
 
@@ -15,6 +16,8 @@ interface ComposerProps {
   maxFiles?: number;
   /** 单文件大小上限(服务端 maxUploadBytes) */
   maxBytes?: number;
+  /** 传了才启用草稿自动保存:localStorage 键,按场景隔离 */
+  draftKey?: string;
 }
 
 /**
@@ -34,6 +37,7 @@ export default function Composer({
   monospace = false,
   maxFiles = 5,
   maxBytes = 20 * 1024 * 1024,
+  draftKey,
 }: ComposerProps) {
   const taRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +48,53 @@ export default function Composer({
   const [tab, setTab] = useState<"edit" | "preview">("edit");
   const [text, setText] = useState("");
   const [previewHtml, setPreviewHtml] = useState("");
+  const [draftRestored, setDraftRestored] = useState(false);
+
+  // 草稿恢复:挂载后读(避开 SSR 水合 mismatch)
+  useEffect(() => {
+    if (!draftKey) return;
+    const saved = loadDraft(getLocalStorage(), draftKey);
+    if (saved) {
+      setText(saved);
+      setDraftRestored(true);
+    }
+  }, [draftKey]);
+
+  // 草稿自动保存:防抖 500ms 写 localStorage,7 天过期
+  useEffect(() => {
+    if (!draftKey) return;
+    const id = setTimeout(() => {
+      saveDraft(getLocalStorage(), draftKey, text);
+    }, 500);
+    return () => clearTimeout(id);
+  }, [text, draftKey]);
+
+  // 提交成功清草稿:监听所属表单 submit
+  useEffect(() => {
+    if (!draftKey) return;
+    const form = taRef.current?.form;
+    if (!form) return;
+    const onSubmit = () => {
+      clearDraft(getLocalStorage(), draftKey);
+      setDraftRestored(false);
+    };
+    form.addEventListener("submit", onSubmit);
+    return () => form.removeEventListener("submit", onSubmit);
+  }, [draftKey]);
+
+  function clearManualDraft() {
+    if (!draftKey) return;
+    clearDraft(getLocalStorage(), draftKey);
+    setText("");
+    setDraftRestored(false);
+    // 通知同页其它草稿持有者(如新帖标题)一起清
+    try {
+      window.dispatchEvent(new CustomEvent("sg:clear-drafts"));
+    } catch {
+      /* ignore */
+    }
+    taRef.current?.focus();
+  }
 
   // 防抖 200ms 渲染预览
   useEffect(() => {
@@ -402,6 +453,15 @@ export default function Composer({
           😊 表情
         </button>
         <span style={{ color: "var(--text-subtle)", fontSize: 12, marginLeft: "auto" }}>
+          {draftKey && (draftRestored || text) ? (
+            <button
+              type="button"
+              onClick={clearManualDraft}
+              style={{ color: "var(--brand)", fontSize: 12, marginRight: 8, textDecoration: "underline" }}
+            >
+              草稿已自动保存 · 清除
+            </button>
+          ) : null}
           支持粘贴图片 · @ 提及 · 最多 {maxFiles} 个 · 单个 ≤{" "}
           {Math.round(maxBytes / 1024 / 1024)}MB
         </span>

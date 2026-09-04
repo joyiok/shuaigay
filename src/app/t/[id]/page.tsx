@@ -33,6 +33,8 @@ import { makeExcerpt } from "@/lib/excerpt";
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import { parseThreadId, threadHref } from "@/lib/slug";
 import { isBoardModerator } from "@/lib/moderators";
+import ReadTracker from "@/components/ReadTracker";
+import { draftKey } from "@/lib/draft";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 
 const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
@@ -420,7 +422,7 @@ export default async function ThreadPage({
         {canReplyNow ? (
           <form action={replyAction} style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="threadId" value={thread.id} />
-            <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} />
+            <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id)} />
             <Turnstile resetSignal={error} />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
               <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 32, padding: "0 16px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>回复</button>
@@ -436,6 +438,7 @@ export default async function ThreadPage({
       </div>
 
       <Lightbox />
+      <ReadTracker threadId={thread.id} />
     </div>
   );
 }
