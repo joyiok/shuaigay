@@ -13,6 +13,7 @@ import {
   verifyPassword,
 } from "@/lib/auth";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
+import { passwordSchema } from "@/lib/password";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { consumeInvite } from "@/lib/invite";
 import { createVerificationToken, sendVerificationEmail, sendPasswordResetEmail, consumeVerificationToken } from "@/lib/email";
@@ -33,7 +34,7 @@ function safeNext(raw: FormDataEntryValue | null): string {
 const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
   username: z.string().regex(/^[a-zA-Z0-9_-]{3,20}$/),
-  password: z.string().min(8).max(72),
+  password: passwordSchema,
   invite: z.string().trim().regex(/^[a-zA-Z0-9]{4,32}$/).optional(),
 });
 
@@ -66,11 +67,8 @@ export async function registerAction(formData: FormData): Promise<void> {
     select: { email: true, username: true },
   });
   if (existing) {
-    redirect(
-      existing.email === email
-        ? "/register?error=email_taken"
-        : "/register?error=username_taken",
-    );
+    // 不区分邮箱/用户名：防账号枚举
+    redirect("/register?error=taken");
   }
 
   const inviteExists = inviteCode
@@ -185,13 +183,16 @@ export async function logoutAction(): Promise<void> {
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(72),
-  newPassword: z.string().min(8).max(72),
+  newPassword: passwordSchema,
 });
 
 export async function changePasswordAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const back = `/u/${encodeURIComponent(user.username)}`;
+  if (!(await checkRateLimit(`changepw:${user.id}`, 10, 3600))) {
+    redirect(`${back}?error=ratelimited`);
+  }
   const parsed = changePasswordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
@@ -248,7 +249,7 @@ export async function requestPasswordResetAction(formData: FormData): Promise<vo
 
 const resetSchema = z.object({
   token: z.string().min(10).max(200),
-  password: z.string().min(8).max(72),
+  password: passwordSchema,
 });
 
 export async function resetPasswordAction(formData: FormData): Promise<void> {
@@ -258,6 +259,10 @@ export async function resetPasswordAction(formData: FormData): Promise<void> {
   });
   if (!parsed.success) redirect("/reset?error=invalid");
   const { token, password } = parsed.data;
+  const ip = await clientIp();
+  if (!(await checkRateLimit(`reset:${ip}`, 10, 3600))) {
+    redirect("/reset?error=ratelimited");
+  }
   const res = await consumeVerificationToken(token, "RESET_PASSWORD");
   if (!res) redirect("/reset?error=token_invalid");
   const passwordHash = await hashPassword(password);

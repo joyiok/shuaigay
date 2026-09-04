@@ -19,7 +19,9 @@ header {
 }
 
 # 附件:Caddy 直接读盘伺服,不经过 Node
-handle /uploads/* {
+# handle_path 会剥掉 /uploads 前缀,映射到 /srv/uploads/<date>/<文件>,
+# 与 UPLOAD_DIR 落盘位置一致(之前用 handle 会多一层 /uploads 导致全 404)
+handle_path /uploads/* {
 	root * /srv/uploads
 	file_server
 	header Cache-Control "public, max-age=31536000, immutable"

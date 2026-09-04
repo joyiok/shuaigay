@@ -237,7 +237,8 @@ export async function adminResetPasswordAction(formData: FormData): Promise<void
   const actorId = await requireAdmin();
   const userId = String(formData.get("userId") ?? "");
   const password = String(formData.get("password") ?? "");
-  if (password.length < 8 || password.length > 72) redirect(ADMIN_TAB("users") + "&error=invalid");
+  const { isStrongPassword } = await import("@/lib/password");
+  if (!isStrongPassword(password)) redirect(ADMIN_TAB("users") + "&error=invalid");
   const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!user) redirect(ADMIN_TAB("users") + "&error=not_found");
   const { hashPassword } = await import("@/lib/auth");

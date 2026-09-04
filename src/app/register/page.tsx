@@ -12,9 +12,10 @@ export const metadata: Metadata = {
 };
 
 const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
-  invalid: { title: "格式不太对", msg: "用户名 3-20 位字母/数字/_/-，密码至少 8 位。", tip: "试试 shuaigay_01 这种，再加个 8 位以上的密码" },
+  invalid: { title: "格式不太对", msg: "用户名 3-20 位字母/数字/_/-；密码 12 位以上，或 8 位+含 3 类字符（大小写/数字/符号），别用常见弱密码。", tip: "试试 shuaigay_01 这种用户名，密码整个长的" },
   email_taken: { title: "邮箱已注册", msg: "这个邮箱已经有账号了。", tip: "直接去登录，或用另一个邮箱" },
   username_taken: { title: "用户名被占了", msg: "换个更骚的名字？", tip: "加个数字或下划线，比如 shuaigay_02" },
+  taken: { title: "注册不了", msg: "这个邮箱或用户名已经被用了。", tip: "换个邮箱或用户名再试，实在不行直接去登录" },
   ratelimited: { title: "手速太快", msg: "尝试太频繁，喝口水再试。", tip: "等 1 分钟，系统在保护你" },
   invite_invalid: { title: "邀请码不对", msg: "邀请码无效或已被用完。", tip: "找邀请人要个新的，或先不填邀请码直接注册" },
   captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },

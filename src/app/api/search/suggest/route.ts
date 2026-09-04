@@ -11,9 +11,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    // 只建议已过审、非隐藏版块的标题：待审/隐藏内容不可被匿名枚举
     const rows = await db.thread.findMany({
       where: {
         title: { contains: raw, mode: "insensitive" },
+        status: "approved",
+        board: { isHidden: false },
       },
       orderBy: { lastPostAt: "desc" },
       take: 5,

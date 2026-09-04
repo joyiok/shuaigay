@@ -25,6 +25,8 @@ export async function banUser(
   const trimmed = reason.trim().slice(0, 200) || "违反社区规定";
   const expiresAt = durationHours ? new Date(Date.now() + durationHours * 3_600_000) : null;
   await db.ban.create({ data: { userId, reason: trimmed, expiresAt } });
+  // 封禁即踢下线：删掉该用户全部会话，否则 30 天 TTL 内 ban 形同虚设
+  await db.session.deleteMany({ where: { userId } }).catch(() => {});
   logger.info("ban.create", { userId, reason: trimmed, expiresAt: expiresAt?.toISOString() ?? "permanent" });
 }
 

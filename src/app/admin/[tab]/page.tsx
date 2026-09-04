@@ -897,22 +897,21 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
 /* ---------------- 待审队列 ---------------- */
 
 async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
-  let threads = await db.thread.findMany({
-    where: { status: "pending" },
+  // 版块范围直接进 where：之前只 include board 没取 boardId，
+  // 内存过滤 boardScope.has(undefined) 恒 false，版主永远看不到待审。
+  const scopeIds = boardScope ? [...boardScope] : null;
+  const threads = await db.thread.findMany({
+    where: { status: "pending", ...(scopeIds ? { boardId: { in: scopeIds } } : {}) },
     orderBy: { createdAt: "asc" },
     take: 50,
     include: { author: { select: { username: true } }, board: { select: { name: true, slug: true } } },
   });
-  let posts = await db.post.findMany({
-    where: { status: "pending" },
+  const posts = await db.post.findMany({
+    where: { status: "pending", ...(scopeIds ? { thread: { boardId: { in: scopeIds } } } : {}) },
     orderBy: { createdAt: "asc" },
     take: 50,
     include: { author: { select: { username: true } }, thread: { select: { id: true, title: true, board: { select: { name: true, slug: true } } } } },
   });
-  if (boardScope) {
-    threads = threads.filter((t) => boardScope.has((t as any).boardId));
-    posts = posts.filter((p) => boardScope.has((p as any).thread.boardId));
-  }
   const total = threads.length + posts.length;
   return (
     <div style={{ display: "grid", gap: 12 }}>

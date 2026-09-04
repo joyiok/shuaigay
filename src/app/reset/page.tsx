@@ -24,8 +24,9 @@ export default async function ResetPage({
   }
 
   const ERRORS: Record<string, string> = {
-    invalid: "新密码需 8-72 位",
+    invalid: "新密码需 12 位以上，或 8 位+含 3 类字符",
     token_invalid: "链接无效或已过期，请重新申请",
+    ratelimited: "尝试太频繁，请稍后再试",
   };
 
   if (token && valid === false) {

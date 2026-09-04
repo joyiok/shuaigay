@@ -26,5 +26,9 @@ export async function checkRateLimit(
 export async function clientIp(): Promise<string> {
   const { headers } = await import("next/headers");
   const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
+  // Caddy 把真实客户端 IP 追加在 XFF 末尾；首段是客户端自填的，不可信。
+  // 取末段：攻击者伪造前面的段也绕不过限流。
+  const parts =
+    h.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+  return parts.length > 0 ? parts[parts.length - 1] : "local";
 }

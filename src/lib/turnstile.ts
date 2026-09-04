@@ -1,6 +1,7 @@
 /**
  * Cloudflare Turnstile 服务端校验。
- * - 未配置 TURNSTILE_SECRET_KEY(本地开发)时直接放行,不阻塞开发流程
+ * - 未配置 TURNSTILE_SECRET_KEY 时：开发环境放行不阻塞流程，
+ *   生产环境直接拒绝——漏配 key 等于裸奔，必须 loud fail。
  * - token 缺失或校验失败返回 false,由调用方引导用户重试
  */
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -10,7 +11,7 @@ export async function verifyTurnstile(
   ip: string,
 ): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
-  if (!secret) return true;
+  if (!secret) return process.env.NODE_ENV !== "production";
 
   const value = typeof token === "string" ? token.trim() : "";
   if (!value) return false;

@@ -376,12 +376,12 @@ export default async function UserPage({
         )}
 
         {/* 本人操作反馈：改密成功/失败 */}
-        {isSelf && (error === "wrong_password" || error === "same_password" || error === "invalid") && (
+        {isSelf && (error === "wrong_password" || error === "same_password" || error === "invalid" || error === "ratelimited") && (
           <div style={{ marginTop: 14 }}>
             <HumanizedFeedback
               type="error"
-              title={error === "wrong_password" ? "原密码不对" : error === "same_password" ? "新旧一样" : "格式不对"}
-              message={error === "wrong_password" ? "原密码没对上，改密失败。" : error === "same_password" ? "新密码和原密码相同，换一个。" : "新密码 8-72 位，检查下再试。"}
+              title={error === "wrong_password" ? "原密码不对" : error === "same_password" ? "新旧一样" : error === "ratelimited" ? "手速太快" : "格式不对"}
+              message={error === "wrong_password" ? "原密码没对上，改密失败。" : error === "same_password" ? "新密码和原密码相同，换一个。" : error === "ratelimited" ? "改密尝试太频繁，歇会儿再试。" : "新密码 12 位以上，或 8 位+含 3 类字符，检查下再试。"}
               suggestion={error === "wrong_password" ? "忘了就走忘记密码邮件" : "再想一个"}
             />
           </div>
