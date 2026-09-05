@@ -287,7 +287,7 @@ export default function MobileDrawer({
               </div>
 
               <div className="mobile-drawer-section" style={{ borderBottom: 0, paddingTop: 10, textAlign: "center", color: "var(--text-subtle)", fontSize: 11 }}>
-                SHUAI GAY · 活力渐变 · 1020px 下侧边栏已收纳至此
+                SHUAI GAY · 开放 · 克制 · 高效
               </div>
             </div>
           </div>,

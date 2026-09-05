@@ -27,14 +27,13 @@ export default async function LoginPage({
   const { error, next, reset } = await searchParams;
 
   return (
-    <div style={{ maxWidth: 440, margin: "24px auto", padding: "0 12px" }}>
-      <div className="card" style={{ padding: 20, position: "relative", transform: "rotate(0.15deg)" }}>
-        <div style={{ position: "absolute", top: -10, right: 28, width: 64, height: 14, background: "#FFF7A8", border: "1px solid rgba(17,17,20,0.12)", transform: "rotate(1.2deg)", boxShadow: "1px 1px 0 rgba(0,0,0,0.06)" }} />
+    <div style={{ maxWidth: 460, margin: "32px auto", padding: "0 8px" }}>
+      <div className="card" style={{ padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <span style={{ width: 32, height: 32, borderRadius: 8, background: "var(--panel)", color: "var(--text)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 12, border: "2px solid var(--line)", boxShadow: "2px 2px 0 var(--line)", transform: "rotate(1.5deg)" }}>SG</span>
+          <span className="brand-mark">SG</span>
           <div>
-            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, fontFamily: "Crimson Pro, serif", letterSpacing: "-0.02em", lineHeight: 1.1 }}>登录 — 回来坐坐</h1>
-            <p style={{ fontSize: 11, color: "var(--text-subtle)", margin: "2px 0 0", fontFamily: "JetBrains Mono, monospace" }}>别让帖子等太久</p>
+            <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.5 }}>登录 — 回来坐坐</h1>
+            <p style={{ fontSize: 12, color: "var(--text-subtle)", margin: "2px 0 0", }}>别让帖子等太久</p>
           </div>
         </div>
 
@@ -43,21 +42,21 @@ export default async function LoginPage({
         )}
         {reset && <div style={{ marginBottom: 12 }}><HumanizedFeedback type="success" title="密码已重置" message="用新密码登录就行。" suggestion="别再忘了，加个密码管理器？" /></div>}
 
-        <form action={loginAction} style={{ display: "grid", gap: 12 }}>
+        <form action={loginAction} style={{ display: "grid", gap: 18 }}>
           {next && <input type="hidden" name="next" value={next} />}
           <label style={{ display: "grid", gap: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", letterSpacing: "0.02em" }}>邮箱</span>
-            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" style={{ width: "100%", border: "2px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 13, outline: "none", background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)", fontFamily: "JetBrains Mono, monospace" }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", letterSpacing: "0.02em" }}>邮箱</span>
+            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)", }} />
           </label>
           <label style={{ display: "grid", gap: 5 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text)", display: "flex", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", display: "flex", justifyContent: "space-between" }}>
               <span>密码</span>
-              <Link href="/forgot" style={{ fontWeight: 500, color: "var(--text-subtle)", fontSize: 11, textDecoration: "underline", textUnderlineOffset: 2 }}>忘记了？</Link>
+              <Link href="/forgot" style={{ fontWeight: 500, color: "var(--text-subtle)", fontSize: 12, textDecoration: "underline", textUnderlineOffset: 2 }}>忘记了？</Link>
             </span>
-            <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "2px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 13, outline: "none", background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)" }} />
+            <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)" }} />
           </label>
           <Turnstile resetSignal={error} />
-          <button type="submit" style={{ width: "100%", background: "var(--text)", color: "var(--panel)", border: "2px solid var(--line)", borderRadius: 999, height: 40, fontSize: 14, fontWeight: 700, boxShadow: "3px 3px 0 var(--line)", fontFamily: "Space Grotesk, sans-serif", cursor: "pointer" }}>
+          <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>
             登录 →
           </button>
         </form>
@@ -69,7 +68,7 @@ export default async function LoginPage({
           </p>
         </div>
       </div>
-      <p style={{ textAlign: "center", fontSize: 11, color: "var(--text-subtle)", marginTop: 10, fontFamily: "JetBrains Mono, monospace" }}>回来就好，帖子还热着</p>
+      <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-subtle)", marginTop: 10, }}>回来就好，帖子还热着</p>
     </div>
   );
 }
