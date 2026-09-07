@@ -98,6 +98,14 @@ TURNSTILE_SECRET_KEY=<正式服务端密钥>
 TURNSTILE_HOSTNAMES=shuai.gay,www.shuai.gay
 SEED_ADMIN_EMAIL=<管理员邮箱>
 SEED_ADMIN_PASSWORD=<管理员强口令>
+
+# 可选:AI 自动运营(配置后每 10 分钟运行一次)
+AI_ADMIN_API_KEY=<独立的 AI 管理 API 密钥>
+AI_PROVIDER_API_KEY=<OpenAI 兼容模型服务密钥>
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+AI_AUTOMATION_ENABLED=1
+AI_AUTO_CONFIDENCE=0.9
 ```
 
 部署前检查：
@@ -149,3 +157,5 @@ docker compose exec -T backup sh /scripts/backup.sh
 ```
 
 本机备份不能替代异地灾备。需要异地备份时，在 `.env` 配置 B2 或 S3 兼容存储，并定期演练 `docker/backup/restore.sh`。
+
+AI 自动运营接口：`GET /api/ai/context` 读取公开内容和待处理举报，`POST /api/ai/actions` 执行白名单动作，`POST /api/ai/automation/run` 手动触发一次模型分析。请求使用 `Authorization: Bearer <AI_ADMIN_API_KEY>`。自动任务只会归类、置顶/精华/锁帖或送入待审队列，不提供删除、封号、清空版块或修改权限。

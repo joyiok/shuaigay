@@ -59,6 +59,13 @@ services:
       RATE_LIMIT_REPLY: ${RATE_LIMIT_REPLY:-10}
       RATE_LIMIT_EDIT: ${RATE_LIMIT_EDIT:-10}
       RATE_LIMIT_RATE: ${RATE_LIMIT_RATE:-40}
+      AI_ADMIN_API_KEY: ${AI_ADMIN_API_KEY:-}
+      AI_ADMIN_USER_ID: ${AI_ADMIN_USER_ID:-}
+      AI_PROVIDER_API_KEY: ${AI_PROVIDER_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.openai.com/v1}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      AI_AUTOMATION_ENABLED: ${AI_AUTOMATION_ENABLED:-0}
+      AI_AUTO_CONFIDENCE: ${AI_AUTO_CONFIDENCE:-0.9}
     volumes:
       - ./uploads:/srv/uploads
     ports:
@@ -111,6 +118,9 @@ services:
       B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      AI_AUTOMATION_ENABLED: ${AI_AUTOMATION_ENABLED:-0}
+      AI_ADMIN_API_KEY: ${AI_ADMIN_API_KEY:-}
+      AI_AUTOMATION_URL: ${AI_AUTOMATION_URL:-http://app:3000/api/ai/automation/run}
     volumes:
       - ./uploads:/srv/uploads:ro
       - ./backups:/backups
