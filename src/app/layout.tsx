@@ -143,7 +143,7 @@ export default async function RootLayout({
           <div className="bar">
             <Link href="/" className="brand" aria-label={`${settings.siteName}首页`}>
               {settings.logoUrl ? <img src={settings.logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
-              <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>{settings.siteName}</span>
+              {!settings.logoUrl && <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>{settings.siteName}</span>}
             </Link>
             <MobileDrawer
               siteName={settings.siteName}
