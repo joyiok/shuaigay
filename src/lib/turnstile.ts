@@ -5,13 +5,23 @@
  * - token 缺失或校验失败返回 false,由调用方引导用户重试
  */
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const TEST_SECRET = "1x0000000000000000000000000000000AA";
 
 export async function verifyTurnstile(
   token: FormDataEntryValue | null,
   ip: string,
+  expectedAction: string,
 ): Promise<boolean> {
   const secret = process.env.TURNSTILE_SECRET_KEY;
   if (!secret) return process.env.NODE_ENV !== "production";
+
+  const expectedHostnames = new Set(
+    (process.env.TURNSTILE_HOSTNAMES ?? "")
+      .split(",")
+      .map((hostname) => hostname.trim().toLowerCase())
+      .filter(Boolean),
+  );
+  if (!expectedHostnames.size) return false;
 
   const value = typeof token === "string" ? token.trim() : "";
   if (!value || value.length > 2048) return false;
@@ -29,8 +39,17 @@ export async function verifyTurnstile(
       signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
-    const data = (await res.json()) as { success?: boolean };
-    return data.success === true;
+    const data = (await res.json()) as {
+      success?: boolean;
+      action?: string;
+      hostname?: string;
+      metadata?: { result_with_testing_key?: boolean };
+    };
+    if (data.success !== true || !data.hostname || !expectedHostnames.has(data.hostname.toLowerCase())) return false;
+
+    const testMode = process.env.TURNSTILE_TEST_MODE === "1";
+    if (testMode) return secret === TEST_SECRET && data.metadata?.result_with_testing_key === true;
+    return data.action === expectedAction;
   } catch {
     // 验证服务不可达时保守拒绝,避免裸奔
     return false;

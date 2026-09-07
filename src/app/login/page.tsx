@@ -55,7 +55,7 @@ export default async function LoginPage({
             </span>
             <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)" }} />
           </label>
-          <Turnstile resetSignal={error} />
+          <Turnstile action="login" resetSignal={error} />
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>
             登录 →
           </button>

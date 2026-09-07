@@ -2,7 +2,7 @@ import { fileURLToPath } from "node:url";
 
 export function checkProduction(env) {
   const errors = [];
-  for (const key of ["DOMAIN", "SITE_URL", "POSTGRES_PASSWORD", "RESTIC_PASSWORD", "SMTP_URL", "MAIL_FROM", "NEXT_PUBLIC_TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"]) {
+  for (const key of ["DOMAIN", "SITE_URL", "POSTGRES_PASSWORD", "RESTIC_PASSWORD", "SMTP_URL", "MAIL_FROM", "NEXT_PUBLIC_TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY", "TURNSTILE_HOSTNAMES", "SEED_ADMIN_EMAIL", "SEED_ADMIN_PASSWORD"]) {
     if (!env[key]?.trim()) errors.push(`${key} 未配置`);
   }
   try {
@@ -19,6 +19,11 @@ export function checkProduction(env) {
   for (const key of ["NEXT_PUBLIC_TURNSTILE_SITE_KEY", "TURNSTILE_SECRET_KEY"]) {
     if (/^[123]x0{10}/.test(env[key] ?? "")) errors.push(`${key} 不能使用官方测试密钥上线`);
   }
+  const turnstileHostnames = (env.TURNSTILE_HOSTNAMES ?? "").split(",").map(hostname => hostname.trim().toLowerCase()).filter(Boolean);
+  if (!turnstileHostnames.includes((env.DOMAIN ?? "").toLowerCase()) || turnstileHostnames.some(hostname => /^(localhost|127\.0\.0\.1|.*example\.com)$/.test(hostname))) {
+    errors.push("TURNSTILE_HOSTNAMES 必须包含正式 DOMAIN，且不能包含测试域名");
+  }
+  if (env.TURNSTILE_TEST_MODE === "1") errors.push("生产环境不能启用 TURNSTILE_TEST_MODE");
   if (env.SMTP_URL && !/^smtps?:\/\//.test(env.SMTP_URL)) errors.push("SMTP_URL 必须以 smtp:// 或 smtps:// 开头");
   for (const key of ["MAIL_FROM", "SEED_ADMIN_EMAIL"]) {
     if (env[key] && (!env[key].includes("@") || /example\.com/.test(env[key]))) errors.push(`${key} 需要真实邮箱地址`);

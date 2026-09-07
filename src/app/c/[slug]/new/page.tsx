@@ -128,7 +128,7 @@ export default async function NewThreadPage({
           draftKey={draftKey("new", board.slug, user.id)}
         />
         <TitleDraft storageKey={draftKey("newtitle", board.slug, user.id)} />
-        <Turnstile resetSignal={error} />
+        <Turnstile action="create_thread" resetSignal={error} />
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="submit"

@@ -15,6 +15,7 @@ interface TurnstileWidget {
 
 interface TurnstileRenderOptions {
   sitekey: string;
+  action: string;
   theme?: "light" | "dark" | "auto";
   "response-field"?: boolean;
   callback?: (token: string) => void;
@@ -38,8 +39,10 @@ const WIDGET_SRC =
  * - token 过期自动重置;resetSignal 变化时重置(配合服务端 captcha_failed 重试)
  */
 export default function Turnstile({
+  action,
   resetSignal,
 }: {
+  action: string;
   resetSignal?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +58,7 @@ export default function Turnstile({
     if (!SITE_KEY || !el || !ts) return;
     widgetIdRef.current = ts.render(el, {
         sitekey: SITE_KEY,
+        action,
         theme: "light",
         "response-field": false,
         callback: (t: string) => { setToken(t); setError(false); },
@@ -70,7 +74,7 @@ export default function Turnstile({
       if (id) window.turnstile?.remove(id);
       widgetIdRef.current = null;
     };
-  }, [ready]);
+  }, [action, ready]);
 
   // 服务端返回 captcha_failed(跳回本页)时,重置 widget 让用户重新验证
   useEffect(() => {

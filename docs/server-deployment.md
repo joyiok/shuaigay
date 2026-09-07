@@ -95,6 +95,7 @@ SMTP_URL=<真实 SMTP 地址>
 MAIL_FROM="SHUAI GAY 论坛 <noreply@shuai.gay>"
 NEXT_PUBLIC_TURNSTILE_SITE_KEY=<正式站点密钥>
 TURNSTILE_SECRET_KEY=<正式服务端密钥>
+TURNSTILE_HOSTNAMES=shuai.gay,www.shuai.gay
 SEED_ADMIN_EMAIL=<管理员邮箱>
 SEED_ADMIN_PASSWORD=<管理员强口令>
 ```

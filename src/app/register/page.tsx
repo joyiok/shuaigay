@@ -64,7 +64,7 @@ export default async function RegisterPage({
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>密码 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 10 }}>至少 8 位</span></span>
             <input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)" }} />
           </label>
-          <Turnstile resetSignal={error} />
+          <Turnstile action="signup" resetSignal={error} />
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>
             {inviteCode ? "接受邀请，注册 →" : "注册 — 去吹水"}
           </button>
