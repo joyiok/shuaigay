@@ -6,11 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { assertNotBanned } from "@/lib/ban";
 import { threadHref } from "@/lib/slug";
 import { logger } from "@/lib/logger";
-
-function safeNext(raw: FormDataEntryValue | null): string {
-  const v = typeof raw === "string" ? raw : "";
-  return v.startsWith("/") && !v.startsWith("//") ? v : "";
-}
+import { safeNext } from "@/lib/navigation";
 
 export async function toggleFavoriteAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();

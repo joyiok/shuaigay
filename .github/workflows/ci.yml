@@ -14,6 +14,10 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
   SITE_URL: http://localhost:3100
   E2E_BASE_URL: http://localhost:3100
+  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
+  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA"
+  SEED_ADMIN_EMAIL: admin@example.com
+  SEED_ADMIN_PASSWORD: "ReleaseAdmin123!"
 
 jobs:
   unit:
@@ -90,8 +94,11 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Vitest (106 用例)
+      - name: Unit and integration tests
         run: npm test
+
+      - name: Production config checks
+        run: npm run test:release
 
       - name: Build (standalone · 60s 缓存 + headers 已含)
         run: npm run build
@@ -183,9 +190,7 @@ jobs:
           curl -sf http://localhost:3100/api/health
 
       - name: Run e2e
-        # 保留历史兜底：本地 7/7 全绿，CI 偶发 2/7 因时序，失败时仍上传报告而非直接红
         run: npx playwright test
-        continue-on-error: true
         id: e2e
 
       - name: Upload Playwright report
@@ -198,10 +203,6 @@ jobs:
             test-results
             blob-report
           retention-days: 7
-
-      - name: Mark e2e as neutral if flaky
-        if: steps.e2e.outcome == 'failure'
-        run: echo "e2e 偶发失败已放宽，CI 仍通过（本地 7/7 全绿）—— 见 playwright-report 制品"
 
   docker:
     name: docker · build check
@@ -223,4 +224,3 @@ jobs:
 
       - name: Validate compose config
         run: docker compose config >/dev/null && echo "compose.yml OK"
-

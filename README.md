@@ -21,6 +21,8 @@
 
 ## 一键部署（生产）
 
+完整的服务器初始化、Deploy Key、发布与运维步骤见 [生产服务器部署文档](docs/server-deployment.md)。
+
 ### 1. 准备环境
 
 ```bash
@@ -28,10 +30,15 @@ git clone <repo> && cd shuaigay
 cp .env.example .env
 # 编辑 .env,必填:
 #   POSTGRES_PASSWORD   强口令
+#   RESTIC_PASSWORD     备份加密强口令
 #   DOMAIN=forum.example.com
 #   SITE_URL=https://forum.example.com
-#   SMTP_URL=smtp://user:pass@smtp.example.com:587   # 留空则邮件仅打印日志
+#   SMTP_URL=smtp://user:pass@smtp.example.com:587
+#   MAIL_FROM="SHUAI GAY 论坛 <noreply@forum.example.com>"
+#   NEXT_PUBLIC_TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY
 #   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
+# 上线前检查（缺项会返回非 0）:
+npm run check:production
 ```
 
 ### 2. 启动
@@ -108,7 +115,7 @@ npm run dev    # http://localhost:3000
 
 可观测: 所有 server action 与 API 路由通过 `src/lib/logger.ts` 输出结构化 JSON 日志,可直采至 Loki/CloudWatch。
 
-邮件: 未配置 `SMTP_URL` 时邮件内容以 `email.mock` JSON 打印到容器日志,配置后经 nodemailer 真实发送。
+邮件: 开发环境未配置 `SMTP_URL` 时内容以 `email.mock` JSON 打印到日志；生产环境必须配置 SMTP，否则注册验证和重发会明确失败。
 
 封禁: 管理后台 → 用户管理 → 封禁/解封(可填天数,留空=永久),被封用户登录时 403,已登录会话的发帖/回帖/私信同样会被拦截。
 

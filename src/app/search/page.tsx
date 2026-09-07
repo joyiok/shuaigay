@@ -72,13 +72,14 @@ export default async function SearchPage({
         <span>/</span>
         <span style={{ color: "var(--text)", fontWeight: 600 }}>搜索</span>
       </div>
+      <h1 className="page-heading">搜索</h1>
 
       {/* 搜索表单 */}
       <form
         action="/search"
         method="get"
         className="card"
-        style={{ padding: 14, display: "grid", gap: 10 }}
+        style={{ padding: 14, display: "grid", gap: 10, overflow: "visible" }}
         role="search"
       >
         <div style={{ display: "flex", gap: 8 }}>

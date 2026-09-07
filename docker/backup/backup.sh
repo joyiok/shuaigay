@@ -6,6 +6,7 @@ set -eu
 TS=$(date +%Y%m%d-%H%M%S)
 DUMP="/tmp/dump-${TS}.sql.gz"
 
+restic snapshots >/dev/null 2>&1 || restic init
 pg_dump -h "$PGHOST" -U "$PGUSER" -d "$PGDATABASE" --no-owner | gzip > "$DUMP"
 
 restic backup "$DUMP" /srv/uploads --tag auto

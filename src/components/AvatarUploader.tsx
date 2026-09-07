@@ -50,6 +50,7 @@ export default function AvatarUploader({
   initialUrl: string | null;
 }) {
   const [preview, setPreview] = useState<string | null>(null);
+  const [fileName, setFileName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -69,10 +70,13 @@ export default function AvatarUploader({
     if (!f) {
       if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
       setPreview(null);
+      setFileName("");
       return;
     }
     if (f.size > 2 * 1024 * 1024) {
       setError("图片不能超过 2MB");
+      e.currentTarget.value = "";
+      setFileName("");
       return;
     }
     if (f.type && !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(f.type)) {
@@ -82,6 +86,7 @@ export default function AvatarUploader({
     if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
     const url = URL.createObjectURL(f);
     setPreview(url);
+    setFileName(f.name);
   };
 
   const onUpload = async () => {
@@ -160,23 +165,29 @@ export default function AvatarUploader({
           )}
         </div>
         <div style={{ flex: 1, display: "grid", gap: 6 }}>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/gif,image/webp"
-            onChange={onFileChange}
-            style={{
-              fontSize: 12,
-              color: "var(--text-muted)",
-            }}
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <label className="avatar-file-label" style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: 44, padding: "0 14px", overflow: "hidden", border: "1px solid var(--line)", borderRadius: 8, background: "var(--panel)", color: "var(--text)", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+              选择图片
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                aria-describedby="avatar-upload-help"
+                onChange={onFileChange}
+                style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}
+              />
+            </label>
+            <span aria-live="polite" style={{ minWidth: 0, color: "var(--text-subtle)", fontSize: 12, overflowWrap: "anywhere" }}>
+              {fileName || "未选择图片"}
+            </span>
+          </div>
           <div style={{ display: "flex", gap: 8 }}>
             <button
               type="button"
               onClick={onUpload}
               disabled={uploading}
               style={{
-                height: 28,
+                minHeight: 44,
                 padding: "0 12px",
                 background: uploading ? "var(--line)" : "var(--brand)",
                 color: uploading ? "var(--text-subtle)" : "#fff",
@@ -195,10 +206,11 @@ export default function AvatarUploader({
                 onClick={() => {
                   if (preview && preview.startsWith("blob:")) URL.revokeObjectURL(preview);
                   setPreview(null);
+                  setFileName("");
                   if (inputRef.current) inputRef.current.value = "";
                 }}
                 style={{
-                  height: 28,
+                  minHeight: 44,
                   padding: "0 12px",
                   background: "var(--panel)",
                   color: "var(--text-muted)",
@@ -211,13 +223,13 @@ export default function AvatarUploader({
               </button>
             )}
           </div>
-          <span style={{ fontSize: 11, color: "var(--text-subtle)", lineHeight: 1.5 }}>
-            支持 JPG/PNG/GIF/WEBP，限 2MB，前端自动裁为 1:1 256×256 JPEG (q=0.8) 后上传至 /api/avatar
+          <span id="avatar-upload-help" style={{ fontSize: 11, color: "var(--text-subtle)", lineHeight: 1.5 }}>
+            支持 JPG、PNG、GIF、WEBP，最大 2MB；上传前会自动裁成正方形。
           </span>
         </div>
       </div>
       {error && (
-        <p style={{ color: "var(--danger)", fontSize: 12, margin: 0, background: "var(--danger-soft)", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 10px" }}>
+        <p role="alert" style={{ color: "var(--danger)", fontSize: 12, margin: 0, background: "var(--danger-soft)", border: "1px solid #fecaca", borderRadius: 6, padding: "6px 10px" }}>
           {error}
         </p>
       )}

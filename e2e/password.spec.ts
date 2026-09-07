@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -9,7 +9,7 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.goto("/register");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await expect(page.locator("header")).toContainText(username);
 
@@ -20,7 +20,7 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
 
   // 原密码填错：被拒
   await page.fill('input[name="currentPassword"]', "wrongpass1");
-  await page.fill('input[name="newPassword"]', "newpass123");
+  await page.fill('input[name="newPassword"]', "ChangedPass123!");
   await page.getByRole("button", { name: "换密码" }).click();
   // 提交后只等导航、不重发：重发会取消在途跳转反而自残；60s 轮询兜底慢导航
   await expect.poll(() => page.url(), { timeout: 60000 }).toContain("error=wrong_password");
@@ -29,9 +29,8 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.waitForLoadState("load", { timeout: 20000 }).catch(() => {});
 
   // 换成功（短密码被浏览器 minLength 直接拦，服务端 invalid 分支防绕过不测 UI）
-  await page.fill('input[name="currentPassword"]', "password123");
-  await page.fill('input[name="newPassword"]', "newpass123");
-  await page.getByRole("button", { name: "换密码" }).click();
+  await page.fill('input[name="currentPassword"]', "ForumTest123!");
+  await page.fill('input[name="newPassword"]', "ChangedPass123!");
   await page.getByRole("button", { name: "换密码" }).click();
   // 同上：只等不重发
   await expect.poll(() => page.url(), { timeout: 60000 }).toContain("ok=password_changed");
@@ -41,13 +40,13 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.getByRole("button", { name: "退出" }).first().click();
   await page.goto("/login");
   await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await page.getByRole("button", { name: "登录 →" }).click();
   await expect(page.getByText("邮箱或密码不对")).toBeVisible({ timeout: 15000 });
   await expect(page.locator("header")).not.toContainText(username);
   // 失败后表单清空，邮箱重填再用新密码登
   await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', "newpass123");
+  await page.fill('input[name="password"]', "ChangedPass123!");
   await page.getByRole("button", { name: "登录 →" }).click();
   await expect(page.locator("header")).toContainText(username);
 });

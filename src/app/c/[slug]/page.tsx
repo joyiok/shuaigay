@@ -22,14 +22,15 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   if (!board) return { title: "版块不存在" };
   const site = process.env.SITE_URL ?? "https://forum.example.com";
   const url = `${site}/c/${board.slug}`;
-  const title = `${board.name} - SHUAI GAY 社区`;
+  const title = board.name;
+  const socialTitle = `${board.name} - SHUAI GAY 社区`;
   const description = board.description || `${board.name} — SHUAI GAY 社区的讨论版块。`;
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, type: "website", siteName: "SHUAI GAY 社区", locale: "zh_CN" },
-    twitter: { card: "summary", title, description },
+    openGraph: { title: socialTitle, description, url, type: "website", siteName: "SHUAI GAY 社区", locale: "zh_CN" },
+    twitter: { card: "summary", title: socialTitle, description },
   };
 }
 

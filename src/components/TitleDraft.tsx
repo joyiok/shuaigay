@@ -17,26 +17,20 @@ export default function TitleDraft({ storageKey }: { storageKey: string }) {
       input.value = saved;
       input.dispatchEvent(new Event("input", { bubbles: true }));
     }
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const onInput = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => saveDraft(store, storageKey, input.value), 500);
-    };
+    const onInput = () => saveDraft(store, storageKey, input.value);
     const form = input.form;
-    const onSubmit = () => clearDraft(store, storageKey);
     // Composer 的「清除草稿」联动:标题一起清
     const onClearAll = () => {
       clearDraft(store, storageKey);
       input.value = "";
     };
     input.addEventListener("input", onInput);
-    form?.addEventListener("submit", onSubmit);
-    window.addEventListener("sg:clear-drafts", onClearAll);
+    form?.addEventListener("reset", onClearAll);
+    form?.addEventListener("sg:clear-drafts", onClearAll);
     return () => {
-      clearTimeout(timer);
       input.removeEventListener("input", onInput);
-      form?.removeEventListener("submit", onSubmit);
-      window.removeEventListener("sg:clear-drafts", onClearAll);
+      form?.removeEventListener("reset", onClearAll);
+      form?.removeEventListener("sg:clear-drafts", onClearAll);
     };
   }, [storageKey]);
   return null;

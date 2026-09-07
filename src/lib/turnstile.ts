@@ -14,7 +14,7 @@ export async function verifyTurnstile(
   if (!secret) return process.env.NODE_ENV !== "production";
 
   const value = typeof token === "string" ? token.trim() : "";
-  if (!value) return false;
+  if (!value || value.length > 2048) return false;
 
   try {
     const res = await fetch(SITEVERIFY_URL, {
@@ -26,6 +26,7 @@ export async function verifyTurnstile(
         ...(ip && ip !== "local" ? { remoteip: ip } : {}),
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
     });
     if (!res.ok) return false;
     const data = (await res.json()) as { success?: boolean };

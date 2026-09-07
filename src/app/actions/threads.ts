@@ -43,7 +43,7 @@ import {
 } from "@/lib/notify";
 import { logger } from "@/lib/logger";
 
-const titleSchema = z.string().trim().min(1).max(120);
+const titleSchema = z.string().trim().min(5).max(120);
 const contentSchema = z.string().trim().min(1).max(20_000);
 
 interface PreparedFile {
@@ -131,7 +131,7 @@ async function findMentionedUsers(
   });
 }
 
-export async function createThreadAction(formData: FormData): Promise<void> {
+export async function createThreadAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   await assertNotBanned(user.id);
@@ -139,10 +139,10 @@ export async function createThreadAction(formData: FormData): Promise<void> {
   const title = titleSchema.safeParse(formData.get("title"));
   const content = contentSchema.safeParse(formData.get("content"));
   const boardSlug = String(formData.get("boardSlug") ?? "");
-  if (!title.success || !content.success) redirect("/?error=invalid");
 
   const board = await db.board.findUnique({ where: { slug: boardSlug } });
   if (!board) redirect("/?error=board_not_found");
+  if (!title.success || !content.success) redirect(`/c/${board.slug}/new?error=invalid`);
   const _isStaffForCreate = isAdmin(user) || (await isBoardModerator(user.id, board.id));
   if ((board as unknown as { isHidden: boolean }).isHidden && !_isStaffForCreate) redirect("/?error=not_found");
   if ((board as unknown as { isLocked: boolean }).isLocked && !_isStaffForCreate) redirect(`/c/${board.slug}/new?error=board_locked`);
@@ -168,19 +168,14 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     !(await checkRateLimit(`thread:${user.id}`, THREAD_RATE_LIMIT, 60)) ||
     !(await checkRateLimit(`thread:ip:${ip}`, THREAD_RATE_LIMIT, 60))
   ) {
-    redirect(`/c/${board.slug}?error=ratelimited`);
+    redirect(`/c/${board.slug}/new?error=ratelimited`);
   }
   if (!(await checkRateLimit(`thread:${user.id}`, THREAD_RATE_LIMIT, 3600))) {
-    redirect(`/c/${board.slug}?error=ratelimited`);
+    redirect(`/c/${board.slug}/new?error=ratelimited`);
   }
 
   const { files: prepared, error: fileError } = await prepareFiles(formData);
   if (fileError) redirect(`/c/${board.slug}/new?error=${fileError}`);
-
-  const storage = getStorage();
-  const attachmentRows = prepared.length
-    ? await persistFiles(storage, prepared, user.id)
-    : [];
 
   // 审核判定 A/B/C + 等级权限
   const approvalUser = await fetchApprovalUser(user.id);
@@ -205,6 +200,8 @@ export async function createThreadAction(formData: FormData): Promise<void> {
 
   // redirect 会抛 NEXT_REDIRECT,不能被 try 捕获,所以库操作和跳转分开
   const mentionedUsers = await findMentionedUsers(content.data, user.id);
+  const storage = getStorage();
+  const attachmentRows = await persistFiles(storage, prepared, user.id);
   let threadId: string;
   try {
     const thread = await db.$transaction(async (tx) => {
@@ -289,11 +286,10 @@ export async function createThreadAction(formData: FormData): Promise<void> {
     logger.error("thread.create_failed", { userId: user.id, error: String(e) });
     throw e;
   }
-  if (pending) redirect(`/c/${board.slug}?pending=1`);
-  redirect(`/t/${threadId}`);
+  return pending ? `/c/${board.slug}?pending=1` : `/t/${threadId}`;
 }
 
-export async function replyAction(formData: FormData): Promise<void> {
+export async function replyAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   await assertNotBanned(user.id);
@@ -336,11 +332,6 @@ export async function replyAction(formData: FormData): Promise<void> {
   const { files: prepared, error: fileError } = await prepareFiles(formData);
   if (fileError) redirect(`/t/${thread.id}?error=${fileError}`);
 
-  const storage = getStorage();
-  const attachmentRows = prepared.length
-    ? await persistFiles(storage, prepared, user.id)
-    : [];
-
   // 通知对象:楼主(非自己)+ 被提及者(非自己,且与楼主去重),一人一条 + 收藏订阅
   const mentionRows = await findMentionedUsers(content.data, user.id);
   const notifyPlan = planReplyNotifications({
@@ -373,6 +364,8 @@ export async function replyAction(formData: FormData): Promise<void> {
     for (const f of prepared) { if (f.buf.length > maxBytes) redirect(`/t/${thread.id}?error=file_too_large`); }
   }
 
+  const storage = getStorage();
+  const attachmentRows = await persistFiles(storage, prepared, user.id);
   try {
     await db.$transaction(async (tx) => {
       await tx.post.create({
@@ -455,8 +448,7 @@ export async function replyAction(formData: FormData): Promise<void> {
     logger.error("post.reply_failed", { userId: user.id, threadId, error: String(e) });
     throw e;
   }
-  if (pendingReply) redirect(`/t/${thread.id}?pending=1`);
-  redirect(`/t/${thread.id}`);
+  return pendingReply ? `/t/${thread.id}?pending=1` : `/t/${thread.id}`;
 }
 
 /**
@@ -602,18 +594,18 @@ export async function deletePostAction(formData: FormData): Promise<void> {
   }
 }
 
-export async function togglePinAction(formData: FormData): Promise<void> {
+export async function togglePinAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) return "/";
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
     select: { id: true, pinned: true, board: { select: { slug: true, id: true } } },
   });
-  if (!thread) redirect("/");
+  if (!thread) return "/";
   const isStaff = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
-  if (!isStaff) redirect("/");
+  if (!isStaff) return "/";
 
   await db.thread.update({
     where: { id: thread.id },
@@ -623,21 +615,21 @@ export async function togglePinAction(formData: FormData): Promise<void> {
   revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
   revalidatePath("/");
-  redirect(`/t/${thread.id}`);
+  return `/t/${thread.id}`;
 }
 
-export async function toggleLockAction(formData: FormData): Promise<void> {
+export async function toggleLockAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) return "/";
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
     select: { id: true, locked: true, board: { select: { id: true } } },
   });
-  if (!thread) redirect("/");
+  if (!thread) return "/";
   const isStaff = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
-  if (!isStaff) redirect("/");
+  if (!isStaff) return "/";
 
   await db.thread.update({
     where: { id: thread.id },
@@ -646,20 +638,20 @@ export async function toggleLockAction(formData: FormData): Promise<void> {
   logger.info("thread.toggle_lock", { userId: user.id, threadId });
   revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
-  redirect(`/t/${thread.id}`);
+  return `/t/${thread.id}`;
 }
 
-export async function toggleDigestAction(formData: FormData): Promise<void> {
+export async function toggleDigestAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) return "/";
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
     select: { id: true, title: true, digested: true, authorId: true, board: { select: { id: true } } },
   });
-  if (!thread) redirect("/");
-  if (!canModerateBoard(user, await isBoardModerator(user.id, thread.board.id))) redirect("/");
+  if (!thread) return "/";
+  if (!canModerateBoard(user, await isBoardModerator(user.id, thread.board.id))) return "/";
 
   await db.thread.update({
     where: { id: thread.id },
@@ -685,20 +677,20 @@ export async function toggleDigestAction(formData: FormData): Promise<void> {
   revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
   revalidatePath("/");
-  redirect(`/t/${thread.id}`);
+  return `/t/${thread.id}`;
 }
 
-export async function toggleGlobalPinAction(formData: FormData): Promise<void> {
+export async function toggleGlobalPinAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) return "/";
 
   const threadId = String(formData.get("threadId") ?? "");
   const thread = await db.thread.findUnique({
     where: { id: threadId },
     select: { id: true, globalPinned: true },
   });
-  if (!thread) redirect("/");
-  if (!canGlobalPin(user)) redirect("/");
+  if (!thread) return "/";
+  if (!canGlobalPin(user)) return "/";
 
   await db.thread.update({
     where: { id: thread.id },
@@ -711,12 +703,12 @@ export async function toggleGlobalPinAction(formData: FormData): Promise<void> {
   revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
   revalidatePath("/");
-  redirect(`/t/${thread.id}`);
+  return `/t/${thread.id}`;
 }
 
-export async function moveThreadAction(formData: FormData): Promise<void> {
+export async function moveThreadAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
-  if (!user) redirect("/");
+  if (!user) return "/";
 
   const threadId = String(formData.get("threadId") ?? "");
   const targetSlug = String(formData.get("targetBoardSlug") ?? "").trim().toLowerCase();
@@ -730,16 +722,16 @@ export async function moveThreadAction(formData: FormData): Promise<void> {
         select: { id: true, slug: true, isLocked: true },
       })
     : null;
-  if (!thread || !target) redirect(`/t/${threadId}?error=not_found`);
-  if (target.id === thread.board.id) redirect(`/t/${thread.id}`);
+  if (!thread || !target) return `/t/${threadId}?error=not_found`;
+  if (target.id === thread.board.id) return `/t/${thread.id}`;
   // 锁定的版块只有管理员能往里搬
-  if (target.isLocked && !isAdmin(user)) redirect(`/t/${thread.id}?error=board_locked`);
+  if (target.isLocked && !isAdmin(user)) return `/t/${thread.id}?error=board_locked`;
   const allowed = canMoveThread(
     user,
     await isBoardModerator(user.id, thread.board.id),
     await isBoardModerator(user.id, target.id),
   );
-  if (!allowed) redirect(`/t/${thread.id}?error=forbidden`);
+  if (!allowed) return `/t/${thread.id}?error=forbidden`;
 
   await db.thread.update({
     where: { id: thread.id },
@@ -762,5 +754,5 @@ export async function moveThreadAction(formData: FormData): Promise<void> {
   revalidateTag("boards");
   revalidatePath(`/t/${thread.id}`);
   revalidatePath("/");
-  redirect(`/t/${thread.id}`);
+  return `/t/${thread.id}`;
 }

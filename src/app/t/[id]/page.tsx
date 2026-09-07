@@ -8,6 +8,7 @@ import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import Lightbox from "@/components/Lightbox";
 import Composer from "@/components/Composer";
+import SubmissionForm from "@/components/SubmissionForm";
 import ErrorState from "@/components/ErrorState";
 import { canDeletePost, canEditPost, canReply, isAdmin } from "@/lib/permissions";
 import type { Cursor } from "@/lib/cursor";
@@ -77,10 +78,11 @@ export async function generateMetadata({
       },
     })
     .catch(() => null);
-  if (!thread) return { title: "主题不存在 | SHUAI GAY" };
+  if (!thread) return { title: "主题不存在" };
   const rawExcerpt = makeExcerpt(thread.posts[0]?.contentMd ?? "", "", 120);
   const description = rawExcerpt || `${thread.title} — 来自 ${thread.board.name} 版块，SHUAI GAY 社区的讨论。`;
-  const title = `${thread.title} - ${thread.board.name} - SHUAI GAY 社区`;
+  const title = `${thread.title} - ${thread.board.name}`;
+  const socialTitle = `${title} - SHUAI GAY 社区`;
   const siteUrl = process.env.SITE_URL ?? "https://forum.example.com";
   const url = `${siteUrl}${threadHref(id, thread.title)}`;
   const keywords = [thread.title, thread.board.name, thread.author.username, "SHUAI GAY", "论坛", "社区"];
@@ -90,8 +92,8 @@ export async function generateMetadata({
     description,
     keywords,
     alternates: { canonical: url },
-    openGraph: { title, description, type: "article", url, siteName: "SHUAI GAY 社区", locale: "zh_CN", authors: [thread.author.username], images: [{ url: og, width: 1200, height: 630 }] },
-    twitter: { card: "summary_large_image", title, description, images: [og] },
+    openGraph: { title: socialTitle, description, type: "article", url, siteName: "SHUAI GAY 社区", locale: "zh_CN", authors: [thread.author.username], images: [{ url: og, width: 1200, height: 630 }] },
+    twitter: { card: "summary_large_image", title: socialTitle, description, images: [og] },
   };
 }
 
@@ -230,25 +232,25 @@ export default async function ThreadPage({
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
             {isBoardStaff && (
               <>
-                <form action={togglePinAction}>
+                <SubmissionForm action={togglePinAction}>
                   <input type="hidden" name="threadId" value={thread.id} />
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.pinned ? "取消置顶" : "置顶"}</button>
-                </form>
+                </SubmissionForm>
                 {admin && (
-                  <form action={toggleGlobalPinAction}>
+                  <SubmissionForm action={toggleGlobalPinAction}>
                     <input type="hidden" name="threadId" value={thread.id} />
                     <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.globalPinned ? "取消全局置顶" : "全局置顶"}</button>
-                  </form>
+                  </SubmissionForm>
                 )}
-                <form action={toggleDigestAction}>
+                <SubmissionForm action={toggleDigestAction}>
                   <input type="hidden" name="threadId" value={thread.id} />
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.digested ? "取消加精" : "加精"}</button>
-                </form>
-                <form action={toggleLockAction}>
+                </SubmissionForm>
+                <SubmissionForm action={toggleLockAction}>
                   <input type="hidden" name="threadId" value={thread.id} />
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>{thread.locked ? "解锁" : "锁定"}</button>
-                </form>
-                <form action={moveThreadAction} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
+                </SubmissionForm>
+                <SubmissionForm action={moveThreadAction} style={{ display: "inline-flex", gap: 4, alignItems: "center" }}>
                   <input type="hidden" name="threadId" value={thread.id} />
                   <select name="targetBoardSlug" defaultValue="" required style={{ height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>
                     <option value="" disabled>移到…</option>
@@ -257,7 +259,7 @@ export default async function ThreadPage({
                     ))}
                   </select>
                   <button style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>移动</button>
-                </form>
+                </SubmissionForm>
               </>
             )}
             <form action={toggleFavoriteAction}>
@@ -333,7 +335,7 @@ export default async function ThreadPage({
                     {deletable && (
                       <form action={deletePostAction}>
                         <input type="hidden" name="postId" value={p.id} />
-                        <button style={{ color: "var(--text-subtle)", fontSize: 12 }} className="hover:text-red-600">删除</button>
+                        <button className="post-quote-btn hover:text-red-600">删除</button>
                       </form>
                     )}
                   </div>
@@ -420,14 +422,14 @@ export default async function ThreadPage({
 
       <div className="card" style={{ padding: 14 }}>
         {canReplyNow ? (
-          <form action={replyAction} style={{ display: "grid", gap: 10 }}>
+          <SubmissionForm key={draftKey("reply", thread.id, user!.id)} action={replyAction} style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="threadId" value={thread.id} />
-            <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id)} />
+            <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id, user!.id)} />
             <Turnstile resetSignal={error} />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
               <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 32, padding: "0 16px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>回复</button>
             </div>
-          </form>
+          </SubmissionForm>
         ) : user ? (
           <p style={{ color: "var(--text-muted)", fontSize: 13 }}>{(thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff ? "版块已锁定，无法回复（仅版主/管理员可发）。" : "主题已锁定，无法回复。"}</p>
         ) : (

@@ -137,6 +137,7 @@ export default async function AdminPage({
           <span>/</span>
           <span style={{ color: "var(--text)", fontWeight: 600 }}>管理后台</span>
         </div>
+        <h1 className="page-heading">管理后台</h1>
         <AuthRequired title="请先登录" description="管理后台仅对登录用户开放，登录后若拥有管理员或版主权限即可进入。" next="/admin" />
       </div>
     );
@@ -151,6 +152,7 @@ export default async function AdminPage({
           <span>/</span>
           <span style={{ color: "var(--text)", fontWeight: 600 }}>管理后台</span>
         </div>
+        <h1 className="page-heading">管理后台</h1>
         <EmptyState
           variant="report"
           title="无权访问"
@@ -174,15 +176,16 @@ export default async function AdminPage({
         <span>/</span>
         <span style={{ color: "var(--text)", fontWeight: 600 }}>管理后台</span>
       </div>
+      <h1 className="page-heading">管理后台</h1>
 
       <div className="topic-toolbar">
-        <div className="tab-bar">
+        <nav className="tab-bar admin-tabs" aria-label="管理功能">
           {visibleTabs.map((t) => (
             <Link key={t.key} href={`/admin/${t.key}`} className={`tab ${active === t.key ? "active" : ""}`}>
               {t.label}
             </Link>
           ))}
-        </div>
+        </nav>
       </div>
 
       {error && ERRORS[error] && (

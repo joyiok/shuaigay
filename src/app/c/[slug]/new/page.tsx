@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import Composer from "@/components/Composer";
 import TitleDraft from "@/components/TitleDraft";
+import SubmissionForm from "@/components/SubmissionForm";
 import { draftKey } from "@/lib/draft";
 import Turnstile from "@/components/Turnstile";
 import Link from "next/link";
@@ -35,6 +36,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },
   sensitive: { title: "有敏感词", msg: "内容里有敏感词，已转待审而不是直接拦。", tip: "等版主过审，或改一下措辞" },
   daily_limit: { title: "今天发够了", msg: "今日发帖已达上限。", tip: "新手 3/日 正式 5/日，明天再来或升个级" },
+  ratelimited: { title: "发帖太快了", msg: "已达到发帖频率限制，草稿已保留。", tip: "稍后再试" },
 };
 
 export default async function NewThreadPage({
@@ -85,7 +87,7 @@ export default async function NewThreadPage({
         <span>/</span>
         <span style={{ color: "var(--text)", fontWeight: 600 }}>发新帖</span>
       </div>
-      <form action={createThreadAction} className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
+      <SubmissionForm key={draftKey("new", board.slug, user.id)} action={createThreadAction} className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
         <input type="hidden" name="boardSlug" value={board.slug} />
         <h1 style={{ fontSize: 16, fontWeight: 800, margin: 0, fontFamily: "Crimson Pro, serif" }}>在「{board.name}」发新帖</h1>
         {error && ERRORS[error] && (
@@ -123,9 +125,9 @@ export default async function NewThreadPage({
           monospace
           maxFiles={MAX_FILES_PER_POST}
           maxBytes={maxUploadBytes()}
-          draftKey={draftKey("new", board.slug)}
+          draftKey={draftKey("new", board.slug, user.id)}
         />
-        <TitleDraft storageKey={draftKey("newtitle", board.slug)} />
+        <TitleDraft storageKey={draftKey("newtitle", board.slug, user.id)} />
         <Turnstile resetSignal={error} />
         <div style={{ display: "flex", gap: 8 }}>
           <button
@@ -150,7 +152,7 @@ export default async function NewThreadPage({
             取消
           </Link>
         </div>
-      </form>
+      </SubmissionForm>
     </div>
   );
 }

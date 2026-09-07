@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { cache } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 
@@ -51,10 +51,13 @@ export async function createSession(userId: string): Promise<void> {
     data: { tokenHash: hashToken(token), userId, expiresAt },
   });
   const jar = await cookies();
+  const forwardedProto = (await headers()).get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase();
+  const siteUrl = process.env.SITE_URL?.trim().toLowerCase();
+  const secure = process.env.NODE_ENV === "production" && forwardedProto !== "http" && !siteUrl?.startsWith("http://");
   jar.set(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
+    secure,
     path: "/",
     expires: expiresAt,
   });

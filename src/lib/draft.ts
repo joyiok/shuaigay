@@ -25,8 +25,8 @@ const READPOS_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export type DraftKind = "reply" | "new" | "newtitle" | "msg";
 
 /** 草稿键:回复/新帖正文/新帖标题/私信各自隔离 */
-export function draftKey(kind: DraftKind, id: string): string {
-  return `sg:draft:${kind}:${id}`;
+export function draftKey(kind: DraftKind, id: string, userId: string): string {
+  return `sg:draft:${userId}:${kind}:${id}`;
 }
 
 export function readPosKey(threadId: string): string {

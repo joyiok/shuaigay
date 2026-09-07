@@ -1,45 +1,35 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import { sendMessageAction } from "@/app/actions/messages";
-import { clearDraft, draftKey, getLocalStorage, loadDraft, saveDraft } from "@/lib/draft";
+import { draftKey } from "@/lib/draft";
+import { useDraft } from "./useDraft";
+import SubmissionForm from "./SubmissionForm";
 
 export default function MessageComposer({
   receiverUsername,
+  userId,
 }: {
   receiverUsername: string;
+  userId: string;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const taRef = useRef<HTMLTextAreaElement>(null);
-  const key = draftKey("msg", receiverUsername);
-  const [text, setText] = useState("");
+  const key = draftKey("msg", receiverUsername, userId);
+  const [text, setText] = useDraft(key);
 
-  // 草稿恢复:挂载后读(避开 SSR 水合 mismatch)
-  useEffect(() => {
-    const saved = loadDraft(getLocalStorage(), key);
-    if (saved) setText(saved);
-  }, [key]);
-
-  // 自动保存 + 提交清除
-  useEffect(() => {
-    const id = setTimeout(() => saveDraft(getLocalStorage(), key, text), 500);
-    return () => clearTimeout(id);
-  }, [text, key]);
   useEffect(() => {
     const form = formRef.current;
     if (!form) return;
-    const onSubmit = () => {
-      clearDraft(getLocalStorage(), key);
-      setText("");
-    };
-    form.addEventListener("submit", onSubmit);
-    return () => form.removeEventListener("submit", onSubmit);
+    const onReset = () => setText("");
+    form.addEventListener("reset", onReset);
+    return () => form.removeEventListener("reset", onReset);
   }, [key]);
 
   // Enter 发送，Shift+Enter 换行；若 @ 提及面板展开则让 MentionAutocomplete 优先处理
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
       // MentionAutocomplete 展开时不要拦截，让其选中
       const mentionOpen = typeof document !== "undefined" && !!document.querySelector(".mention-pop");
       if (mentionOpen) return;
@@ -53,8 +43,8 @@ export default function MessageComposer({
   };
 
   return (
-    <form
-      ref={formRef}
+    <SubmissionForm
+      formRef={formRef}
       action={sendMessageAction}
       style={{ display: "grid", gap: 8, borderTop: "1px solid var(--line-soft)", paddingTop: 12 }}
     >
@@ -64,10 +54,12 @@ export default function MessageComposer({
           ref={taRef}
           name="content"
           required
+          maxLength={5000}
+          aria-label="私信内容"
           rows={3}
           placeholder={`给 ${receiverUsername} 发私信… 支持 Markdown，@ 提及，回车发送 Shift+回车换行`}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onInput={(e) => setText(e.currentTarget.value)}
           onKeyDown={onKeyDown}
           className="composer-textarea"
           style={{ minHeight: 72 }}
@@ -94,6 +86,6 @@ export default function MessageComposer({
           发送
         </button>
       </div>
-    </form>
+    </SubmissionForm>
   );
 }

@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { assertNotBanned } from "@/lib/ban";
 import { logger } from "@/lib/logger";
+import { safeNext } from "@/lib/navigation";
 import {
   INVITE_CODES_PER_USER,
   createInviteCode,
@@ -36,11 +37,6 @@ export async function generateInviteAction(): Promise<void> {
 
   await createInviteCode(user.id);
   revalidatePath("/invite");
-}
-
-function safeNext(raw: FormDataEntryValue | null): string {
-  const v = typeof raw === "string" ? raw : "";
-  return v.startsWith("/") && !v.startsWith("//") ? v : "";
 }
 
 /** 关注/取关用户(不能关注自己),操作后回到该用户主页 */

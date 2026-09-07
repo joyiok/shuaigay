@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import MentionAutocomplete from "./MentionAutocomplete";
 import { formatBytes } from "@/lib/format";
 import { renderMarkdown } from "@/lib/markdown";
-import { clearDraft, getLocalStorage, loadDraft, saveDraft } from "@/lib/draft";
+import { useDraft } from "./useDraft";
 
 const EMOJIS = ["😀", "😂", "😆", "😎", "🤔", "😍", "😭", "🔥"];
 
@@ -46,53 +46,26 @@ export default function Composer({
   const [fileError, setFileError] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [tab, setTab] = useState<"edit" | "preview">("edit");
-  const [text, setText] = useState("");
+  const [text, setText] = useDraft(draftKey);
   const [previewHtml, setPreviewHtml] = useState("");
-  const [draftRestored, setDraftRestored] = useState(false);
 
-  // 草稿恢复:挂载后读(避开 SSR 水合 mismatch)
+  // SubmissionForm 仅在写入成功后 reset。
   useEffect(() => {
-    if (!draftKey) return;
-    const saved = loadDraft(getLocalStorage(), draftKey);
-    if (saved) {
-      setText(saved);
-      setDraftRestored(true);
-    }
-  }, [draftKey]);
-
-  // 草稿自动保存:防抖 500ms 写 localStorage,7 天过期
-  useEffect(() => {
-    if (!draftKey) return;
-    const id = setTimeout(() => {
-      saveDraft(getLocalStorage(), draftKey, text);
-    }, 500);
-    return () => clearTimeout(id);
-  }, [text, draftKey]);
-
-  // 提交成功清草稿:监听所属表单 submit
-  useEffect(() => {
-    if (!draftKey) return;
     const form = taRef.current?.form;
     if (!form) return;
-    const onSubmit = () => {
-      clearDraft(getLocalStorage(), draftKey);
-      setDraftRestored(false);
+    const onReset = () => {
+      setText("");
+      setFiles([]);
+      setFileError(null);
     };
-    form.addEventListener("submit", onSubmit);
-    return () => form.removeEventListener("submit", onSubmit);
+    form.addEventListener("reset", onReset);
+    return () => form.removeEventListener("reset", onReset);
   }, [draftKey]);
 
   function clearManualDraft() {
     if (!draftKey) return;
-    clearDraft(getLocalStorage(), draftKey);
     setText("");
-    setDraftRestored(false);
-    // 通知同页其它草稿持有者(如新帖标题)一起清
-    try {
-      window.dispatchEvent(new CustomEvent("sg:clear-drafts"));
-    } catch {
-      /* ignore */
-    }
+    taRef.current?.form?.dispatchEvent(new Event("sg:clear-drafts"));
     taRef.current?.focus();
   }
 
@@ -102,7 +75,7 @@ export default function Composer({
       try {
         setPreviewHtml(renderMarkdown(text));
       } catch {
-        setPreviewHtml(text);
+        setPreviewHtml("");
       }
     }, 200);
     return () => clearTimeout(id);
@@ -358,10 +331,11 @@ export default function Composer({
             ref={taRef}
             name="content"
             required
+            maxLength={20_000}
             rows={rows}
             placeholder={placeholder}
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onInput={(e) => setText(e.currentTarget.value)}
             onPaste={handlePaste}
             className="composer-textarea"
             style={textareaStyle}
@@ -382,10 +356,11 @@ export default function Composer({
               ref={taRef}
               name="content"
               required
+              maxLength={20_000}
               rows={rows}
               placeholder={placeholder}
               value={text}
-              onChange={(e) => setText(e.target.value)}
+              onInput={(e) => setText(e.currentTarget.value)}
               onPaste={handlePaste}
               className="composer-textarea"
               style={{ ...textareaStyle, minHeight: 180 }}
@@ -453,7 +428,7 @@ export default function Composer({
           😊 表情
         </button>
         <span style={{ color: "var(--text-subtle)", fontSize: 12, marginLeft: "auto" }}>
-          {draftKey && (draftRestored || text) ? (
+          {draftKey && text ? (
             <button
               type="button"
               onClick={clearManualDraft}

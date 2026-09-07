@@ -91,7 +91,7 @@ export default function MentionAutocomplete({ textareaRef }: Props) {
     if (!ta || !stateRef.current) return;
     const found = findMention(ta);
     const at = found && found.at >= 0 ? found.at : stateRef.current.at;
-    ta.setRangeText(`${username} `, at, ta.selectionStart, "end");
+    ta.setRangeText(`@${username} `, at, ta.selectionStart, "end");
     ta.focus();
     setState(null);
     setUsers([]);
@@ -99,6 +99,7 @@ export default function MentionAutocomplete({ textareaRef }: Props) {
   }
 
   function onKeyDown(e: KeyboardEvent) {
+    if (e.isComposing) return;
     const st = stateRef.current;
     if (!st) return;
     if (e.key === "ArrowDown" || e.key === "ArrowUp") {

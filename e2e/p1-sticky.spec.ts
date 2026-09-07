@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -43,7 +43,7 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
   await page.goto("/register");
   await page.fill('input[name="email"]', `${username}@test.dev`);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await page.getByRole("button", { name: "注册" }).click();
   await expect(page.locator("header")).toContainText(username);
 

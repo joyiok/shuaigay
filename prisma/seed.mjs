@@ -6,6 +6,9 @@ const db = new PrismaClient();
 async function main() {
   const adminEmail = process.env.SEED_ADMIN_EMAIL ?? "admin@example.com";
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "changeme123";
+  if (process.env.NODE_ENV === "production" && (!process.env.SEED_ADMIN_EMAIL || adminPassword.length < 12)) {
+    throw new Error("生产初始化需要 SEED_ADMIN_EMAIL 和至少 12 位的 SEED_ADMIN_PASSWORD");
+  }
 
   await db.user.upsert({
     where: { email: adminEmail },
@@ -46,7 +49,7 @@ async function main() {
   // 默认话题分类(若表为空)：侧边话题标签/版块内筛选开箱即有内容
   const catCount = await db.threadCategory.count();
   if (catCount === 0) {
-    const defaults: { boardSlug: string; name: string; order: number }[] = [
+    const defaults = [
       { boardSlug: "general", name: "灌水", order: 1 },
       { boardSlug: "general", name: "求助", order: 2 },
       { boardSlug: "tech", name: "折腾", order: 1 },

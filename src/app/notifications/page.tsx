@@ -64,6 +64,7 @@ export default async function NotificationsPage({
           <span>/</span>
           <span style={{ color: "var(--text)", fontWeight: 600 }}>通知</span>
         </div>
+        <h1 className="page-heading">通知</h1>
         <AuthRequired
           title="登录后查看通知"
           description="有人回复你、@你、给你点赞时，通知会聚合在这里，登录后即可查看。"
@@ -124,6 +125,7 @@ export default async function NotificationsPage({
           </span>
         )}
       </div>
+      <h1 className="page-heading">通知</h1>
 
       <div className="topic-toolbar">
         <div className="tab-bar">
@@ -209,11 +211,10 @@ export default async function NotificationsPage({
                       <input type="hidden" name="id" value={n.id} />
                       <button
                         type="submit"
+                        className="post-quote-btn"
                         style={{
-                          fontSize: 11,
                           fontWeight: 700,
                           color: "var(--violet)",
-                          padding: "2px 4px",
                         }}
                       >
                         标为已读

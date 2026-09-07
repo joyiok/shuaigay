@@ -15,26 +15,19 @@ type MailOpts = {
   html: string;
 };
 
-let _transporter: unknown | null = null;
+let _transporter: ReturnType<typeof nodemailer.createTransport> | null = null;
 
-function getTransporter(): null | { sendMail: (opts: unknown) => Promise<unknown> } {
+function getTransporter() {
   const url = process.env.SMTP_URL;
   if (!url) return null;
-  if (_transporter) return _transporter as never;
-  try {
-    const transporter = nodemailer.createTransport(url);
-    _transporter = transporter;
-    return transporter as never;
-  } catch (e) {
-    logger.warn("email transporter init failed, fallback to console.log", { error: String(e) });
-    return null;
-  }
+  return _transporter ??= nodemailer.createTransport(url);
 }
 
 export async function sendMail(opts: MailOpts): Promise<void> {
   const transporter = getTransporter();
   const from = process.env.MAIL_FROM ?? `"SHUAI GAY 论坛" <noreply@forum.example.com>`;
   if (!transporter) {
+    if (process.env.NODE_ENV === "production") throw new Error("SMTP_URL is required in production");
     // 模拟发送:打印到容器日志,开发环境直接可见
     console.log(
       JSON.stringify({
@@ -50,7 +43,7 @@ export async function sendMail(opts: MailOpts): Promise<void> {
     return;
   }
   try {
-    await (transporter as { sendMail: (o: unknown) => Promise<unknown> }).sendMail({
+    await transporter.sendMail({
       from,
       to: opts.to,
       subject: opts.subject,
@@ -60,7 +53,7 @@ export async function sendMail(opts: MailOpts): Promise<void> {
     logger.info("email.sent", { to: opts.to, subject: opts.subject });
   } catch (e) {
     logger.error("email.send_failed", { to: opts.to, subject: opts.subject, error: String(e) });
-    // 发送失败不抛错,避免阻断注册主流程(日志已记录,用户可在页面重试)
+    throw e;
   }
 }
 
@@ -111,17 +104,25 @@ export async function sendPasswordResetEmail(to: string, rawToken: string): Prom
 export async function consumeVerificationToken(
   rawToken: string,
   type: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  client: Pick<typeof db, "verificationToken"> = db,
 ): Promise<{ userId: string } | null> {
   const tokenHash = hashToken(rawToken);
-  const record = await db.verificationToken.findUnique({ where: { tokenHash } });
+  const record = await client.verificationToken.findUnique({ where: { tokenHash } });
   if (!record) return null;
   if (record.type !== type) return null;
-  if (record.expiresAt < new Date()) {
-    await db.verificationToken.delete({ where: { id: record.id } }).catch(() => {});
-    return null;
-  }
-  await db.verificationToken.delete({ where: { id: record.id } }).catch(() => {});
-  return { userId: record.userId };
+  const consumed = await client.verificationToken.deleteMany({
+    where: { id: record.id, type, expiresAt: { gt: new Date() } },
+  });
+  return consumed.count === 1 ? { userId: record.userId } : null;
+}
+
+export async function verifyEmailToken(token: string): Promise<boolean> {
+  return db.$transaction(async (tx) => {
+    const record = await consumeVerificationToken(token, "VERIFY_EMAIL", tx);
+    if (!record) return false;
+    await tx.user.update({ where: { id: record.userId }, data: { emailVerified: true } });
+    return true;
+  });
 }
 
 /** 仅校验不消费(用于页面展示合法性) */

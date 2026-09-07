@@ -12,25 +12,12 @@ export default function ReportButton({ postId }: { postId: string }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<UiState>({ kind: "idle" });
 
-  const [open, setOpen] = useState(false);
   function openDialog() {
     setState({ kind: "idle" });
-    setOpen(true);
-    // 同步兜底：React 状态更新是异步的，e2e 立即断言会看到 hidden，同步写 DOM 保底
-    const d = dialogRef.current;
-    if (d) {
-      d.setAttribute("open", "");
-      (d.style as CSSStyleDeclaration).display = "block";
-      d.removeAttribute("hidden");
-    }
+    dialogRef.current?.showModal();
   }
   function closeDialog() {
-    setOpen(false);
-    const d = dialogRef.current;
-    if (d) {
-      d.removeAttribute("open");
-      (d.style as CSSStyleDeclaration).display = "none";
-    }
+    dialogRef.current?.close();
   }
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
@@ -65,16 +52,15 @@ export default function ReportButton({ postId }: { postId: string }) {
       <button
         type="button"
         onClick={openDialog}
-        style={{ color: "var(--text-subtle)", fontSize: 12, cursor: "pointer" }}
+        className="post-quote-btn"
       >
         举报
       </button>
 
       <dialog
         ref={dialogRef}
-        open={open}
         className="report-dialog"
-        onClose={() => setOpen(false)}
+        aria-labelledby={`report-title-${postId}`}
         style={{
           border: "1px solid var(--line)",
           borderRadius: 12,
@@ -84,16 +70,17 @@ export default function ReportButton({ postId }: { postId: string }) {
           maxWidth: "calc(100vw - 32px)",
           padding: 0,
           boxShadow: "0 12px 32px var(--shadow-md)",
-          display: open ? "block" : "none",
         }}
         onClick={(e) => {
           if (e.target === dialogRef.current) closeDialog();
         }}
       >
         <form onSubmit={submit} style={{ display: "grid", gap: 10, padding: 14 }}>
-          <div style={{ fontWeight: 700, fontSize: 14 }}>举报这条内容</div>
+          <h2 id={`report-title-${postId}`} style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>举报这条内容</h2>
 
+          <label htmlFor={`report-reason-${postId}`} style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>违规原因</label>
           <textarea
+            id={`report-reason-${postId}`}
             name="reason"
             rows={4}
             maxLength={500}
@@ -112,6 +99,7 @@ export default function ReportButton({ postId }: { postId: string }) {
 
           {state.kind === "done" && (
             <div
+              role={state.ok ? "status" : "alert"}
               style={{
                 display: "grid",
                 gap: 8,
@@ -130,7 +118,7 @@ export default function ReportButton({ postId }: { postId: string }) {
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      height: 28,
+                      minHeight: 44,
                       padding: "0 12px",
                       background: "#0f172a",
                       color: "#fff",
@@ -147,7 +135,7 @@ export default function ReportButton({ postId }: { postId: string }) {
                     style={{
                       display: "inline-flex",
                       alignItems: "center",
-                      height: 28,
+                      minHeight: 44,
                       padding: "0 12px",
                       background: "#fff",
                       color: "#0f172a",
@@ -177,7 +165,7 @@ export default function ReportButton({ postId }: { postId: string }) {
                 type="button"
                 onClick={closeDialog}
                 style={{
-                  height: 30,
+                  minHeight: 44,
                   padding: "0 14px",
                   border: "1px solid var(--line)",
                   borderRadius: 6,
@@ -194,7 +182,7 @@ export default function ReportButton({ postId }: { postId: string }) {
                   type="button"
                   onClick={closeDialog}
                   style={{
-                    height: 30,
+                    minHeight: 44,
                     padding: "0 14px",
                     border: "1px solid var(--line)",
                     borderRadius: 6,
@@ -209,7 +197,7 @@ export default function ReportButton({ postId }: { postId: string }) {
                   type="submit"
                   disabled={state.kind === "busy"}
                   style={{
-                    height: 30,
+                    minHeight: 44,
                     padding: "0 14px",
                     border: "1px solid var(--brand)",
                     borderRadius: 6,

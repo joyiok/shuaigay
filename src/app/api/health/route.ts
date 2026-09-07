@@ -50,6 +50,6 @@ export async function GET(req: Request) {
 
   return NextResponse.json(
     { status, uptime, db: dbStatus, redis: redisStatus },
-    { headers: { "Cache-Control": "no-store" } },
+    { status: dbStatus === "up" ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 }

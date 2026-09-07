@@ -9,14 +9,16 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "check:production": "node scripts/check-production.mjs",
+    "test:release": "node --test scripts/check-production.test.mjs",
     "e2e": "playwright test",
     "db:up": "docker compose up -d postgres redis",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "prisma db seed",
+    "db:seed": "node prisma/seed.mjs",
     "db:deploy": "prisma migrate deploy"
   },
   "prisma": {
-    "seed": "tsx prisma/seed.ts"
+    "seed": "node prisma/seed.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1121.0",

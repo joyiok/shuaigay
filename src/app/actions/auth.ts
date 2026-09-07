@@ -16,7 +16,8 @@ import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { passwordSchema } from "@/lib/password";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { consumeInvite } from "@/lib/invite";
-import { createVerificationToken, sendVerificationEmail, sendPasswordResetEmail, consumeVerificationToken } from "@/lib/email";
+import { createVerificationToken, sendVerificationEmail, sendPasswordResetEmail, consumeVerificationToken, verifyEmailToken } from "@/lib/email";
+import { safeNext } from "@/lib/navigation";
 import { logger } from "@/lib/logger";
 import { isUserBanned } from "@/lib/ban";
 
@@ -24,12 +25,6 @@ import { isUserBanned } from "@/lib/ban";
 // 成本与 hashPassword 一致（BCRYPT_ROUNDS），否则比较耗时不同就露馅了
 import { BCRYPT_ROUNDS } from "@/lib/auth";
 const DUMMY_HASH = bcrypt.hashSync("timing-equalizer", BCRYPT_ROUNDS);
-
-/** 只接受站内相对路径,防开放重定向 */
-function safeNext(raw: FormDataEntryValue | null): string {
-  const v = typeof raw === "string" ? raw : "";
-  return v.startsWith("/") && !v.startsWith("//") ? v : "/";
-}
 
 const registerSchema = z.object({
   email: z.string().trim().toLowerCase().email().max(200),
@@ -104,6 +99,9 @@ export async function registerAction(formData: FormData): Promise<void> {
       return u;
     });
   } catch (e) {
+    if (typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002") {
+      redirect("/register?error=taken");
+    }
     if (typeof e === "object" && e !== null && (e as { code?: string }).code === "INVITE_USED_UP") {
       redirect(`/register?invite=${encodeURIComponent(inviteCode ?? "")}&error=invite_invalid`);
     }
@@ -115,9 +113,11 @@ export async function registerAction(formData: FormData): Promise<void> {
   await db.userIpLog.create({ data: { userId: user.id, ip, action: "register" } }).catch(() => {});
 
   // 发送验证邮件(失败不阻断注册)
+  let mailSent = false;
   try {
     const raw = await createVerificationToken(user.id, "VERIFY_EMAIL", 24);
     await sendVerificationEmail(email, raw);
+    mailSent = true;
     logger.info("auth.verification_sent", { userId: user.id, email });
   } catch (e) {
     logger.warn("auth.verification_failed", { userId: user.id, error: String(e) });
@@ -125,7 +125,7 @@ export async function registerAction(formData: FormData): Promise<void> {
 
   await createSession(user.id);
   // 注册成功后直接带 sent 标记进入验证页，满足「注册后邮件提示可见」
-  redirect("/verify-email?sent=1");
+  redirect(mailSent ? "/verify-email?sent=1" : "/verify-email?error=email_failed");
 }
 
 const loginSchema = z.object({
@@ -170,7 +170,7 @@ export async function loginAction(formData: FormData): Promise<void> {
   await db.user.update({ where: { id: user.id }, data: { lastLoginIp: ip, lastLoginAt: new Date(), lastActiveIp: ip, lastActiveAt: new Date() } }).catch(() => {});
   await db.userIpLog.create({ data: { userId: user.id, ip, action: "login" } }).catch(() => {});
   await createSession(user.id);
-  redirect(safeNext(formData.get("next")));
+  redirect(safeNext(formData.get("next"), "/"));
 }
 
 export async function logoutAction(): Promise<void> {
@@ -186,27 +186,27 @@ const changePasswordSchema = z.object({
   newPassword: passwordSchema,
 });
 
-export async function changePasswordAction(formData: FormData): Promise<void> {
+export async function changePasswordAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   const back = `/u/${encodeURIComponent(user.username)}`;
   if (!(await checkRateLimit(`changepw:${user.id}`, 10, 3600))) {
-    redirect(`${back}?error=ratelimited`);
+    return `${back}?error=ratelimited`;
   }
   const parsed = changePasswordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
   });
-  if (!parsed.success) redirect(`${back}?error=invalid`);
+  if (!parsed.success) return `${back}?error=invalid`;
   const { currentPassword, newPassword } = parsed.data;
-  if (currentPassword === newPassword) redirect(`${back}?error=same_password`);
+  if (currentPassword === newPassword) return `${back}?error=same_password`;
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
     select: { passwordHash: true },
   });
   if (!dbUser || !(await verifyPassword(currentPassword, dbUser.passwordHash))) {
     logger.warn("auth.password_change_denied", { userId: user.id });
-    redirect(`${back}?error=wrong_password`);
+    return `${back}?error=wrong_password`;
   }
   await db.user.update({
     where: { id: user.id },
@@ -214,7 +214,7 @@ export async function changePasswordAction(formData: FormData): Promise<void> {
   });
   const killed = await destroyOtherSessions(user.id);
   logger.info("auth.password_changed", { userId: user.id, killedSessions: killed });
-  redirect(`${back}?ok=password_changed`);
+  return `${back}?ok=password_changed`;
 }
 
 /* -------- 找回密码 -------- */
@@ -253,33 +253,35 @@ const resetSchema = z.object({
 });
 
 export async function resetPasswordAction(formData: FormData): Promise<void> {
+  const back = `/reset?token=${encodeURIComponent(String(formData.get("token") ?? "").slice(0, 200))}`;
   const parsed = resetSchema.safeParse({
     token: formData.get("token"),
     password: formData.get("password"),
   });
-  if (!parsed.success) redirect("/reset?error=invalid");
+  if (!parsed.success) redirect(`${back}&error=invalid`);
   const { token, password } = parsed.data;
   const ip = await clientIp();
   if (!(await checkRateLimit(`reset:${ip}`, 10, 3600))) {
-    redirect("/reset?error=ratelimited");
+    redirect(`${back}&error=ratelimited`);
   }
-  const res = await consumeVerificationToken(token, "RESET_PASSWORD");
-  if (!res) redirect("/reset?error=token_invalid");
   const passwordHash = await hashPassword(password);
-  await db.user.update({ where: { id: res.userId }, data: { passwordHash } });
-  // 使旧会话失效,可选:删除所有 session
-  await db.session.deleteMany({ where: { userId: res.userId } });
-  logger.info("auth.password_reset", { userId: res.userId });
+  const userId = await db.$transaction(async (tx) => {
+    const res = await consumeVerificationToken(token, "RESET_PASSWORD", tx);
+    if (!res) return null;
+    await tx.user.update({ where: { id: res.userId }, data: { passwordHash } });
+    await tx.session.deleteMany({ where: { userId: res.userId } });
+    await tx.verificationToken.deleteMany({ where: { userId: res.userId, type: "RESET_PASSWORD" } });
+    return res.userId;
+  });
+  if (!userId) redirect("/reset?error=token_invalid");
+  logger.info("auth.password_reset", { userId });
   redirect("/login?reset=1");
 }
 
 export async function verifyEmailAction(formData: FormData): Promise<void> {
   const token = String(formData.get("token") ?? "");
   if (!token) redirect("/verify-email?error=invalid");
-  const res = await consumeVerificationToken(token, "VERIFY_EMAIL");
-  if (!res) redirect("/verify-email?error=token_invalid");
-  await db.user.update({ where: { id: res.userId }, data: { emailVerified: true } });
-  logger.info("auth.email_verified", { userId: res.userId });
+  if (!(await verifyEmailToken(token))) redirect("/verify-email?error=token_invalid");
   redirect("/verify-email?ok=1");
 }
 
@@ -293,8 +295,12 @@ export async function resendVerificationAction(): Promise<void> {
   if (dbUser.emailVerified) redirect("/?verified=already");
   const ip = await clientIp();
   if (!(await checkRateLimit(`resend:${user.id}`, 3, 3600))) redirect("/verify-email?error=ratelimited");
-  const raw = await createVerificationToken(user.id, "VERIFY_EMAIL", 24);
-  await sendVerificationEmail(dbUser.email, raw);
+  try {
+    const raw = await createVerificationToken(user.id, "VERIFY_EMAIL", 24);
+    await sendVerificationEmail(dbUser.email, raw);
+  } catch {
+    redirect("/verify-email?error=email_failed");
+  }
   logger.info("auth.verification_resent", { userId: user.id });
   redirect("/verify-email?sent=1");
 }

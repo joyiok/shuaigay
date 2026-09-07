@@ -83,6 +83,26 @@ describe.skipIf(!shouldRun)("论坛数据层(需要数据库)", () => {
     expect(await db!.post.count({ where: { threadId: thread.id } })).toBe(0);
   });
 
+  it("一次性令牌并发只能消费一次；事务失败时令牌仍可重试", async () => {
+    const { createVerificationToken, consumeVerificationToken } = await import("@/lib/email");
+    const user = await db!.user.create({ data: { email: `token@${suffix}.test`, username: `t_${suffix}`, passwordHash: "x" } });
+    const token = await createVerificationToken(user.id, "RESET_PASSWORD", 1);
+    expect(await consumeVerificationToken(token, "VERIFY_EMAIL")).toBeNull();
+    const results = await Promise.all([
+      consumeVerificationToken(token, "RESET_PASSWORD"),
+      consumeVerificationToken(token, "RESET_PASSWORD"),
+    ]);
+    expect(results.filter(Boolean)).toHaveLength(1);
+    const retryToken = await createVerificationToken(user.id, "RESET_PASSWORD", 1);
+    await expect(db!.$transaction(async (tx) => {
+      expect(await consumeVerificationToken(retryToken, "RESET_PASSWORD", tx)).not.toBeNull();
+      throw new Error("rollback");
+    })).rejects.toThrow("rollback");
+    expect(await consumeVerificationToken(retryToken, "RESET_PASSWORD")).toEqual({ userId: user.id });
+    const expired = await createVerificationToken(user.id, "RESET_PASSWORD", -1);
+    expect(await consumeVerificationToken(expired, "RESET_PASSWORD")).toBeNull();
+  });
+
   it("主题列表游标分页:不重不漏,按 lastPostAt 倒序,不走 OFFSET", async () => {
     const user = await db!.user.create({
       data: {

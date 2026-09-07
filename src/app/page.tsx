@@ -78,20 +78,14 @@ export default async function HomePage({
       {/* 顶部筛选 - 全站时间线 */}
       <div className="topic-toolbar">
         <div className="tab-bar">
-          <Link href="/" className={`tab ${!rawCursor ? "active" : ""}`}>
-            全部
-          </Link>
-          <Link href="/?sort=recent" className="tab">
+          <Link href="/" className="tab active">
             最新
           </Link>
           <Link href="/search" className="tab">
             搜索
           </Link>
           <Link href="/hot" className="tab">热榜</Link>
-          <Link href="/search?type=post" className="tab">帖子</Link>
-          <Link href="/?filter=unreplied" className="tab">
-            待回复
-          </Link>
+          <Link href="/search?type=post" className="tab">搜回复</Link>
         </div>
         <Link href="/c/general/new" className="btn-publish">
           <span aria-hidden>+</span> 发个帖子

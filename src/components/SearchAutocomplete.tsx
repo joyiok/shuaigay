@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { threadHref } from "@/lib/slug";
@@ -58,15 +58,18 @@ export default function SearchAutocomplete({
   const [history, setHistory] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const listId = useId();
   const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceRef = useRef<number | null>(null);
-  const abortRef = useRef<AbortController | null>(null);
 
   // history 只在客户端加载
   useEffect(() => {
     setHistory(loadHistory());
   }, []);
+
+  useEffect(() => setQ(initialValue), [initialValue]);
 
   // 点击外部关闭
   useEffect(() => {
@@ -80,20 +83,17 @@ export default function SearchAutocomplete({
 
   // 150ms 防抖调 /api/search/suggest
   useEffect(() => {
-    if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    if (abortRef.current) abortRef.current.abort();
-
     const trimmed = q.trim();
+    setSuggestions([]);
+    setActiveIndex(-1);
+    setFailed(false);
+    setLoading(Boolean(trimmed));
     if (!trimmed) {
-      setSuggestions([]);
-      setLoading(false);
       return;
     }
 
-    debounceRef.current = window.setTimeout(async () => {
-      const ac = new AbortController();
-      abortRef.current = ac;
-      setLoading(true);
+    const ac = new AbortController();
+    const timer = window.setTimeout(async () => {
       try {
         const res = await fetch(`/api/search/suggest?q=${encodeURIComponent(trimmed)}`, {
           signal: ac.signal,
@@ -102,14 +102,15 @@ export default function SearchAutocomplete({
         const data = (await res.json()) as { suggestions: SuggestItem[] };
         if (!ac.signal.aborted) setSuggestions(Array.isArray(data.suggestions) ? data.suggestions.slice(0, 5) : []);
       } catch {
-        if (!ac.signal.aborted) setSuggestions([]);
+        if (!ac.signal.aborted) setFailed(true);
       } finally {
         if (!ac.signal.aborted) setLoading(false);
       }
     }, 150);
 
     return () => {
-      if (debounceRef.current) window.clearTimeout(debounceRef.current);
+      window.clearTimeout(timer);
+      ac.abort();
     };
   }, [q]);
 
@@ -162,7 +163,32 @@ export default function SearchAutocomplete({
     } catch {}
   }
 
-  const showDropdown = open && (suggestions.length > 0 || history.length > 0 || loading);
+  const showDropdown = open && (Boolean(q.trim()) || history.length > 0);
+
+  function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
+    if (event.nativeEvent.isComposing) return;
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && suggestions.length) {
+      event.preventDefault();
+      setOpen(true);
+      const next = event.key === "ArrowDown"
+        ? (activeIndex + 1) % suggestions.length
+        : (activeIndex <= 0 ? suggestions.length : activeIndex) - 1;
+      setActiveIndex(next);
+      document.getElementById(`${listId}-${next}`)?.scrollIntoView({ block: "nearest" });
+    } else if (event.key === "Enter" && showDropdown && suggestions[activeIndex]) {
+      event.preventDefault();
+      handleSuggestClick(suggestions[activeIndex]);
+    }
+  }
+
+  const comboboxProps = {
+    role: "combobox",
+    "aria-autocomplete": "list" as const,
+    "aria-expanded": showDropdown,
+    "aria-controls": showDropdown ? listId : undefined,
+    "aria-activedescendant": showDropdown && suggestions[activeIndex] ? `${listId}-${activeIndex}` : undefined,
+    onKeyDown: handleKeyDown,
+  };
 
   // 外层 form 监听：非 standalone 时，父表单提交前把当前词写入历史（保证手动回车/点击搜索按钮也能留痕）
   useEffect(() => {
@@ -191,6 +217,20 @@ export default function SearchAutocomplete({
       ref={wrapRef}
       className={variant === "header" ? "search-ac-wrap" : "search-ac-wrap-inline"}
       style={wrapDisplayStyle}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+          setOpen(false);
+          setActiveIndex(-1);
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !event.nativeEvent.isComposing) {
+          event.preventDefault();
+          inputRef.current?.focus();
+          setOpen(false);
+          setActiveIndex(-1);
+        }
+      }}
     >
       {variant === "header" && (
         <style>{`@media (max-width: 959px){.search-ac-wrap{display:none !important;}} @media (min-width:960px){.search-ac-wrap{display:block !important;}}`}</style>
@@ -214,6 +254,7 @@ export default function SearchAutocomplete({
           }}
         >
           <input
+            {...comboboxProps}
             ref={inputRef}
             type="search"
             name="q"
@@ -266,6 +307,7 @@ export default function SearchAutocomplete({
         </form>
       ) : (
         <input
+          {...comboboxProps}
           ref={inputRef}
           type="search"
           name="q"
@@ -287,7 +329,7 @@ export default function SearchAutocomplete({
             padding: "0 12px",
             border: "1px solid var(--line)",
             borderRadius: 8,
-            fontSize: 13,
+            fontSize: 16,
             outline: "none",
             background: "var(--panel)",
             color: "var(--text)",
@@ -297,17 +339,15 @@ export default function SearchAutocomplete({
 
       {showDropdown && (
         <div
-          role="listbox"
-          aria-label="搜索联想"
           style={{
             position: "absolute",
             top: "calc(100% + 8px)",
             left: 0,
             right: 0,
             background: "var(--panel)",
-            border: "2px solid var(--line)",
+            border: "1px solid var(--line)",
             borderRadius: 12,
-            boxShadow: "4px 4px 0 var(--line)",
+            boxShadow: "var(--shadow-md)",
             overflow: "hidden",
             zIndex: 50,
             maxHeight: 320,
@@ -315,6 +355,7 @@ export default function SearchAutocomplete({
           }}
         >
           {/* 联想结果 */}
+          <div id={listId} role="listbox" aria-label="搜索联想" aria-busy={loading}>
           {suggestions.length > 0 && (
             <div style={{ padding: "8px 0" }}>
               <div
@@ -333,12 +374,15 @@ export default function SearchAutocomplete({
                 <span>联想</span>
                 {loading && <span style={{ fontWeight: 400, textTransform: "none" }}>加载中…</span>}
               </div>
-              <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                {suggestions.map((s) => (
-                  <li key={s.id}>
+              <ul role="presentation" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                {suggestions.map((s, index) => (
+                  <li key={s.id} role="presentation">
                     <button
                       type="button"
                       role="option"
+                      id={`${listId}-${index}`}
+                      aria-selected={activeIndex === index}
+                      tabIndex={-1}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => handleSuggestClick(s)}
                       style={{
@@ -348,14 +392,13 @@ export default function SearchAutocomplete({
                         width: "100%",
                         padding: "8px 12px",
                         border: "none",
-                        background: "transparent",
+                        background: activeIndex === index ? "var(--brand-soft)" : "transparent",
                         textAlign: "left",
                         fontSize: 13,
                         color: "var(--text)",
                         cursor: "pointer",
                       }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "var(--brand-soft)")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                      onMouseEnter={() => setActiveIndex(index)}
                     >
                       <span style={{ color: "var(--text-subtle)", flexShrink: 0 }}>
                         <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -373,10 +416,13 @@ export default function SearchAutocomplete({
               </ul>
             </div>
           )}
+          </div>
 
           {/* 无联想时的空态提示（有输入但无结果） */}
-          {q.trim() && !loading && suggestions.length === 0 && (
-            <div style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-subtle)" }}>无匹配主题</div>
+          {q.trim() && suggestions.length === 0 && (
+            <div role="status" style={{ padding: "10px 12px", fontSize: 12, color: "var(--text-subtle)" }}>
+              {loading ? "正在查找主题…" : failed ? "联想暂时不可用，按回车搜索" : "无匹配主题，按回车搜索全文"}
+            </div>
           )}
 
           {/* 历史记录 */}
@@ -497,11 +543,10 @@ export default function SearchAutocomplete({
               gap: 8,
             }}
           >
-            <span>↵ 搜索</span>
-            <span>· 点击联想直达主题 · 点击历史一键填入</span>
+            <span>↑↓ 选择 · ↵ 确认</span>
             <Link
               href="/search"
-              style={{ marginLeft: "auto", color: "var(--brand)", fontWeight: 600 }}
+              style={{ marginLeft: "auto", color: "var(--brand)", fontWeight: 600, whiteSpace: "nowrap" }}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => setOpen(false)}
             >

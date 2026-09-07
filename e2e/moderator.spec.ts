@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -27,12 +27,12 @@ test("版主：在自己版块置顶/锁定，看不到其它版块与用户管�
   await page.goto("/register");
   await page.fill('input[name="email"]', modEmail);
   await page.fill('input[name="username"]', modName);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await expect(page.locator("header")).toContainText(modName);
 
   // 管理员在技术版发一帖（免审直达）+ 任命版主
-  await loginAs(page, "admin@example.com", "changeme123", "admin");
+  await loginAs(page, "admin@example.com", "ReleaseAdmin123!", "admin");
   await page.goto("/c/tech/new");
   await page.fill('input[name="title"]', title);
   await page.fill('textarea[name="content"]', "版主权限验证帖");
@@ -50,7 +50,7 @@ test("版主：在自己版块置顶/锁定，看不到其它版块与用户管�
   await expect(techCard.getByText(modName).first()).toBeVisible({ timeout: 15000 });
 
   // 切到版主：后台只有 4 个 tab，没有用户管理/版块管理
-  await loginAs(page, modEmail, "password123", modName);
+  await loginAs(page, modEmail, "ForumTest123!", modName);
   await page.goto("/admin");
   await expect(page.getByRole("link", { name: "主题管理" })).toBeVisible();
   await expect(page.getByRole("link", { name: "帖子管理" })).toBeVisible();

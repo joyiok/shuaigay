@@ -13,7 +13,7 @@ export async function checkRateLimit(
   if (!redis) return true;
 
   const bucket = Math.floor(Date.now() / (windowSec * 1000));
-  const k = `rl:${key}:${bucket}`;
+  const k = `rl:${key}:${windowSec}:${bucket}`;
   try {
     const n = await redis.incr(k);
     if (n === 1) await redis.expire(k, windowSec);

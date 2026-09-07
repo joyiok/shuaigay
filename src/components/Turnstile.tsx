@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Script from "next/script";
+import { useFormStatus } from "react-dom";
 
 /** 站点密钥由构建时注入;未配置时不渲染任何内容,表单照常可用 */
 const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
@@ -14,6 +16,7 @@ interface TurnstileWidget {
 interface TurnstileRenderOptions {
   sitekey: string;
   theme?: "light" | "dark" | "auto";
+  "response-field"?: boolean;
   callback?: (token: string) => void;
   "expired-callback"?: () => void;
   "error-callback"?: () => void;
@@ -22,12 +25,11 @@ interface TurnstileRenderOptions {
 declare global {
   interface Window {
     turnstile?: TurnstileWidget;
-    __shuaigayTurnstileReady?: () => void;
   }
 }
 
 const WIDGET_SRC =
-  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=__shuaigayTurnstileReady";
+  "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
 /**
  * Turnstile 人机验证(显式渲染):
@@ -43,56 +45,39 @@ export default function Turnstile({
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
   const [token, setToken] = useState("");
+  const [ready, setReady] = useState(false);
+  const [error, setError] = useState(false);
+  const { pending } = useFormStatus();
 
   useEffect(() => {
-    if (!SITE_KEY) return;
-    let cancelled = false;
-    let rendered = false;
-
-    const render = () => {
-      const el = containerRef.current;
-      const ts = window.turnstile;
-      if (!el || !ts || rendered || cancelled) return;
-      rendered = true;
-      widgetIdRef.current = ts.render(el, {
+    const el = containerRef.current;
+    const ts = window.turnstile;
+    if (!SITE_KEY || !el || !ts) return;
+    widgetIdRef.current = ts.render(el, {
         sitekey: SITE_KEY,
         theme: "light",
-        callback: (t: string) => setToken(t),
+        "response-field": false,
+        callback: (t: string) => { setToken(t); setError(false); },
         "expired-callback": () => {
           setToken("");
           ts.reset(widgetIdRef.current ?? undefined);
         },
-        "error-callback": () => setToken(""),
-      });
-    };
-
-    if (window.turnstile) {
-      render();
-      return;
-    }
-
-    // 先挂全局回调,再插脚本;脚本异步执行时会回调渲染
-    window.__shuaigayTurnstileReady = render;
-    const script = document.createElement("script");
-    script.src = WIDGET_SRC;
-    script.async = true;
-    document.head.appendChild(script);
+        "error-callback": () => { setToken(""); setError(true); },
+    });
 
     return () => {
-      cancelled = true;
       const id = widgetIdRef.current;
       if (id) window.turnstile?.remove(id);
       widgetIdRef.current = null;
-      window.__shuaigayTurnstileReady = undefined;
     };
-  }, []);
+  }, [ready]);
 
   // 服务端返回 captcha_failed(跳回本页)时,重置 widget 让用户重新验证
   useEffect(() => {
-    if (!resetSignal || !widgetIdRef.current || !window.turnstile) return;
+    if (pending || !widgetIdRef.current || !window.turnstile) return;
     setToken("");
     window.turnstile.reset(widgetIdRef.current);
-  }, [resetSignal]);
+  }, [resetSignal, pending]);
 
   if (!SITE_KEY) return null;
 
@@ -101,8 +86,10 @@ export default function Turnstile({
       className="turnstile-wrap"
       style={{ display: "flex", flexDirection: "column", gap: 6 }}
     >
+      <Script src={WIDGET_SRC} onReady={() => setReady(true)} onError={() => setError(true)} />
       <div ref={containerRef} aria-label="人机验证" />
       <input type="hidden" name="cf-turnstile-response" value={token} />
+      {error && <p role="alert">人机验证加载失败，请检查网络并刷新页面重试。</p>}
     </div>
   );
 }

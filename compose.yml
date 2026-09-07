@@ -3,7 +3,7 @@ services:
     image: postgres:17-alpine
     # 宿主机 5432 可能被系统自带 PostgreSQL 占用,映射到 5433
     ports:
-      - "${POSTGRES_HOST_PORT:-5433}:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-forum}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-forum_dev_password}
@@ -21,7 +21,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--save", "900", "1"]
     ports:
-      - "${REDIS_HOST_PORT:-6380}:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     volumes:
       - redisdata:/data
     healthcheck:
@@ -32,7 +32,10 @@ services:
     restart: unless-stopped
 
   app:
-    build: .
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     # SITE_URL 用于生成邮件链接与 sitemap,必须与 Caddy 的 DOMAIN 保持一致
     # SMTP_URL 留空则邮件仅打印到容器日志,配置后真实发送(见 src/lib/email.ts)
     environment:
@@ -46,10 +49,18 @@ services:
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
+      RATE_LIMIT_REGISTER: ${RATE_LIMIT_REGISTER:-5}
+      RATE_LIMIT_LOGIN: ${RATE_LIMIT_LOGIN:-20}
+      RATE_LIMIT_THREAD: ${RATE_LIMIT_THREAD:-5}
+      RATE_LIMIT_REPLY: ${RATE_LIMIT_REPLY:-10}
+      RATE_LIMIT_EDIT: ${RATE_LIMIT_EDIT:-10}
+      RATE_LIMIT_RATE: ${RATE_LIMIT_RATE:-40}
     volumes:
       - ./uploads:/srv/uploads
     ports:
-      - "${APP_HOST_PORT:-3000}:3000"
+      - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -72,6 +83,7 @@ services:
       - "443:443"
     environment:
       DOMAIN: ${DOMAIN:-:80}
+      CADDY_DOMAINS: ${CADDY_DOMAINS:-${DOMAIN:-:80}}
       SITE_URL: ${SITE_URL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro

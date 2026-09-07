@@ -1,12 +1,6 @@
 import Link from "next/link";
-import { db } from "@/lib/db";
-import { createHash } from "node:crypto";
-import { logger } from "@/lib/logger";
-import { resendVerificationAction } from "@/app/actions/auth";
-
-function hashToken(raw: string): string {
-  return createHash("sha256").update(raw).digest("hex");
-}
+import { peekVerificationToken } from "@/lib/email";
+import { resendVerificationAction, verifyEmailAction } from "@/app/actions/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -17,12 +11,9 @@ export default async function VerifyEmailPage({
 }) {
   const { token, ok, error, sent } = await searchParams;
 
-  // 带 token 直接校验(链接点击)
+  // 只预览令牌，不在 GET 消费，避免邮件安全扫描器提前打开链接导致令牌失效。
   if (token) {
-    const tokenHash = hashToken(token);
-    const record = await db.verificationToken.findUnique({ where: { tokenHash } });
-    if (!record || record.type !== "VERIFY_EMAIL" || record.expiresAt < new Date()) {
-      logger.info("verify_email.invalid_token", { tokenHash: tokenHash.slice(0, 8) });
+    if (!(await peekVerificationToken(token, "VERIFY_EMAIL"))) {
       return (
         <div className="card" style={{ maxWidth: 480, margin: "0 auto", padding: 18, textAlign: "center" }}>
           <h1 style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>验证失败</h1>
@@ -33,14 +24,14 @@ export default async function VerifyEmailPage({
         </div>
       );
     }
-    await db.user.update({ where: { id: record.userId }, data: { emailVerified: true } });
-    await db.verificationToken.delete({ where: { id: record.id } }).catch(() => {});
-    logger.info("verify_email.success", { userId: record.userId });
     return (
       <div className="card" style={{ maxWidth: 480, margin: "0 auto", padding: 18, textAlign: "center" }}>
-        <h1 style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>验证成功</h1>
-        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>邮箱已验证，欢迎回来。</p>
-        <Link href="/" style={{ color: "var(--brand)", fontSize: 13 }}>返回首页</Link>
+        <h1 style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>确认验证邮箱</h1>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>点击按钮完成邮箱验证。</p>
+        <form action={verifyEmailAction}>
+          <input type="hidden" name="token" value={token} />
+          <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>确认验证</button>
+        </form>
       </div>
     );
   }
@@ -59,6 +50,7 @@ export default async function VerifyEmailPage({
     invalid: "链接无效",
     token_invalid: "链接无效或已过期",
     ratelimited: "发送太频繁，请稍后再试",
+    email_failed: "验证邮件暂时无法发送。账号已保留，请稍后重试或联系管理员。",
   };
 
   return (

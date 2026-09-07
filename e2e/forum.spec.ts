@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -9,11 +9,16 @@ function submitButton(page: import("@playwright/test").Page, name: string) {
   return page.getByRole("button", { name });
 }
 
+async function logout(page: import("@playwright/test").Page) {
+  await submitButton(page, "退出").first().click();
+  await expect(page.locator("header").getByRole("link", { name: "登录" })).toBeVisible({ timeout: 20000 });
+}
+
 // 新人首帖进待审：以 admin 身份在待审队列通过指定标题的主题，返回主题链接
 async function approvePendingThread(page: import("@playwright/test").Page, title: string): Promise<string | null> {
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
-  await page.fill('input[name="password"]', "changeme123");
+  await page.fill('input[name="password"]', "ReleaseAdmin123!");
   await submitButton(page, "登录").click();
   await expect(page.locator("header")).toContainText("admin");
   await page.goto("/admin/pending");
@@ -41,7 +46,7 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   await page.goto("/register");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(username);
 
@@ -68,16 +73,13 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   await expect(page.getByText("这是一条回复")).toBeVisible();
 
   // 退出
-  await submitButton(page, "退出").first().click();
-  await expect(
-    page.locator("header").getByRole("link", { name: "登录" }),
-  ).toBeVisible();
+  await logout(page);
 });
 
 test("未登录不能看到回复框,Markdown 里的 script 被消毒", async ({ page }) => {
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
-  await page.fill('input[name="password"]', "changeme123");
+  await page.fill('input[name="password"]', "ReleaseAdmin123!");
   await submitButton(page, "登录").click();
   await expect(page.locator("header")).toContainText("admin");
 
@@ -117,7 +119,7 @@ test("搜索：空态、高亮摘录与版块筛选", async ({ page }) => {
   await page.goto("/register");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(username);
 
@@ -154,7 +156,7 @@ test("@提及：渲染链接、去重与邮箱/代码块边界", async ({ page }
   await page.goto("/register");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(username);
 
@@ -190,7 +192,7 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
   // 用 admin 建一个待举报的主题
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
-  await page.fill('input[name="password"]', "changeme123");
+  await page.fill('input[name="password"]', "ReleaseAdmin123!");
   await submitButton(page, "登录").click();
   await expect(page.locator("header")).toContainText("admin");
   await page.goto("/c/general/new");
@@ -202,29 +204,32 @@ test("举报：未登录卡片、创建、去重、限流与敏感词", async ({
   const threadId = threadUrl.split("/t/")[1]?.split("?")[0] ?? "";
   expect(threadId).not.toBe("");
   // 退出后未登录尝试举报：对话框应提示登录
-  await submitButton(page, "退出").first().click();
+  await logout(page);
   await page.goto(`/t/${threadId}`, { waitUntil: "domcontentloaded" });
   await page.waitForURL(`**/t/${threadId}*`, { timeout: 15000 });
   await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
   await expect(page.getByRole("button", { name: "举报" }).first()).toBeVisible({ timeout: 15000 });
   await page.waitForTimeout(800);
-  await page.getByRole("button", { name: "举报" }).first().click({ force: true });
+  const reportTrigger = page.getByRole("button", { name: "举报" }).first();
+  await reportTrigger.click({ force: true });
   await page.waitForTimeout(800);
   const dialogUnauth = page.locator("dialog.report-dialog");
-  // 直接等 textarea 可见，兼容 open 属性在 CI 偶发不同步
+  // 原生模态框打开后，首个输入框应可见并获得焦点。
   await expect(dialogUnauth.locator('textarea[name="reason"]')).toBeVisible({ timeout: 15000 });
+  await expect(dialogUnauth.locator('textarea[name="reason"]')).toBeFocused();
   await dialogUnauth.locator('textarea[name="reason"]').fill("违规测试未登录");
   await dialogUnauth.getByRole("button", { name: "提交举报" }).click();
   await expect(dialogUnauth.getByText("请先登录")).toBeVisible();
   await expect(dialogUnauth.getByRole("link", { name: "去登录" })).toBeVisible();
   await page.keyboard.press("Escape");
+  await expect(reportTrigger).toBeFocused();
 
   // 注册举报人并成功举报
   const repUser = `rep${uniq3}`.slice(0, 12);
   await page.goto("/register");
   await page.fill('input[name="email"]', `${repUser}@test.dev`);
   await page.fill('input[name="username"]', repUser);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(repUser);
   await page.goto(`/t/${threadId}`, { waitUntil: "domcontentloaded" });
@@ -271,7 +276,7 @@ test("管理后台：未登录/普通用户/管理员分级与空态", async ({ 
   await page.goto("/register");
   await page.fill('input[name="email"]', `${normal}@test.dev`);
   await page.fill('input[name="username"]', normal);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(normal);
   await page.goto("/admin");
@@ -281,13 +286,23 @@ test("管理后台：未登录/普通用户/管理员分级与空态", async ({ 
   // 管理员可访问后台，tabs 可见，空态使用 EmptyState 而非裸文字
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
-  await page.fill('input[name="password"]', "changeme123");
+  await page.fill('input[name="password"]', "ReleaseAdmin123!");
   await submitButton(page, "登录").click();
   await expect(page.locator("header")).toContainText("admin");
   await page.goto("/admin");
+  await expect(page.getByRole("heading", { name: "管理后台", level: 1 })).toBeVisible();
   await expect(page.getByRole("link", { name: "主题管理" })).toBeVisible();
   await expect(page.getByRole("link", { name: "举报队列" })).toBeVisible();
   await expect(page.getByRole("link", { name: "版块管理" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  const adminNav = page.getByRole("navigation", { name: "管理功能" });
+  const [firstTab, secondTab] = await Promise.all([
+    adminNav.getByRole("link").nth(0).boundingBox(),
+    adminNav.getByRole("link").nth(1).boundingBox(),
+  ]);
+  expect(firstTab?.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs((firstTab?.y ?? 0) - (secondTab?.y ?? 0))).toBeLessThan(2);
+  expect(await adminNav.evaluate((element) => element.scrollWidth > element.clientWidth)).toBeTruthy();
   // 举报队列空时显示 EmptyState 插画而非裸文字
   await page.goto("/admin?tab=reports");
   // 可能有前序举报未清理，两种情况都兼容：有列表或显示空态
@@ -313,7 +328,7 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
   await page.goto("/register");
   await page.fill('input[name="email"]', `${inviter}@test.dev`);
   await page.fill('input[name="username"]', inviter);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await submitButton(page, "注册").click();
   await expect(page.locator("header")).toContainText(inviter);
   await page.goto("/invite");
@@ -345,7 +360,7 @@ test("邀请：未登录卡片、生成原子性与版块/首页空态", async (
   // 未登录访问 /u/:username 的编辑区显示登录卡片
   await page.goto("/login");
   // 先退出再以访客访问他人主页
-  await submitButton(page, "退出").first().click().catch(() => {});
+  await logout(page);
   await page.goto(`/u/${inviter}`);
   await expect(page.getByText(inviter).first()).toBeVisible();
   await expect(page.getByText("登录后可编辑个人简介")).toBeVisible();
@@ -358,7 +373,7 @@ test("草稿：发帖标题+正文刷新不丢，清除后清空", async ({ page
   await page.goto("/register");
   await page.fill('input[name="email"]', `${username}@test.dev`);
   await page.fill('input[name="username"]', username);
-  await page.fill('input[name="password"]', "password123");
+  await page.fill('input[name="password"]', "ForumTest123!");
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await expect(page.locator("header")).toContainText(username);
 

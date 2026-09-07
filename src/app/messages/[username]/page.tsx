@@ -195,7 +195,7 @@ export default async function ConversationPage({
           </ul>
         )}
 
-        <MessageComposer receiverUsername={other.username} />
+        <MessageComposer key={`${me.id}:${other.username}`} receiverUsername={other.username} userId={me.id} />
       </div>
     </div>
   );

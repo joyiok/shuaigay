@@ -22,10 +22,11 @@ function fakeStore(seed: Record<string, string> = {}) {
 
 describe("草稿键", () => {
   it("按场景隔离", () => {
-    expect(draftKey("reply", "t1")).toBe("sg:draft:reply:t1");
-    expect(draftKey("new", "tech")).toBe("sg:draft:new:tech");
-    expect(draftKey("msg", "bob")).toBe("sg:draft:msg:bob");
-    expect(draftKey("newtitle", "tech")).toBe("sg:draft:newtitle:tech");
+    expect(draftKey("reply", "t1", "alice")).toBe("sg:draft:alice:reply:t1");
+    expect(draftKey("new", "tech", "alice")).toBe("sg:draft:alice:new:tech");
+    expect(draftKey("msg", "bob", "alice")).toBe("sg:draft:alice:msg:bob");
+    expect(draftKey("newtitle", "tech", "alice")).toBe("sg:draft:alice:newtitle:tech");
+    expect(draftKey("msg", "bob", "alice")).not.toBe(draftKey("msg", "bob", "carol"));
   });
 
   it("阅读位置键", () => {

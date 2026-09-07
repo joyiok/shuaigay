@@ -6,7 +6,7 @@ import { threadHref } from "@/lib/slug";
 import UserAvatar from "@/components/UserAvatar";
 
 export const metadata: Metadata = {
-  title: "热榜 - SHUAI GAY 论坛",
+  title: "热榜",
   description: "按浏览与回复热度排序的今日 / 本周热帖榜单 — SHUAI GAY 社区。",
   alternates: { canonical: "/hot" },
 };
@@ -56,7 +56,6 @@ export default async function HotPage({
       <div className="card" style={{ padding: 14 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 18 }}>🔥</span>
             <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{rangeLabel}</h1>
             <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>(浏览 + 回复)</span>
           </div>

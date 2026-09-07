@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { logoutAction } from "@/app/actions/auth";
 import UserAvatar from "@/components/UserAvatar";
@@ -61,23 +61,28 @@ export default function MobileDrawer({
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const dialogId = useId();
 
   useEffect(() => setMounted(true), []);
 
-  // Esc 关闭 + 锁定背景滚动
+  // 原生模态框负责焦点限制与恢复；打开期间锁定背景滚动。
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("keydown", onKey);
+    const dialog = dialogRef.current;
+    if (!open || !dialog) return;
+    dialog.showModal();
+    dialog.querySelector<HTMLButtonElement>(".mobile-drawer-close")?.focus();
+    const desktop = window.matchMedia("(min-width: 1021px)");
+    const onResize = () => { if (desktop.matches) setOpen(false); };
+    desktop.addEventListener("change", onResize);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
+      dialog.close();
+      desktop.removeEventListener("change", onResize);
       document.body.style.overflow = prev;
     };
-  }, [open]);
+  }, [open, mounted]);
 
   const close = () => setOpen(false);
 
@@ -88,6 +93,8 @@ export default function MobileDrawer({
         className="nav-burger"
         aria-label="打开菜单"
         aria-expanded={open}
+        aria-controls={dialogId}
+        aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
         <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
@@ -96,11 +103,11 @@ export default function MobileDrawer({
       </button>
 
       {mounted &&
-        open &&
         createPortal(
-          <div className="mobile-drawer" role="dialog" aria-modal="true" aria-label="导航菜单">
+          <dialog ref={dialogRef} id={dialogId} className="mobile-drawer" aria-label="导航菜单"
+            onCancel={(event) => { event.preventDefault(); close(); }}>
             <div className="mobile-drawer-backdrop" onClick={close} />
-            <div className="mobile-drawer-panel">
+            <div className="mobile-drawer-panel" tabIndex={-1}>
               <div className="mobile-drawer-head">
                 <span className="brand-mark">SG</span>
                 <span style={{ fontWeight: 850, fontSize: 15, letterSpacing: "0.02em" }}>
@@ -112,7 +119,9 @@ export default function MobileDrawer({
                   aria-label="关闭菜单"
                   onClick={close}
                 >
-                  ×
+                  <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="m5 5 10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+                  </svg>
                 </button>
               </div>
 
@@ -120,6 +129,9 @@ export default function MobileDrawer({
                 <div className="mobile-drawer-title">版块</div>
                 <Link href="/" className="mobile-drawer-link" onClick={close}>
                   全部主题
+                </Link>
+                <Link href="/search" className="mobile-drawer-link" onClick={close}>
+                  搜索主题与回复
                 </Link>
                 {boards.map((b) => (
                   <Link
@@ -150,24 +162,20 @@ export default function MobileDrawer({
                   <div className="mobile-drawer-title">社区数据</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: "#ede9fe", color: "#7c3aed", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>👥</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 4 }}>{stats.userCount}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-subtle)" }}>用户</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.userCount}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>用户</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: "#ecfdf5", color: "#10b981", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>📄</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 4 }}>{stats.threadCount}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-subtle)" }}>主题</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.threadCount}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>主题</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: "#fffbeb", color: "#f59e0b", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 13 }}>💬</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 4 }}>{stats.postCount}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-subtle)" }}>帖子</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.postCount}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>帖子</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 8, background: "#f0fdf4", color: "#16a34a", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}>●</div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text)", marginTop: 4 }}>{stats.online ?? 1}</div>
-                      <div style={{ fontSize: 10, color: "var(--text-subtle)" }}>在线</div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.online ?? "—"}</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>在线</div>
                     </div>
                   </div>
                 </div>
@@ -182,7 +190,7 @@ export default function MobileDrawer({
                       <Link key={t.id} href={threadHref(t.id, t.title)} onClick={close} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--bg-soft)", fontSize: 12, color: "var(--text)", textDecoration: "none", minWidth: 0 }}>
                         <span style={{ width: 18, height: 18, borderRadius: 6, background: idx === 0 ? "#fef3c7" : idx === 1 ? "#ede9fe" : "#f3f4f6", color: idx === 0 ? "#d97706" : idx === 1 ? "#7c3aed" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{idx + 1}</span>
                         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11, color: "var(--text-subtle)", flexShrink: 0 }}>💬 {t.replyCount}</span>
+                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11, color: "var(--text-subtle)", flexShrink: 0 }}>{t.replyCount} 回</span>
                       </Link>
                     ))}
                   </div>
@@ -290,7 +298,7 @@ export default function MobileDrawer({
                 SHUAI GAY · 开放 · 克制 · 高效
               </div>
             </div>
-          </div>,
+          </dialog>,
           document.body,
         )}
     </>

@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
-import { Crimson_Pro, IBM_Plex_Sans, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { trackAndCountOnline } from "@/lib/online";
@@ -15,12 +14,6 @@ import UserAvatar from "@/components/UserAvatar";
 import NotificationBell from "@/components/NotificationBell";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
 import ForumNav from "@/components/ForumNav";
-
-const crimsonPro = Crimson_Pro({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-crimson", display: "swap" });
-const plexSans = IBM_Plex_Sans({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-plex", display: "swap" });
-const jetMono = JetBrains_Mono({ subsets: ["latin"], weight: ["500", "700"], variable: "--font-jet", display: "swap" });
-const grotesk = Space_Grotesk({ subsets: ["latin"], weight: ["600", "700"], variable: "--font-grotesk", display: "swap" });
-const fontVars = `${crimsonPro.variable} ${plexSans.variable} ${jetMono.variable} ${grotesk.variable}`;
 
 const site = siteUrl();
 const siteOrigin = site.origin;
@@ -128,7 +121,7 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="zh-CN" className={fontVars}>
+    <html lang="zh-CN">
       <head>
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
@@ -240,11 +233,11 @@ export default async function RootLayout({
 
         <div className="wrap">
           <div className="forum-layout forum-layout-has-sidebar">
-            <div className="forum-main" id="main-content" tabIndex={-1}>
+            <main className="forum-main" id="main-content" tabIndex={-1}>
               <div className="home-shell" style={{ padding: 0, overflow: "hidden", border: "none", boxShadow: "none", background: "transparent" }}>
                 {children}
               </div>
-            </div>
+            </main>
 
             <aside className="sidebar" aria-label="侧边栏">
               {/* 欢迎卡 — 参考图 */}

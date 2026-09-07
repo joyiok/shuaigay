@@ -14,6 +14,7 @@ import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
+import SubmissionForm from "@/components/SubmissionForm";
 import { changePasswordAction } from "@/app/actions/auth";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass } from "@/lib/format";
@@ -334,7 +335,7 @@ export default async function UserPage({
                     <span>{next ? `距 ${next.name} 还差 ${next.missing} 分` : "已满级"}</span>
                   </div>
                   <div style={{ height: 6, background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
-                    <div style={{ width: `${pct}%`, height: "100%", background: lv.color, borderRadius: 999, transition: "width 0.3s" }} />
+                    <div style={{ width: `${pct}%`, height: "100%", background: lv.color, borderRadius: 999 }} />
                   </div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>
                     <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>日发帖 {perms.dailyThreads}</span>
@@ -444,7 +445,7 @@ export default async function UserPage({
           </form>
 
           {/* 本人自助改密码：验原密码 + 踢其它会话 */}
-          <form
+          <SubmissionForm
             action={changePasswordAction}
             style={{
               marginTop: 14,
@@ -506,7 +507,7 @@ export default async function UserPage({
                 换密码
               </button>
             </div>
-          </form>
+          </SubmissionForm>
           </>
         ) : !me ? (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>

@@ -18,7 +18,7 @@ const contentSchema = z.string().trim().min(1).max(5000);
  * - 不能给自己发
  * - 写入后重定向到对话页
  */
-export async function sendMessageAction(formData: FormData): Promise<void> {
+export async function sendMessageAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   await assertNotBanned(user.id);
@@ -27,12 +27,12 @@ export async function sendMessageAction(formData: FormData): Promise<void> {
   const content = contentSchema.safeParse(formData.get("content"));
   if (!receiverUsername || !content.success) {
     logger.warn("message.invalid_payload", { senderId: user.id, receiverUsername });
-    redirect(`/messages/${encodeURIComponent(receiverUsername || "")}?error=invalid`);
+    return `/messages/${encodeURIComponent(receiverUsername || "")}?error=invalid`;
   }
   if (await containsSensitive(content.data)) {
     const ip = await clientIp();
     logger.info("moderation.blocked_sensitive", { userId: user.id, action: "sendMessage", ip });
-    redirect(`/messages/${encodeURIComponent(receiverUsername)}?error=sensitive`);
+    return `/messages/${encodeURIComponent(receiverUsername)}?error=sensitive`;
   }
 
   const receiver = await db.user.findUnique({
@@ -41,11 +41,11 @@ export async function sendMessageAction(formData: FormData): Promise<void> {
   });
   if (!receiver) {
     logger.warn("message.receiver_not_found", { senderId: user.id, receiverUsername });
-    redirect(`/messages?error=user_not_found`);
+    return "/messages?error=user_not_found";
   }
   if (receiver.id === user.id) {
     logger.warn("message.send_self", { senderId: user.id });
-    redirect(`/messages/${encodeURIComponent(receiverUsername)}?error=self`);
+    return `/messages/${encodeURIComponent(receiverUsername)}?error=self`;
   }
 
   const ip = await clientIp();
@@ -54,7 +54,7 @@ export async function sendMessageAction(formData: FormData): Promise<void> {
     !(await checkRateLimit(`dm:ip:${ip}`, 20, 60))
   ) {
     logger.warn("message.ratelimited", { senderId: user.id, ip });
-    redirect(`/messages/${encodeURIComponent(receiverUsername)}?error=ratelimited`);
+    return `/messages/${encodeURIComponent(receiverUsername)}?error=ratelimited`;
   }
 
   try {
@@ -71,7 +71,7 @@ export async function sendMessageAction(formData: FormData): Promise<void> {
     throw e;
   }
 
-  redirect(`/messages/${encodeURIComponent(receiverUsername)}`);
+  return `/messages/${encodeURIComponent(receiverUsername)}`;
 }
 
 export async function markReadAction(formData: FormData): Promise<void> {
