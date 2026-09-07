@@ -100,11 +100,12 @@ SEED_ADMIN_EMAIL=<管理员邮箱>
 SEED_ADMIN_PASSWORD=<管理员强口令>
 
 # 可选:AI 自动运营(配置后每 10 分钟运行一次)
-AI_ADMIN_API_KEY=<独立的 AI 管理 API 密钥>
-AI_PROVIDER_API_KEY=<OpenAI 兼容模型服务密钥>
+# 这两个是服务器基础设施密钥,不是模型服务密钥
+AI_SETTINGS_ENCRYPTION_KEY=$(openssl rand -hex 32)
+AI_CRON_KEY=$(openssl rand -hex 32)
 ```
 
-然后在管理后台「站点设置 → AI 自动运营」配置开关、模型服务地址、模型名称和自动执行置信度；密钥不在面板展示，也不写入数据库。
+然后在管理后台「站点设置 → AI 自动运营」配置开关、模型服务地址、模型名称、自动执行置信度、AI 管理 API 密钥和模型服务密钥。面板里的两个密钥会加密存入数据库，页面只显示是否已配置；留空保持原值，勾选清除才会删除。
 
 部署前检查：
 

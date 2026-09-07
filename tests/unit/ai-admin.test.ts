@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { aiActionSchema, aiSettingsSchema, parseAiDecision } from "@/lib/ai-admin";
+import { aiActionSchema, aiSecretSchema, aiSettingsSchema, decryptAiSecret, encryptAiSecret, parseAiDecision } from "@/lib/ai-admin";
 
 it("AI 动作只允许白名单内的可逆管理操作", () => {
   expect(aiActionSchema.safeParse({
@@ -20,4 +20,17 @@ it("AI 面板设置只接受 http(s) 地址和安全置信度范围", () => {
   expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "https://api.example.com/v1", model: "demo", autoConfidence: 0.9 }).success).toBe(true);
   expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "file:///tmp/model", model: "demo", autoConfidence: 0.9 }).success).toBe(false);
   expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "https://api.example.com/v1", model: "demo", autoConfidence: 0.2 }).success).toBe(false);
+});
+
+it("AI 密钥加密后可往返且不暴露明文", () => {
+  const previous = process.env.AI_SETTINGS_ENCRYPTION_KEY;
+  process.env.AI_SETTINGS_ENCRYPTION_KEY = "unit-test-encryption-key";
+  const secret = "provider-secret-123";
+  const encrypted = encryptAiSecret(secret);
+  expect(aiSecretSchema.safeParse(secret).success).toBe(true);
+  expect(encrypted).toBeTruthy();
+  expect(encrypted).not.toContain(secret);
+  expect(decryptAiSecret(encrypted)).toBe(secret);
+  if (previous === undefined) delete process.env.AI_SETTINGS_ENCRYPTION_KEY;
+  else process.env.AI_SETTINGS_ENCRYPTION_KEY = previous;
 });

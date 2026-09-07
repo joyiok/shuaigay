@@ -21,7 +21,7 @@ import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
-import { aiSettingsSchema } from "@/lib/ai-admin";
+import { aiSecretSchema, aiSettingsSchema, encryptAiSecret } from "@/lib/ai-admin";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -897,6 +897,38 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
   });
   if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
 
+  const adminApiKeyEntry = formData.get("adminApiKey");
+  const providerApiKeyEntry = formData.get("providerApiKey");
+  const adminApiKey = typeof adminApiKeyEntry === "string" ? adminApiKeyEntry.trim() : "";
+  const providerApiKey = typeof providerApiKeyEntry === "string" ? providerApiKeyEntry.trim() : "";
+  const clearAdminApiKey = formData.get("clearAdminApiKey") === "on";
+  const clearProviderApiKey = formData.get("clearProviderApiKey") === "on";
+  if (!aiSecretSchema.safeParse(adminApiKey).success || !aiSecretSchema.safeParse(providerApiKey).success) {
+    redirect(ADMIN_TAB("settings") + "&error=invalid");
+  }
+
+  const hasSecretChange = Boolean(adminApiKey || providerApiKey || clearAdminApiKey || clearProviderApiKey);
+  let secretUpdate: {
+    aiAdminApiKeyEncrypted?: string | null;
+    aiProviderApiKeyEncrypted?: string | null;
+  } = {};
+  if (hasSecretChange) {
+    if (!process.env.AI_SETTINGS_ENCRYPTION_KEY?.trim()) redirect(ADMIN_TAB("settings") + "&error=ai_secret_key");
+    const previous = await db.siteSetting.findUnique({
+      where: { id: "site" },
+      select: { aiAdminApiKeyEncrypted: true, aiProviderApiKeyEncrypted: true },
+    });
+    const encryptedAdmin = adminApiKey ? encryptAiSecret(adminApiKey) : previous?.aiAdminApiKeyEncrypted ?? null;
+    const encryptedProvider = providerApiKey ? encryptAiSecret(providerApiKey) : previous?.aiProviderApiKeyEncrypted ?? null;
+    if ((adminApiKey && !encryptedAdmin) || (providerApiKey && !encryptedProvider)) {
+      redirect(ADMIN_TAB("settings") + "&error=ai_secret_key");
+    }
+    secretUpdate = {
+      aiAdminApiKeyEncrypted: clearAdminApiKey ? null : encryptedAdmin,
+      aiProviderApiKeyEncrypted: clearProviderApiKey ? null : encryptedProvider,
+    };
+  }
+
   await db.siteSetting.upsert({
     where: { id: "site" },
     update: {
@@ -904,6 +936,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
       aiBaseUrl: parsed.data.baseUrl,
       aiModel: parsed.data.model,
       aiAutoConfidence: parsed.data.autoConfidence,
+      ...secretUpdate,
     },
     create: {
       id: "site",
@@ -911,6 +944,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
       aiBaseUrl: parsed.data.baseUrl,
       aiModel: parsed.data.model,
       aiAutoConfidence: parsed.data.autoConfidence,
+      ...secretUpdate,
     },
   });
   await db.auditLog.create({ data: { actorId, action: "update_ai_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});

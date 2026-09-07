@@ -59,8 +59,8 @@ services:
       RATE_LIMIT_REPLY: ${RATE_LIMIT_REPLY:-10}
       RATE_LIMIT_EDIT: ${RATE_LIMIT_EDIT:-10}
       RATE_LIMIT_RATE: ${RATE_LIMIT_RATE:-40}
-      AI_ADMIN_API_KEY: ${AI_ADMIN_API_KEY:-}
-      AI_PROVIDER_API_KEY: ${AI_PROVIDER_API_KEY:-}
+      AI_SETTINGS_ENCRYPTION_KEY: ${AI_SETTINGS_ENCRYPTION_KEY:-}
+      AI_CRON_KEY: ${AI_CRON_KEY:-}
     volumes:
       - ./uploads:/srv/uploads
     ports:
@@ -113,7 +113,7 @@ services:
       B2_ACCOUNT_KEY: ${B2_ACCOUNT_KEY:-}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AI_ADMIN_API_KEY: ${AI_ADMIN_API_KEY:-}
+      AI_CRON_KEY: ${AI_CRON_KEY:-}
     volumes:
       - ./uploads:/srv/uploads:ro
       - ./backups:/backups

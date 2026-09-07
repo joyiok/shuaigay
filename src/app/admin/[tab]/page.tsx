@@ -54,7 +54,7 @@ import { listSensitiveWords } from "@/lib/sensitive";
 import { ConfirmForm, NativeConfirmForm } from "../ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { getCachedSiteSettings } from "@/lib/cached";
-import { getAiRuntimeSettings } from "@/lib/ai-admin";
+import { getAiSettingsPanel } from "@/lib/ai-admin";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
@@ -92,6 +92,7 @@ const ERRORS: Record<string, string> = {
   logo_too_large: "Logo 不能超过 2MB",
   logo_type: "Logo 仅支持 JPG/PNG/GIF/WEBP",
   upload_failed: "Logo 上传失败，请重试",
+  ai_secret_key: "服务器尚未配置 AI_SETTINGS_ENCRYPTION_KEY，暂不能保存 AI 密钥",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -220,7 +221,7 @@ export default async function AdminPage({
 
 async function SettingsTab() {
   const settings = await getCachedSiteSettings();
-  const aiSettings = await getAiRuntimeSettings();
+  const aiSettings = await getAiSettingsPanel();
   const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
@@ -267,7 +268,7 @@ async function SettingsTab() {
             开启自动运营
           </label>
           <div id="ai-settings-help" style={{ color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
-            这里管理开关、模型地址、模型名称和自动执行置信度。模型密钥仍只放服务器环境变量，不会显示或写入数据库。
+            这里管理自动运营和模型连接。密钥会用服务器主密钥加密后存入数据库，面板不会回显；留空表示不修改，勾选“清除”才会删除。
           </div>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务地址</span>
@@ -281,6 +282,20 @@ async function SettingsTab() {
             <span style={{ fontSize: 12, fontWeight: 700 }}>自动执行置信度 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>0.5–1，越高越谨慎</span></span>
             <input name="autoConfidence" type="number" required min="0.5" max="1" step="0.05" defaultValue={aiSettings.autoConfidence} style={{ ...paperInput, width: 150, height: 36 }} />
           </label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>AI 管理 API 密钥 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{aiSettings.adminKeyConfigured ? "· 已配置" : "· 未配置"}</span></span>
+              <input name="adminApiKey" type="password" maxLength={500} autoComplete="new-password" placeholder="留空保持不变" style={{ ...paperInput, width: "100%", height: 36 }} />
+              <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>给外部 AI 调用 /api/ai/context 和 /api/ai/actions 使用。</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 11 }}><input name="clearAdminApiKey" type="checkbox" style={{ accentColor: "var(--brand)" }} />清除管理密钥</span>
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务密钥 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{aiSettings.providerKeyConfigured ? "· 已配置" : "· 未配置"}</span></span>
+              <input name="providerApiKey" type="password" maxLength={500} autoComplete="new-password" placeholder="留空保持不变" style={{ ...paperInput, width: "100%", height: 36 }} />
+              <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>OpenAI 兼容模型服务的 Bearer 密钥。</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 11 }}><input name="clearProviderApiKey" type="checkbox" style={{ accentColor: "var(--brand)" }} />清除模型密钥</span>
+            </label>
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
             <button type="submit" style={paperDarkBtn}>保存 AI 设置</button>
           </div>

@@ -103,6 +103,8 @@ model SiteSetting {
   aiBaseUrl      String   @default("https://api.openai.com/v1")
   aiModel        String   @default("gpt-4o-mini")
   aiAutoConfidence Float  @default(0.9)
+  aiAdminApiKeyEncrypted    String?
+  aiProviderApiKeyEncrypted String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

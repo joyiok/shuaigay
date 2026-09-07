@@ -1,4 +1,4 @@
-import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { revalidatePath, revalidateTag } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -14,7 +14,11 @@ const DEFAULT_AI_SETTINGS = {
   baseUrl: "https://api.openai.com/v1",
   model: "gpt-4o-mini",
   autoConfidence: 0.9,
+  adminApiKey: "",
+  providerApiKey: "",
 } as const;
+const AI_SECRET_PREFIX = "v1";
+export const aiSecretSchema = z.string().trim().max(500);
 const actionReason = z.string().trim().min(1).max(300);
 const confidence = z.number().min(0).max(1).default(0);
 const threadId = z.string().trim().min(1).max(64);
@@ -51,19 +55,84 @@ export const aiSettingsSchema = z.object({
   autoConfidence: z.coerce.number().min(0.5).max(1),
 });
 
-export type AiRuntimeSettings = z.infer<typeof aiSettingsSchema>;
+export type AiRuntimeSettings = z.infer<typeof aiSettingsSchema> & {
+  adminApiKey: string;
+  providerApiKey: string;
+};
+
+export type AiSettingsPanel = Omit<AiRuntimeSettings, "adminApiKey" | "providerApiKey"> & {
+  adminKeyConfigured: boolean;
+  providerKeyConfigured: boolean;
+};
+
+function aiEncryptionKey(): Buffer | null {
+  const secret = process.env.AI_SETTINGS_ENCRYPTION_KEY?.trim();
+  return secret ? createHash("sha256").update(secret).digest() : null;
+}
+
+export function encryptAiSecret(value: string): string | null {
+  const key = aiEncryptionKey();
+  if (!key) return null;
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const ciphertext = Buffer.concat([cipher.update(value, "utf8"), cipher.final()]);
+  return [AI_SECRET_PREFIX, iv.toString("base64url"), cipher.getAuthTag().toString("base64url"), ciphertext.toString("base64url")].join(":");
+}
+
+export function decryptAiSecret(value: string | null | undefined): string {
+  const key = aiEncryptionKey();
+  if (!key || !value) return "";
+  try {
+    const [version, ivText, tagText, ciphertextText] = value.split(":");
+    const iv = Buffer.from(ivText ?? "", "base64url");
+    const tag = Buffer.from(tagText ?? "", "base64url");
+    if (version !== AI_SECRET_PREFIX || iv.length !== 12 || tag.length !== 16 || !ciphertextText) return "";
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(Buffer.from(ciphertextText, "base64url")), decipher.final()]).toString("utf8");
+  } catch {
+    return "";
+  }
+}
 
 export async function getAiRuntimeSettings(): Promise<AiRuntimeSettings> {
   const settings = await db.siteSetting.findUnique({
     where: { id: "site" },
-    select: { aiAutomationEnabled: true, aiBaseUrl: true, aiModel: true, aiAutoConfidence: true },
+    select: {
+      aiAutomationEnabled: true,
+      aiBaseUrl: true,
+      aiModel: true,
+      aiAutoConfidence: true,
+      aiAdminApiKeyEncrypted: true,
+      aiProviderApiKeyEncrypted: true,
+    },
   }).catch(() => null);
-  if (!settings) return DEFAULT_AI_SETTINGS;
+  if (!settings) {
+    return {
+      ...DEFAULT_AI_SETTINGS,
+      adminApiKey: process.env.AI_ADMIN_API_KEY?.trim() ?? "",
+      providerApiKey: process.env.AI_PROVIDER_API_KEY?.trim() ?? "",
+    };
+  }
   return {
     enabled: settings.aiAutomationEnabled,
     baseUrl: settings.aiBaseUrl,
     model: settings.aiModel,
     autoConfidence: Math.max(0.5, Math.min(1, settings.aiAutoConfidence)),
+    adminApiKey: decryptAiSecret(settings.aiAdminApiKeyEncrypted) || process.env.AI_ADMIN_API_KEY?.trim() || "",
+    providerApiKey: decryptAiSecret(settings.aiProviderApiKeyEncrypted) || process.env.AI_PROVIDER_API_KEY?.trim() || "",
+  };
+}
+
+export async function getAiSettingsPanel(): Promise<AiSettingsPanel> {
+  const runtime = await getAiRuntimeSettings();
+  return {
+    enabled: runtime.enabled,
+    baseUrl: runtime.baseUrl,
+    model: runtime.model,
+    autoConfidence: runtime.autoConfidence,
+    adminKeyConfigured: Boolean(runtime.adminApiKey),
+    providerKeyConfigured: Boolean(runtime.providerApiKey),
   };
 }
 
@@ -83,7 +152,7 @@ function sameSecret(left: string, right: string): boolean {
 
 /** AI 管理 API 只接受 Bearer 或 X-AI-Admin-Key,不复用浏览器 session。 */
 export async function authenticateAiRequest(req: Request): Promise<AiAuthResult> {
-  const expected = process.env.AI_ADMIN_API_KEY?.trim();
+  const expected = (await getAiRuntimeSettings()).adminApiKey;
   if (!expected) return { ok: false, status: 503, error: "AI 管理 API 尚未配置" };
   const bearer = req.headers.get("authorization")?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   const supplied = bearer || req.headers.get("x-ai-admin-key")?.trim() || "";
@@ -91,6 +160,16 @@ export async function authenticateAiRequest(req: Request): Promise<AiAuthResult>
   const fingerprint = createHash("sha256").update(expected).digest("hex").slice(0, 16);
   if (!(await checkRateLimit(`ai-admin:${fingerprint}`, 30, 60))) {
     return { ok: false, status: 429, error: "AI 管理 API 请求过于频繁" };
+  }
+  return { ok: true };
+}
+
+/** 定时任务只接受容器间的内部密钥,不和面板里的管理密钥混用。 */
+export async function authenticateAiCronRequest(req: Request): Promise<AiAuthResult> {
+  const expected = process.env.AI_CRON_KEY?.trim();
+  if (!expected) return { ok: false, status: 503, error: "AI 定时任务内部密钥尚未配置" };
+  if (!sameSecret(req.headers.get("x-ai-cron-key")?.trim() ?? "", expected)) {
+    return { ok: false, status: 401, error: "AI 定时任务内部密钥无效" };
   }
   return { ok: true };
 }
@@ -307,13 +386,12 @@ function modelContent(payload: unknown): string {
 }
 
 async function askModel(context: Awaited<ReturnType<typeof getAiContext>>, runtime: AiRuntimeSettings): Promise<AiDecision> {
-  const apiKey = process.env.AI_PROVIDER_API_KEY?.trim();
-  if (!apiKey) throw new Error("AI_PROVIDER_API_KEY 未配置");
+  if (!runtime.providerApiKey) throw new Error("模型服务密钥未配置");
   const baseUrl = runtime.baseUrl.replace(/\/$/, "");
   const model = runtime.model;
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: { Authorization: `Bearer ${runtime.providerApiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model, temperature: 0.1, response_format: { type: "json_object" },
       messages: [
@@ -352,7 +430,7 @@ async function withAutomationLock<T>(run: () => Promise<T>): Promise<T | { statu
 export async function runAiAutomation() {
   const runtime = await getAiRuntimeSettings();
   if (!runtime.enabled) return { status: "disabled" as const, message: "AI 自动运营未开启" };
-  if (!process.env.AI_PROVIDER_API_KEY?.trim()) return { status: "not_configured" as const, message: "未配置 AI_PROVIDER_API_KEY" };
+  if (!runtime.providerApiKey) return { status: "not_configured" as const, message: "未配置模型服务密钥" };
 
   return withAutomationLock(async () => {
     try {

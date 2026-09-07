@@ -1,6 +1,6 @@
 # 每晚 03:30 自动备份(容器时区默认 UTC,按需调整)
 30 3 * * * sh /scripts/backup.sh >> /var/log/backup.log 2>&1
-# 每 10 分钟尝试一次 AI 自动运营;未配置管理密钥时直接跳过
+# 每 10 分钟尝试一次 AI 自动运营;未配置内部密钥时直接跳过
 */10 * * * * sh /scripts/ai-automation.sh >> /var/log/ai-automation.log 2>&1
 # 每天检查磁盘水位,超过 80% 写警告日志(配合外部监控或登录查看)
 0 4 * * * df /srv/uploads /var/lib/postgresql/data | awk 'NR>1 && int($5) > 80 {print strftime("[%F %T]"), "磁盘水位警告:", $6, $5}' >> /var/log/backup.log
