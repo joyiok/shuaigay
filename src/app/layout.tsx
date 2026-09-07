@@ -191,7 +191,7 @@ export default async function RootLayout({
                       </span>
                     )}
                   </Link>
-                  <Link href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 700, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <Link className="nav-user-name" href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 700, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {user.username}
                   </Link>
                   {user.role === "ADMIN" && (
@@ -199,7 +199,7 @@ export default async function RootLayout({
                       <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE" }}>
                         管理
                       </Link>
-                      <span
+                      <span className="nav-role"
                         style={{
                           background: "var(--inverse)",
                           color: "var(--inverse-text)",
@@ -215,7 +215,7 @@ export default async function RootLayout({
                     </>
                   )}
                   {online !== null && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
+                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <form action={logoutAction} style={{ display: "inline" }}>
                     <button type="submit" style={{ color: "var(--text-subtle)", fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 999 }}>
@@ -226,7 +226,7 @@ export default async function RootLayout({
               ) : (
                 <>
                   {online !== null && (
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
+                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <Link href="/login" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "7px 12px" }}>
                     登录

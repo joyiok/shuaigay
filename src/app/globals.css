@@ -101,7 +101,7 @@ a, button { transition: color 160ms ease-out, background-color 160ms ease-out, b
 button { touch-action: manipulation; cursor: pointer; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 .site-header { background: var(--panel); border-bottom: 1px solid var(--line-soft); position: sticky; top: 0; z-index: 40; }
-.bar { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: 76px; display: flex; align-items: center; gap: 24px; }
+.bar { max-width: 1320px; margin: 0 auto; padding: 0 32px; height: 76px; display: flex; align-items: center; gap: 18px; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; font-size: 19px; color: var(--text); white-space: nowrap; text-decoration: none; flex-shrink: 0; }
 .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--font-grotesk), sans-serif; }
 .brand-logo { width: 38px; height: 38px; border-radius: 12px; object-fit: contain; display: block; }
@@ -109,11 +109,12 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .brand i { font-style: normal; color: var(--brand); }
 .forum-nav { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 100px; overflow-x: auto; scrollbar-width: none; }
 .forum-nav::-webkit-scrollbar { display: none; }
-.forum-link { display: inline-flex; align-items: center; height: 40px; padding: 0 12px; border-radius: 8px; color: var(--text-muted); font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; }
+.forum-link { display: inline-flex; align-items: center; height: 40px; padding: 0 10px; border-radius: 8px; color: var(--text-muted); font-size: 13px; font-weight: 500; white-space: nowrap; text-decoration: none; }
 .forum-link:hover { color: var(--brand); background: var(--bg-soft); }
 .forum-link.active { color: var(--brand); background: var(--brand-soft); font-weight: 600; }
-.search-ac-wrap { flex-shrink: 1; min-width: 130px; max-width: 210px; }
-.nav-mine { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; flex-shrink: 0; }
+.search-ac-wrap { flex-shrink: 1; min-width: 120px; max-width: 190px; }
+.nav-mine { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; flex-shrink: 0; }
+.nav-user-name, .nav-role, .nav-online { display: none !important; }
 .nav-mine a { text-decoration: none; }
 .nav-mine .btn-publish { height: 38px; padding: 0 17px; }
 
@@ -173,8 +174,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .quick-links a, .hot-topic { display: flex; align-items: center; justify-content: space-between; min-height: 36px; padding: 4px 8px; border-radius: 8px; font-size: 13px; color: var(--text-muted); text-decoration: none; }
 .quick-links a:hover, .hot-topic:hover { background: var(--bg-soft); }
 .quick-links .count, .hot-topic .rank { font-size: 11px; font-variant-numeric: tabular-nums; color: var(--text-subtle); }
-.welcome-card { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 24px 22px; }
-.welcome-art { position: absolute; right: -34px; bottom: -42px; width: 138px; height: 138px; object-fit: cover; opacity: 0.68; pointer-events: none; }
+.welcome-card { position: relative; overflow: hidden; isolation: isolate; background: #fff8ef; border: 1px solid #f2e7dc; border-radius: var(--radius); padding: 24px 22px; }
+.welcome-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; opacity: 0.26; pointer-events: none; }
+.welcome-card > div { position: relative; z-index: 1 !important; }
 .welcome-title { font-size: 18px; font-weight: 600; margin: 0 0 10px; }
 .welcome-copy { font-size: 13px; line-height: 1.9; color: var(--text-muted); margin: 0; }
 .welcome-card a { text-decoration: none; }
