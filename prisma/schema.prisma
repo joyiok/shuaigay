@@ -99,6 +99,10 @@ model SiteSetting {
   siteTitle      String   @default("SHUAI GAY 论坛 · 开放 · 克制 · 高效")
   siteDescription String  @default("SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。")
   logoUrl        String?
+  aiAutomationEnabled Boolean @default(false)
+  aiBaseUrl      String   @default("https://api.openai.com/v1")
+  aiModel        String   @default("gpt-4o-mini")
+  aiAutoConfidence Float  @default(0.9)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

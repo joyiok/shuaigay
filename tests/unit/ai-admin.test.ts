@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { aiActionSchema, parseAiDecision } from "@/lib/ai-admin";
+import { aiActionSchema, aiSettingsSchema, parseAiDecision } from "@/lib/ai-admin";
 
 it("AI 动作只允许白名单内的可逆管理操作", () => {
   expect(aiActionSchema.safeParse({
@@ -14,4 +14,10 @@ it("AI 决策支持 JSON 代码块", () => {
   const decision = parseAiDecision('```json\n{"summary":"发现广告","actions":[]}\n```');
   expect(decision.summary).toBe("发现广告");
   expect(decision.actions).toEqual([]);
+});
+
+it("AI 面板设置只接受 http(s) 地址和安全置信度范围", () => {
+  expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "https://api.example.com/v1", model: "demo", autoConfidence: 0.9 }).success).toBe(true);
+  expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "file:///tmp/model", model: "demo", autoConfidence: 0.9 }).success).toBe(false);
+  expect(aiSettingsSchema.safeParse({ enabled: true, baseUrl: "https://api.example.com/v1", model: "demo", autoConfidence: 0.2 }).success).toBe(false);
 });

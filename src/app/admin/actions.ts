@@ -21,6 +21,7 @@ import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
+import { aiSettingsSchema } from "@/lib/ai-admin";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -883,6 +884,38 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   logger.info("admin.update_site_settings", { actorId });
   revalidateTag("site-settings");
   revalidatePath("/");
+  redirect(ADMIN_TAB("settings"));
+}
+
+export async function updateAiSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const parsed = aiSettingsSchema.safeParse({
+    enabled: formData.get("enabled") === "on",
+    baseUrl: formData.get("baseUrl"),
+    model: formData.get("model"),
+    autoConfidence: formData.get("autoConfidence"),
+  });
+  if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: {
+      aiAutomationEnabled: parsed.data.enabled,
+      aiBaseUrl: parsed.data.baseUrl,
+      aiModel: parsed.data.model,
+      aiAutoConfidence: parsed.data.autoConfidence,
+    },
+    create: {
+      id: "site",
+      aiAutomationEnabled: parsed.data.enabled,
+      aiBaseUrl: parsed.data.baseUrl,
+      aiModel: parsed.data.model,
+      aiAutoConfidence: parsed.data.autoConfidence,
+    },
+  });
+  await db.auditLog.create({ data: { actorId, action: "update_ai_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
+  logger.info("admin.update_ai_settings", { actorId, enabled: parsed.data.enabled, model: parsed.data.model });
+  revalidateTag("site-settings");
   redirect(ADMIN_TAB("settings"));
 }
 

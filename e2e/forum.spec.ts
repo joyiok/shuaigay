@@ -10,7 +10,9 @@ function submitButton(page: import("@playwright/test").Page, name: string) {
 }
 
 async function logout(page: import("@playwright/test").Page) {
+  const loggedOut = page.waitForResponse((response) => response.request().method() === "POST", { timeout: 20000 });
   await submitButton(page, "退出").first().click();
+  await loggedOut;
   await expect(page.locator("header").getByRole("link", { name: "登录" })).toBeVisible({ timeout: 20000 });
 }
 

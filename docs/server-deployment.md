@@ -102,11 +102,9 @@ SEED_ADMIN_PASSWORD=<管理员强口令>
 # 可选:AI 自动运营(配置后每 10 分钟运行一次)
 AI_ADMIN_API_KEY=<独立的 AI 管理 API 密钥>
 AI_PROVIDER_API_KEY=<OpenAI 兼容模型服务密钥>
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=gpt-4o-mini
-AI_AUTOMATION_ENABLED=1
-AI_AUTO_CONFIDENCE=0.9
 ```
+
+然后在管理后台「站点设置 → AI 自动运营」配置开关、模型服务地址、模型名称和自动执行置信度；密钥不在面板展示，也不写入数据库。
 
 部署前检查：
 

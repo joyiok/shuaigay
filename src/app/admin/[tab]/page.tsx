@@ -45,6 +45,7 @@ import {
   removeSensitiveWordAction,
   reviewReportAction,
   setUserRoleAction,
+  updateAiSettingsAction,
   updateSiteSettingsAction,
   unbanUserAction,
 } from "../actions";
@@ -53,6 +54,7 @@ import { listSensitiveWords } from "@/lib/sensitive";
 import { ConfirmForm, NativeConfirmForm } from "../ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { getCachedSiteSettings } from "@/lib/cached";
+import { getAiRuntimeSettings } from "@/lib/ai-admin";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
@@ -218,10 +220,12 @@ export default async function AdminPage({
 
 async function SettingsTab() {
   const settings = await getCachedSiteSettings();
+  const aiSettings = await getAiRuntimeSettings();
   const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
-    <div className="card" style={{ overflow: "hidden" }}>
+    <div style={{ display: "grid", gap: 12 }}>
+      <div className="card" style={{ overflow: "hidden" }}>
       <PaperCardHeader title="站点设置" count="全站" sub="保存后立即生效" />
       <form action={updateSiteSettingsAction} encType="multipart/form-data" style={{ display: "grid", gap: 12, padding: 14 }}>
         <label style={{ display: "grid", gap: 5 }}>
@@ -253,6 +257,35 @@ async function SettingsTab() {
           <button type="submit" style={{ ...paperDarkBtn, marginLeft: "auto" }}>保存设置</button>
         </div>
       </form>
+      </div>
+
+      <div className="card" style={{ overflow: "hidden" }}>
+        <PaperCardHeader title="AI 自动运营" count={aiSettings.enabled ? "已开启" : "已关闭"} sub="每 10 分钟检查一次" />
+        <form action={updateAiSettingsAction} style={{ display: "grid", gap: 12, padding: 14 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}>
+            <input name="enabled" type="checkbox" defaultChecked={aiSettings.enabled} style={{ width: 16, height: 16, accentColor: "var(--brand)" }} />
+            开启自动运营
+          </label>
+          <div id="ai-settings-help" style={{ color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
+            这里管理开关、模型地址、模型名称和自动执行置信度。模型密钥仍只放服务器环境变量，不会显示或写入数据库。
+          </div>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务地址</span>
+            <input name="baseUrl" required maxLength={300} defaultValue={aiSettings.baseUrl} placeholder="https://api.openai.com/v1" inputMode="url" aria-describedby="ai-settings-help" style={{ ...paperInput, width: "100%", height: 36 }} />
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>模型名称</span>
+            <input name="model" required maxLength={100} defaultValue={aiSettings.model} placeholder="gpt-4o-mini" style={{ ...paperInput, width: "100%", height: 36 }} />
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>自动执行置信度 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>0.5–1，越高越谨慎</span></span>
+            <input name="autoConfidence" type="number" required min="0.5" max="1" step="0.05" defaultValue={aiSettings.autoConfidence} style={{ ...paperInput, width: 150, height: 36 }} />
+          </label>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <button type="submit" style={paperDarkBtn}>保存 AI 设置</button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
