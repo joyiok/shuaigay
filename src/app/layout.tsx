@@ -6,8 +6,8 @@ import { trackAndCountOnline } from "@/lib/online";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
-import { siteUrl } from "@/lib/site";
-import { getCachedActiveUsers, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedStats } from "@/lib/cached";
+import { DEFAULT_SITE_SETTINGS, siteUrl } from "@/lib/site";
+import { getCachedActiveUsers, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedSiteSettings, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
@@ -18,37 +18,42 @@ import ForumNav from "@/components/ForumNav";
 const site = siteUrl();
 const siteOrigin = site.origin;
 
-export const metadata: Metadata = {
-  metadataBase: site,
-  title: { default: "SHUAI GAY 论坛 · 开放 · 克制 · 高效", template: "%s · SHUAI GAY 论坛" },
-  description: "SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。",
-  keywords: ["SHUAI GAY", "论坛", "社区", "技术交流", "综合讨论", "生活分享", "资源互助"],
-  authors: [{ name: "SHUAI GAY" }],
-  creator: "SHUAI GAY",
-  category: "community",
-  alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml`, "application/atom+xml": `${siteOrigin}/atom.xml`, "application/feed+json": `${siteOrigin}/feed.json` } },
-  openGraph: {
-    type: "website",
-    siteName: "SHUAI GAY 论坛",
-    title: "SHUAI GAY 论坛 · 开放 · 克制 · 高效",
-    description: "连接兴趣 · 遇见同好 · 分享精彩 — 原创极简风格的高性能社区。",
-    locale: "zh_CN",
-    url: siteOrigin,
-    images: [{ url: `${siteOrigin}/api/og?title=${encodeURIComponent("SHUAI GAY 论坛")}`, width: 1200, height: 630 }],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SHUAI GAY 论坛",
-    description: "开放 · 克制 · 高效 — 原创极简风格的社区。",
-    images: [`${siteOrigin}/api/og?title=${encodeURIComponent("SHUAI GAY 论坛")}`],
-  },
-  robots: {
-    index: true,
-    follow: true,
-    googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
-  },
-  verification: {},
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const settings = await getCachedSiteSettings();
+  const ogImage = `${siteOrigin}/api/og?title=${encodeURIComponent(settings.siteTitle)}`;
+  return {
+    metadataBase: site,
+    title: { default: settings.siteTitle, template: `%s · ${settings.siteName}` },
+    description: settings.siteDescription,
+    keywords: [settings.siteName, "论坛", "社区", "技术交流", "综合讨论", "生活分享", "资源互助"],
+    authors: [{ name: settings.siteName }],
+    creator: settings.siteName,
+    category: "community",
+    alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml`, "application/atom+xml": `${siteOrigin}/atom.xml`, "application/feed+json": `${siteOrigin}/feed.json` } },
+    icons: settings.logoUrl ? { icon: settings.logoUrl } : undefined,
+    openGraph: {
+      type: "website",
+      siteName: settings.siteName,
+      title: settings.siteTitle,
+      description: settings.siteDescription,
+      locale: "zh_CN",
+      url: siteOrigin,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: settings.siteTitle,
+      description: settings.siteDescription,
+      images: [ogImage],
+    },
+    robots: {
+      index: true,
+      follow: true,
+      googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1 },
+    },
+    verification: {},
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: "#6951c6",
@@ -66,12 +71,13 @@ export default async function RootLayout({
   const online = await trackAndCountOnline(user?.id);
 
   // —— 性能：板块/统计/热帖/活跃用户走 60s 缓存，避免每请求 5 次 DB（A+B）——
-  const [boards, stats, hotTopics, activeUsers, categoryCloud] = await Promise.all([
+  const [boards, stats, hotTopics, activeUsers, categoryCloud, settings] = await Promise.all([
     getCachedBoards(),
     getCachedStats(),
     getCachedHotTopics(),
     getCachedActiveUsers(),
     getCachedCategoryCloud(),
+    getCachedSiteSettings(),
   ]);
   const { userCount, threadCount, postCount } = stats;
 
@@ -95,9 +101,9 @@ export default async function RootLayout({
   const websiteJsonLd = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: "SHUAI GAY 论坛",
+    name: settings.siteName,
     url: siteOrigin,
-    description: "开放 · 克制 · 高效 — 原创极简风格社区",
+    description: settings.siteDescription,
     inLanguage: "zh-CN",
     potentialAction: {
       "@type": "SearchAction",
@@ -108,9 +114,9 @@ export default async function RootLayout({
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: "SHUAI GAY 论坛",
+    name: settings.siteName,
     url: siteOrigin,
-    logo: `${siteOrigin}/og.png`,
+    logo: settings.logoUrl ? new URL(settings.logoUrl, site).toString() : `${siteOrigin}/og.png`,
   };
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
@@ -119,6 +125,7 @@ export default async function RootLayout({
       { "@type": "ListItem", position: 1, name: "首页", item: siteOrigin },
     ],
   };
+  const brandMark = settings.siteName === DEFAULT_SITE_SETTINGS.siteName ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
     <html lang="zh-CN">
@@ -134,11 +141,13 @@ export default async function RootLayout({
         {/* 顶部栏 - 原创极简风格 */}
         <header className="site-header top">
           <div className="bar">
-            <Link href="/" className="brand" aria-label="SHUAI GAY 论坛首页">
-              <span className="brand-mark">SG</span>
-              <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>SHUAI&nbsp;<i>GAY</i></span>
+            <Link href="/" className="brand" aria-label={`${settings.siteName}首页`}>
+              {settings.logoUrl ? <img src={settings.logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
+              <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>{settings.siteName}</span>
             </Link>
             <MobileDrawer
+              siteName={settings.siteName}
+              logoUrl={settings.logoUrl}
               boards={boards.map((b) => ({ slug: b.slug, name: b.name, threads: (b as any)._count?.threads ?? 0 }))}
               user={user ? { username: user.username, role: user.role } : null}
               unreadCount={unreadCount}
@@ -243,7 +252,7 @@ export default async function RootLayout({
               {/* 欢迎卡 — 参考图 */}
               <div className="welcome-card">
                 <div style={{ position: "relative", zIndex: 1 }}>
-                  <h2 className="welcome-title">SHUAI GAY 社区</h2>
+                  <h2 className="welcome-title">{settings.siteName} 社区</h2>
                   <p className="welcome-copy">进来坐坐，有话直说 — 吹水、求助、分享都欢迎</p>
                   {!user && (
                     <div className="side-auth">
@@ -392,7 +401,7 @@ export default async function RootLayout({
         <FloatingNewThread firstBoardSlug={boards[0]?.slug ?? null} />
 
         <footer className="footer">
-          <div className="runtime-info" style={{ fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>© 2026 SHUAI GAY <span style={{ fontWeight: 500, color: "var(--text-subtle)" }}>· 开放 · 克制 · 高效</span></div>
+          <div className="runtime-info" style={{ fontWeight: 700, letterSpacing: "-0.01em", color: "var(--text)" }}>© 2026 {settings.siteName}</div>
           <div className="footer-links">
             {/* 页脚纯导航：关预取，之前连 /robots.txt 都在预取 _rsc */}
             <Link href="/" prefetch={false}>首页</Link>

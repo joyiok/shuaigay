@@ -19,6 +19,7 @@ import { banUser, unbanUser } from "@/lib/ban";
 import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
+import { siteSettingsSchema } from "@/lib/site";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -828,6 +829,30 @@ export async function broadcastAnnouncementAction(formData: FormData): Promise<v
   logger.info("admin.broadcast_announce", { actorId, title: parsed.data.title, sent });
   revalidateTag("notifications");
   redirect(ADMIN_TAB("stats"));
+}
+
+/* ---------------- 站点设置 ---------------- */
+
+export async function updateSiteSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const parsed = siteSettingsSchema.safeParse({
+    siteName: formData.get("siteName"),
+    siteTitle: formData.get("siteTitle"),
+    siteDescription: formData.get("siteDescription"),
+    logoUrl: formData.get("logoUrl") ?? "",
+  });
+  if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: { ...parsed.data, logoUrl: parsed.data.logoUrl || null },
+    create: { id: "site", ...parsed.data, logoUrl: parsed.data.logoUrl || null },
+  });
+  await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
+  logger.info("admin.update_site_settings", { actorId });
+  revalidateTag("site-settings");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("settings"));
 }
 
 /* ---------------- 敏感词 ---------------- */

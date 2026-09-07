@@ -92,6 +92,17 @@ model SensitiveWord {
   createdAt DateTime @default(now())
 }
 
+/** 全站品牌与 SEO 设置:单例记录,由管理员维护 */
+model SiteSetting {
+  id             String   @id @default("site")
+  siteName       String   @default("SHUAI GAY")
+  siteTitle      String   @default("SHUAI GAY 论坛 · 开放 · 克制 · 高效")
+  siteDescription String  @default("SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。")
+  logoUrl        String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model Session {
   id        String   @id @default(cuid())
   tokenHash String   @unique

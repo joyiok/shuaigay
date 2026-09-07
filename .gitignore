@@ -9,6 +9,7 @@ next-env.d.ts
 .env
 .env.local
 .env.production
+.server-credentials.md
 
 # 本地上传的附件(有 .gitkeep)
 uploads/*

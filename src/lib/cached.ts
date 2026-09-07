@@ -1,9 +1,10 @@
 import { unstable_cache } from "next/cache";
 import { db } from "./db";
+import { DEFAULT_SITE_SETTINGS } from "./site";
 
 /**
  * 布局侧边栏 & 顶部导航的可缓存查询（60s）。
- * - 板块列表、统计、热帖、活跃用户都走 unstable_cache，避免每个请求打 5 次 DB。
+ * - 板块列表、统计、热帖、活跃用户、站点设置都走 unstable_cache，避免重复打 DB。
  * - 在线人数、未读私信、私信计数等实时数据不缓存。
  * - 构建阶段（无 DB）会 catch 走兜底空数组，保证 sitemap/build 不崩。
  */
@@ -131,4 +132,20 @@ export const getCachedCategoryCloud = unstable_cache(
   },
   ["sg:categoryCloud"],
   { revalidate: 120, tags: ["threads", "categories"] },
+);
+
+export const getCachedSiteSettings = unstable_cache(
+  async () => {
+    try {
+      const settings = await db.siteSetting.findUnique({
+        where: { id: "site" },
+        select: { siteName: true, siteTitle: true, siteDescription: true, logoUrl: true },
+      });
+      return settings ? { ...settings, logoUrl: settings.logoUrl ?? "" } : DEFAULT_SITE_SETTINGS;
+    } catch {
+      return DEFAULT_SITE_SETTINGS;
+    }
+  },
+  ["sg:site-settings"],
+  { revalidate: 3600, tags: ["site-settings"] },
 );

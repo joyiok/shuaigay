@@ -45,12 +45,14 @@ import {
   removeSensitiveWordAction,
   reviewReportAction,
   setUserRoleAction,
+  updateSiteSettingsAction,
   unbanUserAction,
 } from "../actions";
 import { listActiveBans } from "@/lib/ban";
 import { listSensitiveWords } from "@/lib/sensitive";
 import { ConfirmForm, NativeConfirmForm } from "../ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
+import { getCachedSiteSettings } from "@/lib/cached";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
@@ -62,6 +64,7 @@ const TABS = [
   { key: "posts", label: "帖子管理" },
   { key: "users", label: "用户管理" },
   { key: "boards", label: "版块管理" },
+  { key: "settings", label: "站点设置" },
   { key: "reports", label: "举报队列" },
   { key: "pending", label: "待审队列" },
   { key: "medals", label: "勋章" },
@@ -117,6 +120,7 @@ const ACTION_LABELS: Record<string, string> = {
   delete_medal: "删除勋章",
   award_medal: "授予勋章",
   revoke_medal: "移除勋章",
+  update_site_settings: "修改站点设置",
 };
 
 export default async function AdminPage({
@@ -196,12 +200,51 @@ export default async function AdminPage({
       {active === "posts" && <PostsTab boardScope={modBoards} />}
       {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
       {adminFlag && active === "boards" && <BoardsTab />}
+      {adminFlag && active === "settings" && <SettingsTab />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
       {active === "pending" && <PendingTab boardScope={modBoards} />}
       {adminFlag && active === "medals" && <MedalsTab />}
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
       {adminFlag && active === "stats" && <StatsTab />}
+    </div>
+  );
+}
+
+/* ---------------- 站点设置 ---------------- */
+
+async function SettingsTab() {
+  const settings = await getCachedSiteSettings();
+  const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
+
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <PaperCardHeader title="站点设置" count="全站" sub="保存后立即生效" />
+      <form action={updateSiteSettingsAction} style={{ display: "grid", gap: 12, padding: 14 }}>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>站点名称</span>
+          <input name="siteName" required maxLength={40} defaultValue={settings.siteName} style={{ ...paperInput, width: "100%", height: 36 }} />
+        </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>浏览器标题 / SEO 标题</span>
+          <input name="siteTitle" required maxLength={100} defaultValue={settings.siteTitle} style={{ ...paperInput, width: "100%", height: 36 }} />
+        </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>站点描述</span>
+          <textarea name="siteDescription" required maxLength={300} defaultValue={settings.siteDescription} rows={3} style={{ ...paperInput, width: "100%", height: "auto", padding: 8, resize: "vertical" }} />
+        </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>Logo 地址 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>可选</span></span>
+          <input name="logoUrl" maxLength={500} defaultValue={settings.logoUrl} placeholder="/logo.png 或 https://..." inputMode="url" style={{ ...paperInput, width: "100%", height: 36 }} />
+        </label>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>
+            {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" width={38} height={38} style={{ borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}
+            <span>Logo 同时用于顶部品牌和浏览器图标</span>
+          </div>
+          <button type="submit" style={{ ...paperDarkBtn, marginLeft: "auto" }}>保存设置</button>
+        </div>
+      </form>
     </div>
   );
 }

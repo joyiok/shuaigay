@@ -21,6 +21,17 @@ async function main() {
     },
   });
 
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: {},
+    create: {
+      id: "site",
+      siteName: "SHUAI GAY",
+      siteTitle: "SHUAI GAY 论坛 · 开放 · 克制 · 高效",
+      siteDescription: "SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。",
+    },
+  });
+
   const boards = [
     { slug: "general", name: "综合讨论", description: "随便聊聊 · 寻找同好", order: 1 },
     { slug: "tech", name: "技术交流", description: "代码 · 部署 · 折腾记录", order: 2 },

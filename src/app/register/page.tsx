@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { registerAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
+import { getCachedSiteSettings } from "@/lib/cached";
 
 export const metadata: Metadata = {
   title: "注册",
@@ -28,12 +29,14 @@ export default async function RegisterPage({
 }) {
   const { error, invite } = await searchParams;
   const inviteCode = typeof invite === "string" ? invite.trim().slice(0, 32) : "";
+  const settings = await getCachedSiteSettings();
+  const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
     <div style={{ maxWidth: 460, margin: "32px auto", padding: "0 8px" }}>
       <div className="card" style={{ padding: 28 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          <span className="brand-mark">SG</span>
+          {settings.logoUrl ? <img src={settings.logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
           <div>
             <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.5 }}>注册 — 进来坐坐</h1>
             <p style={{ fontSize: 12, color: "var(--text-subtle)", margin: "2px 0 0", }}>3 分钟，丢个帖子就行</p>

@@ -45,6 +45,8 @@ interface ActiveUser {
  * - 新增：1020px 下 sidebar 隐藏，抽屉内补充展示侧边栏全部信息（A）
  */
 export default function MobileDrawer({
+  siteName,
+  logoUrl,
   boards,
   user,
   unreadCount = 0,
@@ -52,6 +54,8 @@ export default function MobileDrawer({
   hotTopics = [],
   activeUsers = [],
 }: {
+  siteName: string;
+  logoUrl: string;
   boards: BoardLink[];
   user: DrawerUser | null;
   unreadCount?: number;
@@ -85,6 +89,7 @@ export default function MobileDrawer({
   }, [open, mounted]);
 
   const close = () => setOpen(false);
+  const brandMark = siteName === "SHUAI GAY" ? "SG" : siteName.slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -109,9 +114,9 @@ export default function MobileDrawer({
             <div className="mobile-drawer-backdrop" onClick={close} />
             <div className="mobile-drawer-panel" tabIndex={-1}>
               <div className="mobile-drawer-head">
-                <span className="brand-mark">SG</span>
+                {logoUrl ? <img src={logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
                 <span style={{ fontWeight: 850, fontSize: 15, letterSpacing: "0.02em" }}>
-                  SHUAI GAY
+                  {siteName}
                 </span>
                 <button
                   type="button"
@@ -295,7 +300,7 @@ export default function MobileDrawer({
               </div>
 
               <div className="mobile-drawer-section" style={{ borderBottom: 0, paddingTop: 10, textAlign: "center", color: "var(--text-subtle)", fontSize: 11 }}>
-                SHUAI GAY · 开放 · 克制 · 高效
+                {siteName}
               </div>
             </div>
           </dialog>,
