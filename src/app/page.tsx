@@ -28,7 +28,7 @@ export default async function HomePage({
   const itemListJsonLd = {
     "@context": "https://schema.org",
     "@type": "ItemList",
-    name: "最新主题 · SHUAI GAY 论坛",
+    name: "彩虹同好社区 · 最新主题",
     url: siteOrigin,
     numberOfItems: allForLd.length,
     itemListElement: allForLd.map((t: any, idx: number) => ({
@@ -42,9 +42,9 @@ export default async function HomePage({
     "@context": "https://schema.org",
     "@type": "CollectionPage",
     name: "SHUAI GAY 论坛 · 全部主题",
-    description: "综合讨论、技术交流、生活分享与资源互助的极简社区",
+    description: "彩虹交友、同性社交、生活分享与同好交流的社区",
     url: siteOrigin,
-    isPartOf: { "@type": "WebSite", name: "SHUAI GAY 论坛", url: siteOrigin },
+    isPartOf: { "@type": "WebSite", name: "彩虹同好社区", url: siteOrigin },
   };
 
   // 兼容旧逻辑：若数据库为空，仍展示友好空态（EmptyState 在 layout 侧边栏已展示版块）
@@ -56,23 +56,19 @@ export default async function HomePage({
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       {/* 欢迎区 */}
       <div className="banner">
+        <img className="banner-art" src="/art/rainbow-hero.webp" alt="" width={1717} height={916} fetchPriority="high" aria-hidden="true" />
         <div className="banner-left">
           <h1 className="banner-title">
-            进来坐坐<span>，</span>有话直说
+            找到同频的人<span>，</span>聊点真心话
           </h1>
-          <p className="banner-sub">不端着 · 不审判 — 吹水、求助、分享，随手丢一个帖子就行</p>
+          <p className="banner-sub">彩虹交友 · 同性社交 · 分享生活，和聊得来的人认识一下</p>
           <div className="banner-features">
-            <span className="banner-feature">随便聊 · 想说就说</span>
-            <span className="banner-feature">干货 · 有用就上</span>
-            <span className="banner-feature">资源 · 互帮互助</span>
-            <span className="banner-feature">当自己家 · 别客气</span>
+            <span className="banner-feature">真诚认识 · 从一句你好开始</span>
+            <span className="banner-feature">兴趣交友 · 找到共同话题</span>
+            <span className="banner-feature">生活分享 · 不用端着</span>
+            <span className="banner-feature">尊重边界 · 让交流自然发生</span>
           </div>
         </div>
-        <svg className="banner-symbol" viewBox="0 0 96 96" fill="none" aria-hidden="true">
-          <path d="M18 22h48a10 10 0 0 1 10 10v26a10 10 0 0 1-10 10H40L22 80V68h-4A10 10 0 0 1 8 58V32a10 10 0 0 1 10-10Z" fill="#e2daf2" />
-          <path d="M28 14h48a10 10 0 0 1 10 10v26a10 10 0 0 1-10 10H62L46 72V60H28a10 10 0 0 1-10-10V24a10 10 0 0 1 10-10Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
-          <path d="M34 32h36M34 42h23" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
       </div>
 
       {/* 顶部筛选 - 全站时间线 */}
@@ -136,8 +132,8 @@ export default async function HomePage({
 
       <div className="bottom-banner">
         <div>
-          <p className="bottom-banner-title">别憋着，想说就丢上来</p>
-          <p className="bottom-banner-copy">水帖也算贡献 — 先发，再慢慢聊</p>
+          <p className="bottom-banner-title">别一个人刷过，来认识同频的人</p>
+          <p className="bottom-banner-copy">彩虹交友，从一句“嗨”开始</p>
         </div>
         <Link href="/c/general/new" className="btn-publish" style={{ flexShrink: 0, position: "relative", zIndex: 1 }}>
           去发帖 →

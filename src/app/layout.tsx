@@ -249,11 +249,12 @@ export default async function RootLayout({
             </main>
 
             <aside className="sidebar" aria-label="侧边栏">
-              {/* 欢迎卡 — 参考图 */}
+              {/* 彩虹社区欢迎卡 */}
               <div className="welcome-card">
-                <div style={{ position: "relative", zIndex: 1 }}>
-                  <h2 className="welcome-title">{settings.siteName} 社区</h2>
-                  <p className="welcome-copy">进来坐坐，有话直说 — 吹水、求助、分享都欢迎</p>
+                <img className="welcome-art" src="/art/rainbow-side.webp" alt="" width={1254} height={1254} loading="lazy" aria-hidden="true" />
+                <div style={{ position: "relative", zIndex: 1, maxWidth: 220 }}>
+                  <h2 className="welcome-title">{settings.siteName} · 彩虹同好</h2>
+                  <p className="welcome-copy">认识同频的人，聊喜欢的事，也分享自己的生活。</p>
                   {!user && (
                     <div className="side-auth">
                       <Link href="/login" className="ghost">登录</Link>
