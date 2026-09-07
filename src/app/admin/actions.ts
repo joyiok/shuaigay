@@ -13,13 +13,14 @@ import {
   settlePendingReports,
   type ReviewAction,
 } from "@/lib/moderation";
-import { getStorage } from "@/lib/storage";
+import { extensionForMime, getStorage, MAX_LOGO_BYTES } from "@/lib/storage";
+import { sniffMime } from "@/lib/filetype";
 import { logger } from "@/lib/logger";
 import { banUser, unbanUser } from "@/lib/ban";
 import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
-import { siteSettingsSchema } from "@/lib/site";
+import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -835,6 +836,7 @@ export async function broadcastAnnouncementAction(formData: FormData): Promise<v
 
 export async function updateSiteSettingsAction(formData: FormData): Promise<void> {
   const actorId = await requireAdmin();
+  const logoEntry = formData.get("logo");
   const parsed = siteSettingsSchema.safeParse({
     siteName: formData.get("siteName"),
     siteTitle: formData.get("siteTitle"),
@@ -843,11 +845,40 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   });
   if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
 
-  await db.siteSetting.upsert({
-    where: { id: "site" },
-    update: { ...parsed.data, logoUrl: parsed.data.logoUrl || null },
-    create: { id: "site", ...parsed.data, logoUrl: parsed.data.logoUrl || null },
-  });
+  if (logoEntry !== null && !(logoEntry instanceof File)) redirect(ADMIN_TAB("settings") + "&error=invalid");
+  const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
+  if (logoFile && logoFile.size > MAX_LOGO_BYTES) redirect(ADMIN_TAB("settings") + "&error=logo_too_large");
+
+  const previous = await db.siteSetting.findUnique({ where: { id: "site" }, select: { logoUrl: true } });
+  let logoUrl = parsed.data.logoUrl || null;
+  let newStoredName: string | null = null;
+  if (logoFile) {
+    const buf = Buffer.from(await logoFile.arrayBuffer());
+    const mime = sniffMime(buf);
+    if (!mime || !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime)) {
+      redirect(ADMIN_TAB("settings") + "&error=logo_type");
+    }
+    try {
+      const stored = await getStorage().save(buf, extensionForMime(mime));
+      newStoredName = stored.storedName;
+      logoUrl = siteLogoUrlForStoredName(stored.storedName);
+    } catch {
+      redirect(ADMIN_TAB("settings") + "&error=upload_failed");
+    }
+  }
+
+  try {
+    await db.siteSetting.upsert({
+      where: { id: "site" },
+      update: { ...parsed.data, logoUrl },
+      create: { id: "site", ...parsed.data, logoUrl },
+    });
+  } catch {
+    if (newStoredName) await getStorage().remove(newStoredName).catch(() => {});
+    redirect(ADMIN_TAB("settings") + "&error=upload_failed");
+  }
+  const oldStoredName = storedNameFromSiteLogoUrl(previous?.logoUrl);
+  if (oldStoredName && previous?.logoUrl !== logoUrl) await getStorage().remove(oldStoredName).catch(() => {});
   await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
   logger.info("admin.update_site_settings", { actorId });
   revalidateTag("site-settings");

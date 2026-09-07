@@ -87,6 +87,9 @@ const ERRORS: Record<string, string> = {
   cat_exists: "同名分类已存在",
   medal_exists: "同名勋章已存在",
   medal_owned: "该用户已拥有此勋章",
+  logo_too_large: "Logo 不能超过 2MB",
+  logo_type: "Logo 仅支持 JPG/PNG/GIF/WEBP",
+  upload_failed: "Logo 上传失败，请重试",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -220,7 +223,7 @@ async function SettingsTab() {
   return (
     <div className="card" style={{ overflow: "hidden" }}>
       <PaperCardHeader title="站点设置" count="全站" sub="保存后立即生效" />
-      <form action={updateSiteSettingsAction} style={{ display: "grid", gap: 12, padding: 14 }}>
+      <form action={updateSiteSettingsAction} encType="multipart/form-data" style={{ display: "grid", gap: 12, padding: 14 }}>
         <label style={{ display: "grid", gap: 5 }}>
           <span style={{ fontSize: 12, fontWeight: 700 }}>站点名称</span>
           <input name="siteName" required maxLength={40} defaultValue={settings.siteName} style={{ ...paperInput, width: "100%", height: 36 }} />
@@ -237,10 +240,15 @@ async function SettingsTab() {
           <span style={{ fontSize: 12, fontWeight: 700 }}>Logo 地址 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>可选</span></span>
           <input name="logoUrl" maxLength={500} defaultValue={settings.logoUrl} placeholder="/logo.png 或 https://..." inputMode="url" style={{ ...paperInput, width: "100%", height: 36 }} />
         </label>
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>上传 Logo <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>可选</span></span>
+          <input name="logo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" aria-describedby="logo-upload-help" style={{ ...paperInput, width: "100%", height: 36, padding: 6 }} />
+          <span id="logo-upload-help" style={{ color: "var(--text-subtle)", fontSize: 11 }}>支持 JPG、PNG、GIF、WEBP，最大 2MB；选中文件后会覆盖 Logo 地址。</span>
+        </label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>
             {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" width={38} height={38} style={{ borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}
-            <span>Logo 同时用于顶部品牌和浏览器图标</span>
+            <span>当前 Logo 用于顶部品牌和浏览器图标</span>
           </div>
           <button type="submit" style={{ ...paperDarkBtn, marginLeft: "auto" }}>保存设置</button>
         </div>

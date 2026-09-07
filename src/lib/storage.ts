@@ -37,6 +37,7 @@ export const MAX_FILES_PER_POST = 5;
 
 /* 头像单独限制 2MB */
 export const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+export const MAX_LOGO_BYTES = 2 * 1024 * 1024;
 
 class LocalStorage implements StorageDriver {
   constructor(private root: string) {}
