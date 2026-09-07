@@ -247,7 +247,7 @@ async function SettingsTab() {
         </label>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>
-            {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" width={38} height={38} style={{ borderRadius: 10, objectFit: "cover", border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}
+            {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" className="site-logo" style={{ maxWidth: 180, borderRadius: 10, border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}
             <span>当前 Logo 用于顶部品牌和浏览器图标</span>
           </div>
           <button type="submit" style={{ ...paperDarkBtn, marginLeft: "auto" }}>保存设置</button>

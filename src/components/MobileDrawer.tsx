@@ -114,7 +114,7 @@ export default function MobileDrawer({
             <div className="mobile-drawer-backdrop" onClick={close} />
             <div className="mobile-drawer-panel" tabIndex={-1}>
               <div className="mobile-drawer-head">
-                {logoUrl ? <img src={logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
+                {logoUrl ? <img src={logoUrl} alt="" className="site-logo" /> : <span className="brand-mark">{brandMark}</span>}
                 {!logoUrl && <span style={{ fontWeight: 850, fontSize: 15, letterSpacing: "0.02em" }}>{siteName}</span>}
                 <button
                   type="button"
