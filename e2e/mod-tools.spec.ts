@@ -11,6 +11,7 @@ async function submitAndSync(page: import("@playwright/test").Page, button: impo
   });
   await button.click();
   await Promise.all([posted, navigated]);
+  await page.waitForLoadState("domcontentloaded");
 }
 
 async function loginAs(page: import("@playwright/test").Page, email: string, password: string, nameInHeader: string) {
