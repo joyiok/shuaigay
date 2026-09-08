@@ -24,6 +24,7 @@ import { getModeratedBoardIds } from "@/lib/moderators";
 import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
 import { aiSecretSchema, aiSettingsSchema, encryptAiSecret } from "@/lib/ai-admin";
 import { saveWriterSettings, writerSettingsSchema } from "@/lib/writer-settings";
+import { runNovelAuto } from "@/lib/novel-auto";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -893,6 +894,14 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   revalidateTag("site-settings");
   revalidatePath("/");
   redirect(ADMIN_TAB("settings"));
+}
+
+/** 手动触发一轮自动追更（与 cron 走同一个函数，有 Redis 锁防重入） */
+export async function runNovelAutoAction(): Promise<void> {
+  const actorId = await requireAdmin();
+  const result = await runNovelAuto();
+  logger.info("admin.run_novel_auto", { actorId, status: result.status, generated: result.generated });
+  redirect(ADMIN_TAB("writer") + `&ok=auto_run&status=${result.status}&generated=${result.generated}`);
 }
 
 /** 保存 AI 写作（小说生成）独立配置：与站点 AI 自动运营分开 */

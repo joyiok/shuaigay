@@ -105,6 +105,12 @@ model WriterSetting {
   temperature     Float    @default(0.85)
   defaultWords    Int      @default(700)
   defaultStatus   String   @default("approved")
+  // 自动追更：定时挑符合条件的作品续写下一章
+  autoContinueEnabled       Boolean @default(false)
+  autoContinueIntervalHours Int     @default(24)
+  autoContinueMaxPerRun     Int     @default(1)
+  autoContinueDailyCap      Int     @default(3)
+  autoContinueStatus        String  @default("pending")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -240,6 +246,8 @@ model Thread {
   // 加精:精华主题,列表与详情页挂 badge
   digested     Boolean  @default(false)
   locked     Boolean  @default(false)
+  // 允许 AI 自动追更：AI 生成的作品自动开启，手工导入的可在导入时显式开启
+  autoContinue Boolean @default(false)
   views      Int      @default(0)
   status     String   @default("approved")
   createdAt  DateTime @default(now())

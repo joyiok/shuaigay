@@ -9,6 +9,7 @@ import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import {
   addModeratorAction,
+  runNovelAutoAction,
   addPointsAction,
   addSensitiveWordAction,
   adminDeletePostAction,
@@ -140,10 +141,10 @@ export default async function AdminPage({
   searchParams,
 }: {
   params: Promise<{ tab: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; status?: string; generated?: string }>;
 }) {
   const { tab } = await params;
-  const { error } = await searchParams;
+  const { error, ok, status, generated } = await searchParams;
   const user = await getCurrentUser();
   if (!user) {
     return (
@@ -213,7 +214,7 @@ export default async function AdminPage({
       {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
       {adminFlag && active === "boards" && <BoardsTab />}
       {adminFlag && active === "settings" && <SettingsTab />}
-      {adminFlag && active === "writer" && <WriterTab />}
+      {adminFlag && active === "writer" && <WriterTab feedback={{ ok, status, generated }} />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
       {active === "pending" && <PendingTab boardScope={modBoards} />}
       {adminFlag && active === "medals" && <MedalsTab />}
@@ -392,8 +393,20 @@ const paperInput: CSSProperties = {
 };
 
 /** 卡片头：quick-title + 黄色胶带计数徽章 + 右侧 mono 提示 */
-async function WriterTab() {
+async function WriterTab({ feedback }: { feedback?: { ok?: string; status?: string; generated?: string } }) {
   const writer = await getWriterSettingsPanel();
+  const feedbackText =
+    feedback?.ok === "auto_run"
+      ? feedback.status === "ok"
+        ? `自动追更已执行：本轮续写 ${feedback.generated ?? 0} 部`
+        : feedback.status === "empty"
+          ? "自动追更已执行：当前没有到期的作品"
+          : feedback.status === "capped"
+            ? "自动追更已执行：今日已达上限"
+            : feedback.status === "busy"
+              ? "自动追更正在运行，请稍后再试"
+              : "自动追更已执行：AI 写作未启用或未开启自动追更"
+      : "";
   return (
     <div className="card" style={{ overflow: "hidden" }}>
       <PaperCardHeader
@@ -454,10 +467,53 @@ async function WriterTab() {
           </label>
         </div>
 
-        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+        <fieldset style={{ display: "grid", gap: 12, minWidth: 0, margin: 0, padding: "12px 0 0", border: 0, borderTop: "1px solid var(--line-soft)" }}>
+          <legend style={{ marginBottom: 4, padding: 0, fontSize: 14, fontWeight: 700 }}>自动追更</legend>
+          <div style={{ color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
+            每 30 分钟检查一次：挑出到期的作品自动续写下一章。只处理开启了「自动追更」的作品
+            （AI 生成的作品自动开启；手工导入可在 <code>import_novel</code> 里传 <code>autoContinue=true</code>）。
+            标题含「完结 / 全本」的作品会跳过。
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+            <input name="autoContinueEnabled" type="checkbox" defaultChecked={writer.autoContinueEnabled} style={{ accentColor: "var(--brand)", width: 16, height: 16 }} />
+            开启自动追更
+          </label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>更新间隔（小时）</span>
+              <input name="autoContinueIntervalHours" type="number" required min="6" max="168" step="1" defaultValue={writer.autoContinueIntervalHours} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>单轮最多几部</span>
+              <input name="autoContinueMaxPerRun" type="number" required min="1" max="5" step="1" defaultValue={writer.autoContinueMaxPerRun} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>每日上限（章）</span>
+              <input name="autoContinueDailyCap" type="number" required min="1" max="20" step="1" defaultValue={writer.autoContinueDailyCap} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>自动章节状态</span>
+              <select name="autoContinueStatus" defaultValue={writer.autoContinueStatus} style={{ ...paperInput, width: "100%", height: 36 }}>
+                <option value="pending">进待审队列（推荐）</option>
+                <option value="approved">直接发布</option>
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        {feedbackText && (
+          <div style={{ padding: "8px 12px", borderRadius: 10, background: "var(--brand-soft)", color: "var(--text)", fontSize: 12, fontWeight: 600 }}>{feedbackText}</div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button type="submit" style={paperDarkBtn}>保存 AI 写作设置</button>
         </div>
       </form>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "0 14px 14px" }}>
+        <form action={runNovelAutoAction}>
+          <button type="submit" style={paperBtn}>立即跑一轮自动追更</button>
+        </form>
+      </div>
     </div>
   );
 }

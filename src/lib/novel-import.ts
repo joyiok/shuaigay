@@ -27,6 +27,8 @@ export const importNovelSchema = z.object({
   /** 来源与授权说明，新建时附在首章末尾留痕 */
   source: z.string().trim().max(200).optional(),
   license: z.string().trim().max(200).optional(),
+  /** 允许自动追更：AI 生成的作品默认 true；手工导入默认 false */
+  autoContinue: z.boolean().optional(),
   chapters: z
     .array(
       z.object({
@@ -159,6 +161,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
         title: input.title!,
         categoryId,
         status: "approved",
+        autoContinue: input.autoContinue ?? false,
         createdAt: new Date(base),
         lastPostAt: new Date(base + input.chapters.length - 1),
       },

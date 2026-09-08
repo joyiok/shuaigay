@@ -4,6 +4,7 @@ import { aiActionSchema, executeAiActions, getAiContext } from "./ai-admin";
 import { adminActionSchema, checkDestructiveAck, executeAdminActions, getAdminContext, MAX_ADMIN_ACTIONS } from "./admin-ops";
 import { getNovelChapters, importNovel, importNovelSchema, MAX_IMPORT_CHAPTERS } from "./novel-import";
 import { generateNovelChapter, novelGenSchema } from "./novel-ai";
+import { runNovelAuto } from "./novel-auto";
 
 export const MCP_TOOL_NAMES = [
   "get_forum_context",
@@ -15,6 +16,7 @@ export const MCP_TOOL_NAMES = [
   "apply_admin_actions",
   "import_novel",
   "generate_novel",
+  "run_novel_auto",
 ] as const;
 
 function jsonToolResult(value: unknown) {
@@ -147,6 +149,15 @@ export function createForumMcpServer() {
     }
     return jsonToolResult(await generateNovelChapter(parsed.data));
   });
+
+  server.registerTool("run_novel_auto", {
+    title: "立即执行自动追更",
+    description:
+      "按后台「AI 写作」里的自动追更配置跑一轮：挑出到期的作品各续写一章，" +
+      "受单轮上限与每日上限约束（每日上限按审计日志计数）。需要 confirm=APPLY。",
+    inputSchema: { confirm: z.literal("APPLY") },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  }, async () => jsonToolResult(await runNovelAuto()));
 
   return server;
 }

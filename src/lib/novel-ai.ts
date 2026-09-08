@@ -234,6 +234,7 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
         authorUsername: input.authorUsername,
         source: "AI 生成",
         license: "AI 生成内容（原创虚构）",
+        autoContinue: true,
         chapters: [{ title: draft.chapterTitle, contentMd: draft.contentMd }],
       });
 

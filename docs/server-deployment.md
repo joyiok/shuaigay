@@ -200,12 +200,26 @@ MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管�
 - `import_novel` — 按章导入小说：新建作品传 `title + chapters`，续写传 `threadId + chapters`；
   每章落成一条作者回复，自动适配小说阅读器；单次 ≤50 章、每章 ≤20000 字；需 `confirm=APPLY`。
   只做导入，不做抓取——请仅导入原创/已授权/公版内容，可用 `source`、`license` 参数留痕
+- `run_novel_auto` — 立即执行一轮自动追更（与容器内 cron 同一函数，有 Redis 锁防重入）；需 `confirm=APPLY`
 - `generate_novel` — AI 生成/续写原创小说：新建传 `premise`（可加 `title/style/tone/categoryName`），
   续写传 `threadId`（自动读取最近 3 章做前情）；每次生成一章，默认直接落库，
   `import=false` 只预览、`status=pending` 进待审队列；需 `confirm=APPLY`。
   使用前需在后台「AI 写作」独立配置模型地址、模型名与模型服务密钥（与站点 AI 自动运营分开，
   可配不同服务商）；内容红线写死在 system prompt（禁止现实人物、未成年人恋爱/性内容、
   露骨性描写、非自愿行为等）
+
+### 自动追更
+
+后台「AI 写作」里可开启自动追更：`backup` 容器每 30 分钟调用一次 `POST /api/ai/novel/run`
+（带 `X-AI-Cron-Key`），挑出符合条件的作品各续写一章。
+
+- 候选：小说版、已发布、未锁定、开启了 `autoContinue` 的作品，且最后一章距今超过配置间隔；
+  标题含「完结 / 全本」的跳过
+- `autoContinue` 由 AI 生成的作品自动开启；手工导入时可在 `import_novel` 传 `autoContinue=true`
+- 配额：单轮最多 `autoContinueMaxPerRun` 部、每天最多 `autoContinueDailyCap` 章
+  （按 AuditLog 计数，跨重启有效）；Redis 锁防重入
+- 自动生成的章节默认进待审队列（可改成直接发布）
+- 后台「AI 写作」页有「立即跑一轮自动追更」按钮，也可用 MCP `run_novel_auto` 手动触发
 
 安全约定：
 

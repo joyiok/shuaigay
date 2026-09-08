@@ -15,6 +15,11 @@ export const writerSettingsSchema = z.object({
   temperature: z.coerce.number().min(0).max(1.5).default(0.85),
   defaultWords: z.coerce.number().int().min(300).max(1500).default(700),
   defaultStatus: z.enum(["approved", "pending"]).default("approved"),
+  autoContinueEnabled: z.boolean().default(false),
+  autoContinueIntervalHours: z.coerce.number().int().min(6).max(168).default(24),
+  autoContinueMaxPerRun: z.coerce.number().int().min(1).max(5).default(1),
+  autoContinueDailyCap: z.coerce.number().int().min(1).max(20).default(3),
+  autoContinueStatus: z.enum(["approved", "pending"]).default("pending"),
 });
 
 export type WriterSettingsInput = z.infer<typeof writerSettingsSchema>;
@@ -34,6 +39,11 @@ const DEFAULTS: WriterSettingsInput = {
   temperature: 0.85,
   defaultWords: 700,
   defaultStatus: "approved",
+  autoContinueEnabled: false,
+  autoContinueIntervalHours: 24,
+  autoContinueMaxPerRun: 1,
+  autoContinueDailyCap: 3,
+  autoContinueStatus: "pending",
 };
 
 export async function getWriterSettings(): Promise<WriterRuntimeSettings> {
@@ -46,6 +56,11 @@ export async function getWriterSettings(): Promise<WriterRuntimeSettings> {
     temperature: Math.max(0, Math.min(1.5, row.temperature)),
     defaultWords: Math.max(300, Math.min(1500, row.defaultWords)),
     defaultStatus: row.defaultStatus === "pending" ? "pending" : "approved",
+    autoContinueEnabled: row.autoContinueEnabled,
+    autoContinueIntervalHours: Math.max(6, Math.min(168, row.autoContinueIntervalHours)),
+    autoContinueMaxPerRun: Math.max(1, Math.min(5, row.autoContinueMaxPerRun)),
+    autoContinueDailyCap: Math.max(1, Math.min(20, row.autoContinueDailyCap)),
+    autoContinueStatus: row.autoContinueStatus === "pending" ? "pending" : "approved",
     apiKey: decryptAiSecret(row.apiKeyEncrypted) || process.env.AI_WRITER_API_KEY?.trim() || "",
   };
 }
@@ -60,6 +75,11 @@ export async function getWriterSettingsPanel(): Promise<WriterSettingsPanel> {
     temperature: runtime.temperature,
     defaultWords: runtime.defaultWords,
     defaultStatus: runtime.defaultStatus,
+    autoContinueEnabled: runtime.autoContinueEnabled,
+    autoContinueIntervalHours: runtime.autoContinueIntervalHours,
+    autoContinueMaxPerRun: runtime.autoContinueMaxPerRun,
+    autoContinueDailyCap: runtime.autoContinueDailyCap,
+    autoContinueStatus: runtime.autoContinueStatus,
     apiKeyConfigured: Boolean(runtime.apiKey),
   };
 }
@@ -85,6 +105,11 @@ export async function saveWriterSettings(
     temperature: input.temperature,
     defaultWords: input.defaultWords,
     defaultStatus: input.defaultStatus,
+    autoContinueEnabled: input.autoContinueEnabled,
+    autoContinueIntervalHours: input.autoContinueIntervalHours,
+    autoContinueMaxPerRun: input.autoContinueMaxPerRun,
+    autoContinueDailyCap: input.autoContinueDailyCap,
+    autoContinueStatus: input.autoContinueStatus,
     ...(apiKeyEncrypted !== undefined ? { apiKeyEncrypted } : {}),
   };
   await db.writerSetting.upsert({

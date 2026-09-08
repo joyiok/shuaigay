@@ -62,6 +62,20 @@ describe("writerSettingsSchema AI 写作独立配置", () => {
     expect(parsed.defaultWords).toBe(900);
   });
 
+  it("自动追更字段有默认值与边界", () => {
+    const parsed = writerSettingsSchema.parse({ enabled: true, baseUrl: "https://api.example.com/v1", model: "m" });
+    expect(parsed.autoContinueEnabled).toBe(false);
+    expect(parsed.autoContinueIntervalHours).toBe(24);
+    expect(parsed.autoContinueMaxPerRun).toBe(1);
+    expect(parsed.autoContinueDailyCap).toBe(3);
+    expect(parsed.autoContinueStatus).toBe("pending");
+    const base = { enabled: true, baseUrl: "https://api.example.com/v1", model: "m" };
+    expect(writerSettingsSchema.safeParse({ ...base, autoContinueIntervalHours: 1 }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, autoContinueMaxPerRun: 9 }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, autoContinueDailyCap: 0 }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, autoContinueStatus: "draft" }).success).toBe(false);
+  });
+
   it("拒绝非 http(s) 地址、越界温度与字数", () => {
     const base = { enabled: true, model: "m", temperature: 0.85, defaultWords: 700, defaultStatus: "approved" };
     expect(writerSettingsSchema.safeParse({ ...base, baseUrl: "file:///tmp/x" }).success).toBe(false);
