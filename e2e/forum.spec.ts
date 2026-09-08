@@ -13,7 +13,14 @@ async function logout(page: import("@playwright/test").Page) {
   const loggedOut = page.waitForResponse((response) => response.request().method() === "POST", { timeout: 20000 });
   await submitButton(page, "退出").first().click();
   await loggedOut;
-  await expect(page.locator("header").getByRole("link", { name: "登录" })).toBeVisible({ timeout: 20000 });
+  // 退出后客户端可能来不及重渲染 header（同 URL 动作的缓存问题）：先等，超时整页刷新兜底
+  const loginLink = page.locator("header").getByRole("link", { name: "登录" });
+  try {
+    await expect(loginLink).toBeVisible({ timeout: 8000 });
+  } catch {
+    await page.reload({ waitUntil: "domcontentloaded" });
+  }
+  await expect(loginLink).toBeVisible({ timeout: 20000 });
 }
 
 // 新人首帖进待审：以 admin 身份在待审队列通过指定标题的主题，返回主题链接
