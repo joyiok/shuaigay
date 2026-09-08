@@ -181,4 +181,28 @@ MCP 接入：`https://www.shuai.gay/api/mcp` 是标准 Streamable HTTP MCP 地�
 }
 ```
 
-MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管理 API 密钥，不是模型服务密钥。推荐调用顺序是 `get_forum_context` → `preview_moderation_actions` → `apply_moderation_actions`（传入 `confirm=APPLY` 才会真正修改）。
+MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管理 API 密钥，不是模型服务密钥。
+
+### MCP 工具（相当于 admin CLI）
+
+只读：
+
+- `get_forum_context` — 公开版块/主题/帖子/举报，供 AI 分析
+- `get_admin_context` — 版块+分类、待审主题/帖子、待处理举报、用户概览与统计
+- `preview_moderation_actions` / `preview_admin_actions` — 预览动作，不改数据
+
+写入：
+
+- `apply_moderation_actions` — AI 运营白名单动作（归类/置顶/精华/锁帖/送审/处理举报），需 `confirm=APPLY`
+- `apply_admin_actions` — 管理动作全集：版块与分类增删改、版主任免、主题帖子增删改与审核、
+  用户角色/封禁/积分/重置密码/勋章、敏感词、举报处理、全站公告；需 `confirm=APPLY`
+
+安全约定：
+
+- 推荐顺序 `get_*_context` → `preview_*` → `apply_*`
+- 含不可逆动作（删版块/合并/清空/删主题帖子/封号/改角色/重置密码/删勋章）时，
+  还必须传 `acknowledge="IRREVERSIBLE"`，否则整批拒绝、不做部分执行
+- 单次最多 20 个动作，逐个返回 `applied/skipped/failed`；所有实际变更写审计日志
+  （actor = 最早的管理员账号），可在后台「审计日志」查看
+- MCP 密钥等同管理员权限：**不要与服务器 root 密码共用**，泄露后先到后台轮换密钥
+
