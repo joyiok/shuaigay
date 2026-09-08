@@ -257,9 +257,11 @@ export default async function SettingsPage({
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[
             { href: `/u/${encodeURIComponent(user.username)}?tab=favs`, label: "我的收藏" },
+            { href: "/drafts", label: "草稿箱" },
             { href: "/invite", label: "我的邀请" },
             { href: "/messages", label: "私信" },
             { href: "/notifications", label: "通知" },
+            { href: "/members", label: "会员目录" },
             { href: "/forgot", label: "忘记密码流程" },
           ].map((l) => (
             <Link

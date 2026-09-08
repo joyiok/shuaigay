@@ -22,6 +22,9 @@ import {
   togglePinAction,
 } from "@/app/actions/threads";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
+import ActionToggle from "@/components/ActionToggle";
+import NovelReader from "@/components/NovelReader";
+import { novelChapterTitle } from "@/lib/novel";
 import { ratePostAction } from "@/app/actions/ratings";
 import ReportButton from "@/components/report-button";
 import PostEditor from "@/components/PostEditor";
@@ -112,7 +115,30 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null, filter: stri
   const user = await getCurrentUser();
   const isStaffForPosts = user ? (user.role === "ADMIN" || await isBoardModerator(user.id, thread.board.id)) : false;
   const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, isStaffForPosts, 50, opOnly ? thread.authorId : null);
-  return { thread, user, items, nextCursor, isNovel, opOnly };
+  // 小说章节阅读：分页时算出本页第一章的全局章节序号，避免每页都从「第 1 章」重来
+  let chapterOffset = 0;
+  if (isNovel && opOnly && cursor) {
+    const statusCond = isStaffForPosts
+      ? {}
+      : user
+        ? { OR: [{ status: "approved" }, { status: "pending", authorId: user.id }] }
+        : { status: "approved" };
+    chapterOffset = await db.post
+      .count({
+        where: {
+          AND: [
+            { threadId: thread.id, authorId: thread.authorId, ...statusCond },
+            { OR: [{ createdAt: { lt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { lt: cursor.id } }] },
+          ],
+        },
+      })
+      .catch(() => 0);
+  }
+  const chapters =
+    isNovel && opOnly
+      ? items.map((p, i) => ({ id: p.id, index: chapterOffset + i + 1, title: novelChapterTitle(p.contentMd, chapterOffset + i + 1) }))
+      : [];
+  return { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset };
 }
 
 export default async function ThreadPage({
@@ -131,7 +157,7 @@ export default async function ThreadPage({
     return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
   if (!loaded) notFound();
-  const { thread, user, items, nextCursor, isNovel, opOnly } = loaded;
+  const { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset } = loaded;
   const currentViews = (thread as unknown as { views: number }).views ?? 0;
   void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
   (thread as unknown as { views: number }).views = currentViews + 1;
@@ -227,7 +253,7 @@ export default async function ThreadPage({
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>
             {(thread as unknown as { views: number }).views} 浏览
           </span>
-          <span>· {isNovel && opOnly ? `${items.length}${nextCursor ? "+" : ""} 章` : `${items.length} 楼`}</span>
+          <span>· {isNovel && opOnly ? `共 ${chapterOffset + items.length}${nextCursor ? "+" : ""} 章` : `${items.length} 楼`}</span>
         </div>
         {user && (
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -263,23 +289,25 @@ export default async function ThreadPage({
                 </SubmissionForm>
               </>
             )}
-            <form action={toggleFavoriteAction}>
-              <input type="hidden" name="threadId" value={thread.id} />
-              <button
-                style={{
-                  height: 28,
-                  padding: "0 10px",
-                  border: `1px solid ${isFav ? "#ddd6fe" : "var(--line)"}`,
-                  borderRadius: 6,
-                  background: isFav ? "#ede9fe" : "var(--panel)",
-                  color: isFav ? "var(--brand)" : "var(--text-muted)",
-                  fontSize: 12,
-                  fontWeight: 600,
-                }}
-              >
-                {isFav ? "★ 已收藏" : "☆ 收藏"}
-              </button>
-            </form>
+            <ActionToggle
+              action={toggleFavoriteAction}
+              fields={{ threadId: thread.id }}
+              active={isFav}
+              label={isNovel ? "☆ 追更" : "☆ 收藏"}
+              activeLabel={isNovel ? "★ 追更中" : "★ 已收藏"}
+              pendingLabel="处理中…"
+              title={isNovel ? "有新章节时通知你" : undefined}
+              style={{
+                height: 28,
+                padding: "0 10px",
+                border: `1px solid ${isFav ? "#ddd6fe" : "var(--line)"}`,
+                borderRadius: 6,
+                background: isFav ? "#ede9fe" : "var(--panel)",
+                color: isFav ? "var(--brand)" : "var(--text-muted)",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            />
           </div>
         )}
         <div className={isNovel ? "novel-view-tabs" : undefined} style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap" }}>
@@ -317,6 +345,16 @@ export default async function ThreadPage({
         <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
       )}
 
+      {isNovel && opOnly && chapters.length > 0 && (
+        <NovelReader
+          chapters={chapters}
+          hasPrevPage={!!rawCursor}
+          hasNextPage={!!nextCursor}
+          nextHref={nextCursor ? `${threadHref(thread.id, thread.title)}?cursor=${nextCursor}` : null}
+          threadHref={threadHref(thread.id, thread.title)}
+        />
+      )}
+
       <div className={`card${isNovel ? " novel-pages" : ""}`} style={{ overflow: "hidden" }}>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((p, idx) => {
@@ -335,7 +373,7 @@ export default async function ThreadPage({
                   ))}
                   {(p as any).status === "pending" && <span style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>待审</span>}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
-                  <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>{isNovel && opOnly ? `第 ${idx + 1} 章` : `#${idx + 1}`}</span>
+                  <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>{isNovel && opOnly ? `第 ${chapterOffset + idx + 1} 章` : `#${idx + 1}`}</span>
                   <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <button type="button" className="post-quote-btn" data-author={p.authorName} data-floor={idx + 1} data-text={excerpt(p.contentMd)}>引用</button>
                     {editable && <PostEditor postId={p.id} contentMd={p.contentMd} />}

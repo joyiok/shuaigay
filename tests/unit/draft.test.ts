@@ -3,11 +3,13 @@ import {
   clearDraft,
   draftKey,
   findFloorLabel,
+  listKeys,
   loadDraft,
   loadReadPos,
   readPosKey,
   saveDraft,
   saveReadPos,
+  scanDrafts,
 } from "@/lib/draft";
 
 function fakeStore(seed: Record<string, string> = {}) {
@@ -106,5 +108,79 @@ describe("楼层号解析", () => {
     expect(findFloorLabel(["楼主", "#12", "12:00"])).toBe("#12");
     expect(findFloorLabel(["没有楼层"])).toBeNull();
     expect(findFloorLabel([])).toBeNull();
+  });
+});
+
+describe("草稿箱扫描 scanDrafts / listKeys", () => {
+  function storeWithKeys(seed: Record<string, string>) {
+    const s = fakeStore(seed);
+    return {
+      ...s,
+      get length() {
+        return s.raw.size;
+      },
+      key: (i: number) => [...s.raw.keys()][i] ?? null,
+    };
+  }
+
+  const at = Date.now();
+
+  it("按用户隔离,只扫自己的草稿", () => {
+    const s = storeWithKeys({
+      "sg:draft:alice:reply:t1": JSON.stringify({ text: "回复内容", at }),
+      "sg:draft:bob:reply:t1": JSON.stringify({ text: "别人的", at }),
+      "sg:readpos:t1": JSON.stringify({ postId: "p1", at }),
+    });
+    const items = scanDrafts(s, "alice");
+    expect(items).toHaveLength(1);
+    expect(items[0]!.kind).toBe("reply");
+    expect(items[0]!.id).toBe("t1");
+    expect(items[0]!.text).toBe("回复内容");
+  });
+
+  it("新主题正文 + 标题合并成一条", () => {
+    const s = storeWithKeys({
+      "sg:draft:alice:new:tech": JSON.stringify({ text: "正文", at: at - 1000 }),
+      "sg:draft:alice:newtitle:tech": JSON.stringify({ text: "标题", at }),
+    });
+    const items = scanDrafts(s, "alice");
+    expect(items).toHaveLength(1);
+    expect(items[0]!.kind).toBe("new");
+    expect(items[0]!.text).toBe("正文");
+    expect(items[0]!.titleText).toBe("标题");
+    expect(items[0]!.keys).toHaveLength(2);
+    expect(items[0]!.at).toBe(at);
+  });
+
+  it("按更新时间倒序", () => {
+    const s = storeWithKeys({
+      "sg:draft:alice:reply:t1": JSON.stringify({ text: "旧", at: at - 5000 }),
+      "sg:draft:alice:msg:bob": JSON.stringify({ text: "新", at }),
+    });
+    const items = scanDrafts(s, "alice");
+    expect(items.map((i) => i.id)).toEqual(["bob", "t1"]);
+  });
+
+  it("过期草稿顺手清掉", () => {
+    const old = JSON.stringify({ text: "很久以前", at: at - 8 * 24 * 60 * 60 * 1000 });
+    const s = storeWithKeys({ "sg:draft:alice:reply:t1": old });
+    expect(scanDrafts(s, "alice", at)).toHaveLength(0);
+    expect(s.raw.has("sg:draft:alice:reply:t1")).toBe(false);
+  });
+
+  it("脏数据/空文本/未知 kind 忽略", () => {
+    const s = storeWithKeys({
+      "sg:draft:alice:reply:t1": "garbage",
+      "sg:draft:alice:reply:t2": JSON.stringify({ text: "", at }),
+      "sg:draft:alice:weird:t3": JSON.stringify({ text: "x", at }),
+      "sg:draft:alice:reply": JSON.stringify({ text: "x", at }),
+    });
+    expect(scanDrafts(s, "alice")).toHaveLength(0);
+  });
+
+  it("store 不支持枚举时返回空数组", () => {
+    expect(scanDrafts(fakeStore({ "sg:draft:alice:reply:t1": JSON.stringify({ text: "x", at }) }), "alice")).toEqual([]);
+    expect(scanDrafts(null, "alice")).toEqual([]);
+    expect(listKeys(null)).toEqual([]);
   });
 });

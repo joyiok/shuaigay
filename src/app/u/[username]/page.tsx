@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/site";
 import { toggleFollowAction } from "@/app/actions/user";
 import { isAdmin } from "@/lib/permissions";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
+import ActionToggle from "@/components/ActionToggle";
 import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
@@ -238,25 +239,26 @@ export default async function UserPage({
                   >
                     发私信
                   </Link>
-                  <form action={toggleFollowAction}>
-                    <input type="hidden" name="username" value={user.username} />
-                    <button
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 600,
-                        height: 28,
-                        padding: "0 12px",
-                        display: "inline-flex",
-                        alignItems: "center",
-                        borderRadius: 999,
-                        border: `1px solid ${isFollowing ? "var(--line)" : "var(--brand)"}`,
-                        background: isFollowing ? "var(--panel)" : "var(--brand)",
-                        color: isFollowing ? "var(--text-muted)" : "#fff",
-                      }}
-                    >
-                      {isFollowing ? "✓ 已关注" : "+ 关注"}
-                    </button>
-                  </form>
+                  <ActionToggle
+                    action={toggleFollowAction}
+                    fields={{ username: user.username }}
+                    active={isFollowing}
+                    label="+ 关注"
+                    activeLabel="✓ 已关注"
+                    pendingLabel="处理中…"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      height: 28,
+                      padding: "0 12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      borderRadius: 999,
+                      border: `1px solid ${isFollowing ? "var(--line)" : "var(--brand)"}`,
+                      background: isFollowing ? "var(--panel)" : "var(--brand)",
+                      color: isFollowing ? "var(--text-muted)" : "#fff",
+                    }}
+                  />
                 </>
               )}
               {!isSelf && !me && (
@@ -568,11 +570,15 @@ export default async function UserPage({
                     <span>{formatDate(f.thread.lastPostAt)}</span>
                   </div>
                 </div>
-                <form action={toggleFavoriteAction}>
-                  <input type="hidden" name="threadId" value={f.thread.id} />
-                  <input type="hidden" name="next" value={`/u/${encodeURIComponent(user.username)}?tab=favs`} />
-                  <button style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", background: "var(--panel)" }}>取消收藏</button>
-                </form>
+                <ActionToggle
+                  action={toggleFavoriteAction}
+                  fields={{ threadId: f.thread.id }}
+                  active
+                  label="取消收藏"
+                  activeLabel="取消收藏"
+                  pendingLabel="处理中…"
+                  style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", background: "var(--panel)" }}
+                />
               </li>
             ))}
           </ul>

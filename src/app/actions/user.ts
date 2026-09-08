@@ -8,7 +8,6 @@ import { getCurrentUser } from "@/lib/auth";
 import { assertNotBanned } from "@/lib/ban";
 import { logger } from "@/lib/logger";
 import { filterRowsByPreferences, prefsFromForm } from "@/lib/notifications";
-import { safeNext } from "@/lib/navigation";
 import {
   INVITE_CODES_PER_USER,
   createInviteCode,
@@ -59,8 +58,8 @@ export async function generateInviteAction(): Promise<void> {
   revalidatePath("/invite");
 }
 
-/** 关注/取关用户(不能关注自己),操作后回到该用户主页 */
-export async function toggleFollowAction(formData: FormData): Promise<void> {
+/** 关注/取关用户(不能关注自己)。成功后不 redirect,由 ActionToggle 提交后刷新当前页 */
+export async function toggleFollowAction(formData: FormData): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
   await assertNotBanned(user.id);
@@ -70,13 +69,15 @@ export async function toggleFollowAction(formData: FormData): Promise<void> {
     where: { username },
     select: { id: true, username: true },
   });
-  if (!target || target.id === user.id) redirect("/");
+  if (!target || target.id === user.id) return false;
 
   const existing = await db.follow.findUnique({
     where: { followerId_followingId: { followerId: user.id, followingId: target.id } },
   });
+  let nowFollowing: boolean;
   if (existing) {
     await db.follow.delete({ where: { id: existing.id } });
+    nowFollowing = false;
     logger.info("follow.remove", { userId: user.id, followingId: target.id });
   } else {
     await db.follow.create({ data: { followerId: user.id, followingId: target.id } });
@@ -89,10 +90,10 @@ export async function toggleFollowAction(formData: FormData): Promise<void> {
       },
     ]);
     if (rows.length) await db.notification.createMany({ data: rows }).catch(() => {});
+    nowFollowing = true;
     logger.info("follow.add", { userId: user.id, followingId: target.id });
   }
 
   revalidatePath(`/u/${encodeURIComponent(target.username)}`);
-  const next = safeNext(formData.get("next"));
-  redirect(next || `/u/${encodeURIComponent(target.username)}`);
+  return nowFollowing;
 }

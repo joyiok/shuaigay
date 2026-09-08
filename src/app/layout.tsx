@@ -333,7 +333,7 @@ export default async function RootLayout({
               {/* 活跃用户 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">活跃用户 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>社区成员</span></div>
+                  <div className="quick-title">活跃用户 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>社区成员</span> <Link href="/members" prefetch={false} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--brand)" }}>会员目录 →</Link></div>
                   <div style={{ display: "flex", gap: 12, overflowX: "auto", paddingBottom: 4 }}>
                     {activeUsers.map((u: any, i: number) => (
                       <Link key={u.username + i} href={`/u/${u.username}`} prefetch={false} style={{ display: "grid", justifyItems: "center", gap: 5, minWidth: 52, textAlign: "center", padding: "4px", borderRadius: 12 }}>

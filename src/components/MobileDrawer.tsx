@@ -267,6 +267,12 @@ export default function MobileDrawer({
                     <Link href="/invite" className="mobile-drawer-link" onClick={close}>
                       邀请
                     </Link>
+                    <Link href="/drafts" className="mobile-drawer-link" onClick={close}>
+                      草稿箱
+                    </Link>
+                    <Link href="/members" className="mobile-drawer-link" onClick={close}>
+                      会员目录
+                    </Link>
                     <Link href="/settings" className="mobile-drawer-link" onClick={close}>
                       账号设置
                     </Link>

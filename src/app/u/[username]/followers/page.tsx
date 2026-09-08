@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { levelForPoints } from "@/lib/levels";
 import { toggleFollowAction } from "@/app/actions/user";
+import ActionToggle from "@/components/ActionToggle";
 import EmptyState from "@/components/EmptyState";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
@@ -184,11 +185,14 @@ export default async function FollowersPage({
                 <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>加入于 {formatDate(p.createdAt)}</div>
               </div>
               {me && me.username !== p.username && (
-                <form action={toggleFollowAction} style={{ flexShrink: 0 }}>
-                  <input type="hidden" name="username" value={p.username} />
-                  <input type="hidden" name="next" value={`${base}/followers${tab === "following" ? "?tab=following" : ""}`} />
-                  <button
-                    type="submit"
+                <div style={{ flexShrink: 0 }}>
+                  <ActionToggle
+                    action={toggleFollowAction}
+                    fields={{ username: p.username }}
+                    active={p.following}
+                    label="+ 关注"
+                    activeLabel="✓ 已关注"
+                    pendingLabel="处理中…"
                     style={{
                       fontSize: 12,
                       fontWeight: 600,
@@ -201,10 +205,8 @@ export default async function FollowersPage({
                       background: p.following ? "var(--panel)" : "var(--brand)",
                       color: p.following ? "var(--text-muted)" : "#fff",
                     }}
-                  >
-                    {p.following ? "✓ 已关注" : "+ 关注"}
-                  </button>
-                </form>
+                  />
+                </div>
               )}
             </li>
           ))}

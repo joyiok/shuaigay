@@ -578,7 +578,118 @@ mark.search-mark, .search-mark {
 .card.thread-head-card { position: relative; overflow: visible; }
 .card.user-profile-card { position: relative; overflow: hidden; }
 
-/* 无限列表加载 */
+/* ——— 会员目录 ——— */
+.member-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+.member-card {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+}
+.member-card:hover { border-color: var(--line); }
+.member-avatar { position: relative; flex-shrink: 0; display: inline-flex; }
+.member-online-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  background: var(--success);
+  border: 2px solid var(--panel);
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.25);
+}
+.member-bio {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ——— 小说：章节目录 ——— */
+.novel-toc { display: grid; gap: 8px; }
+.novel-toc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 800;
+}
+.novel-toc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.novel-toc-item { display: flex; }
+.novel-toc-link {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-decoration: none;
+}
+.novel-toc-link:hover { background: var(--bg-soft); color: var(--text); }
+.novel-toc-link.current { background: var(--brand-soft); color: var(--brand); font-weight: 700; }
+.novel-toc-index {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-family: var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--text-subtle);
+}
+.novel-toc-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.novel-chapter-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+}
+.novel-chapter-nav a, .novel-chapter-nav span, .novel-chapter-nav button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: 12.5px;
+  font-family: inherit;
+}
+.novel-chapter-nav a:hover, .novel-chapter-nav button:hover { border-color: var(--brand); color: var(--brand); }
+.novel-reader-tools { position: sticky; bottom: 10px; z-index: 15; display: grid; gap: 8px; }
+.novel-reader-tools .novel-toc { box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08); }
+.novel-reader-tools .novel-chapter-nav { box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12); background: var(--panel); }
+
+/* ——— 无限列表加载 ——— */
 .infinite-trigger { height: 1px; }
 .infinite-loading { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; color: var(--text-subtle); font-size: 13px; }
 .infinite-spinner { width: 16px; height: 16px; border: 2px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: spin 0.7s linear infinite; }
@@ -655,6 +766,8 @@ mark.search-mark, .search-mark {
   .novel-pages .novel-chapter { padding: 30px 18px !important; }
   .novel-pages .novel-chapter .post-content { font-size: 17px; line-height: 2; }
   .novel-pages .novel-chapter > div:first-child > div:last-child { width: 100%; margin-left: 48px !important; }
+  .member-grid { grid-template-columns: 1fr; }
+  .novel-toc-list { max-height: 260px; }
 
 
 

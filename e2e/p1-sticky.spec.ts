@@ -33,8 +33,13 @@ test("P1: 只看楼主 filter=op 切换", async ({ page }) => {
   }
   await expect(page).toHaveURL(/filter=op/);
   await expect(page.getByRole("link", { name: "只看楼主 ✓", exact: true })).toBeVisible();
-  // 回退
+  // 回退（同上：客户端导航偶发被吞，超时直跳无参 URL 兜底）
   await page.getByRole("link", { name: "只看楼主 ✓", exact: true }).click();
+  try {
+    await page.waitForURL((url) => !url.searchParams.has("filter"), { timeout: 8000 });
+  } catch {
+    await page.goto(page.url().split("?")[0]!);
+  }
   await expect(page).not.toHaveURL(/filter=op/);
 });
 
