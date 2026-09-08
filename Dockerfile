@@ -8,12 +8,14 @@ RUN apt-get update \
 # 先拷贝依赖清单和 prisma schema,利用 Docker 层缓存
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm ci
+# npm 缓存挂载：package-lock 变动时也能少下载
+RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
 
 COPY . .
 ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
 ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
-RUN npx prisma generate && npm run build
+# .next/cache 挂载：服务器上重复构建时复用 Next 编译缓存（BuildKit）
+RUN --mount=type=cache,target=/app/.next/cache npx prisma generate && npm run build
 
 # Prisma CLI 是 devDependency，但容器启动时仍需要它执行 migrate deploy。
 # standalone 会裁剪这些包，先把 CLI 的运行时依赖按包名整理到临时目录。

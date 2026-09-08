@@ -4,11 +4,18 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 手动触发（改 workflow 时不用空提交验证）
+  workflow_dispatch:
 
 # 同分支重复推送时取消旧的运行，省 runner
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
+  # docker 构建缓存 type=gha 需要读写 Actions 缓存
+  actions: write
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
@@ -22,10 +29,12 @@ env:
   SEED_ADMIN_PASSWORD: "ReleaseAdmin123!"
 
 jobs:
-  unit:
-    name: unit · typecheck · build
+  # 类型检查 / 单测 / 构建 / e2e 合并成一个 job：
+  # 共用一次 npm ci + prisma 初始化 + next build，避免 e2e job 再重复一遍
+  checks:
+    name: checks · typecheck · unit · build · e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17-alpine
@@ -63,16 +72,16 @@ jobs:
       RATE_LIMIT_REPLY: "100"
       RATE_LIMIT_EDIT: "100"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
 
       - name: Cache Next.js build
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             .next/cache
@@ -81,8 +90,15 @@ jobs:
           restore-keys: |
             next-${{ runner.os }}-
 
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: playwright-${{ runner.os }}-
+
       - name: Install deps
-        run: npm ci --prefer-offline
+        run: npm ci --prefer-offline --no-audit --no-fund
 
       - name: Prisma generate (显式，确保 @prisma/client 与 schema 一致)
         run: npx prisma generate
@@ -105,78 +121,6 @@ jobs:
       - name: Build (standalone · 60s 缓存 + headers 已含)
         run: npm run build
 
-      - name: Upload build trace on failure
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: next-build-trace
-          path: |
-            .next
-            !.next/cache
-          retention-days: 7
-
-  e2e:
-    name: e2e · playwright
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    needs: unit
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: forum
-          POSTGRES_PASSWORD: forum
-          POSTGRES_DB: forum_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U forum"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 6379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgresql://forum:forum@localhost:5432/forum_test?schema=public
-      REDIS_URL: redis://localhost:6379
-      UPLOAD_DIR: /tmp/forum-uploads
-      STORAGE_DRIVER: local
-      # bcryptjs 纯 JS 阻塞事件循环，e2e 并发注册用低成本省 runner
-      BCRYPT_ROUNDS: "4"
-      RATE_LIMIT_REGISTER: "100"
-      RATE_LIMIT_LOGIN: "100"
-      RATE_LIMIT_THREAD: "100"
-      RATE_LIMIT_REPLY: "100"
-      RATE_LIMIT_EDIT: "100"
-      SITE_URL: http://localhost:3100
-      E2E_BASE_URL: http://localhost:3100
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Cache Playwright browsers
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: playwright-${{ runner.os }}-
-
-      - run: npm ci --prefer-offline
-      - run: npx prisma generate
-      - run: npx prisma migrate deploy
-      - run: npx prisma db seed
-      - run: npm run build
-
       - name: Install Playwright chromium
         run: npx playwright install --with-deps chromium
 
@@ -193,11 +137,10 @@ jobs:
 
       - name: Run e2e
         run: npx playwright test
-        id: e2e
 
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Upload Playwright report (仅失败时)
+        if: failure()
+        uses: actions/upload-artifact@v7
         with:
           name: playwright-report
           path: |
@@ -206,15 +149,25 @@ jobs:
             blob-report
           retention-days: 7
 
+      - name: Upload build trace on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: next-build-trace
+          path: |
+            .next
+            !.next/cache
+          retention-days: 7
+
   docker:
     name: docker · build check
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Build app image (不推送，仅验证 Dockerfile + standalone)
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
@@ -229,8 +182,8 @@ jobs:
 
   deploy:
     name: deploy · production
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [unit, e2e, docker]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [checks, docker]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -253,7 +206,8 @@ jobs:
           docker compose exec -T backup sh /scripts/pre-dump.sh </dev/null
           git pull --ff-only
           test "$(git rev-parse HEAD)" = "$expected_sha"
-          docker compose up -d --build
+          # BuildKit：Dockerfile 里 .next/cache 走 cache mount，重复构建复用 Next 编译缓存
+          DOCKER_BUILDKIT=1 docker compose up -d --build
           curl --fail --silent --show-error http://127.0.0.1:3000/api/health
           REMOTE
 
