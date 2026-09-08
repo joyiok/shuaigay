@@ -62,6 +62,7 @@ import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import CopyButton from "@/components/CopyButton";
+import AdminUserSearch from "@/components/AdminUserSearch";
 
 export const metadata = { title: "管理后台" };
 
@@ -722,13 +723,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
           <div style={{ fontWeight: 800, fontFamily: GROTESK, fontSize: 14 }}>用户管理 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 11, fontFamily: MONO }}>· {users.length} 人 · {users.filter((u) => u.role === "ADMIN").length} 管理 · {bans.size} 封禁 · 点行展开详情</span></div>
           <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: MONO, marginTop: 4 }}>顶部输入即时过滤 · 改资料/重置密码/封禁均需二次确认</div>
         </div>
-        <input id="user-search" placeholder="搜索用户名/邮箱…" style={{ height: 34, minWidth: 220, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 12px", fontSize: 13, background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)", outline: "none" }} onInput={(e) => {
-          const v = (e.target as HTMLInputElement).value.toLowerCase();
-          document.querySelectorAll("[data-user-row]").forEach((el) => {
-            const hay = (el.getAttribute("data-hay") ?? "").toLowerCase();
-            (el as HTMLElement).style.display = !v || hay.includes(v) ? "" : "none";
-          });
-        }} />
+        <AdminUserSearch />
       </div>
       <div className="card" style={{ overflow: "hidden" }}>
         <ListCard>

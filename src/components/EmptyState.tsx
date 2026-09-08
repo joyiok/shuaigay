@@ -7,7 +7,6 @@ interface EmptyStateProps {
   description?: string;
   actionLabel?: string;
   actionHref?: string;
-  onAction?: () => void;
   variant?: EmptyVariant;
 }
 
@@ -95,7 +94,6 @@ export default function EmptyState({
   description,
   actionLabel,
   actionHref,
-  onAction,
   variant = "default",
 }: EmptyStateProps) {
   const t = title ?? TITLES[variant] ?? TITLES.default;
@@ -115,32 +113,18 @@ export default function EmptyState({
         <p className="empty-title" style={{ margin: 0 }}>{t}</p>
         <p style={{ margin: 0, color: "var(--text-subtle)", fontSize: 13, lineHeight: 1.6 }}>{d}</p>
       </div>
-      {(actionLabel && (actionHref || onAction)) && (
+      {actionLabel && actionHref && (
         <div style={{ marginTop: 4 }}>
-          {actionHref ? (
-            <Link
-              href={actionHref}
-              className="btn-publish"
-              style={{
-                minHeight: 38,
-                padding: "0 18px",
-              }}
-            >
-              {actionLabel}
-            </Link>
-          ) : (
-            <button
-              type="button"
-              onClick={onAction}
-              className="btn-publish"
-              style={{
-                minHeight: 38,
-                padding: "0 18px",
-              }}
-            >
-              {actionLabel}
-            </button>
-          )}
+          <Link
+            href={actionHref}
+            className="btn-publish"
+            style={{
+              minHeight: 38,
+              padding: "0 18px",
+            }}
+          >
+            {actionLabel}
+          </Link>
         </div>
       )}
     </div>

@@ -73,3 +73,28 @@ test("版主：在自己版块置顶/锁定，看不到其它版块与用户管�
   await page.goto("/admin/posts");
   await expect(page.getByText("仅自己版块")).toBeVisible();
 });
+
+// 回归：/admin/users 曾在服务端组件里挂 onInput 导致整页 500（Event handlers cannot be passed to Client Component props）
+test("管理后台用户页：正常渲染 + 即时过滤不报错", async ({ page }) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(String(e)));
+  page.on("console", (m) => {
+    if (m.type() === "error" && m.text().includes("Server Components render")) errors.push(m.text());
+  });
+
+  await loginAs(page, "admin@example.com", "ReleaseAdmin123!", "admin");
+  const res = await page.goto("/admin/users");
+  expect(res?.status()).toBe(200);
+  await expect(page.getByText("用户管理", { exact: false }).first()).toBeVisible();
+  await expect(page.locator("[data-user-row]").first()).toBeVisible();
+
+  // 即时过滤：输入 admin 后至少剩一行，且不含 admin 的行被隐藏
+  const total = await page.locator("[data-user-row]").count();
+  await page.fill("#user-search", "admin");
+  await expect(page.locator("[data-user-row]:visible").first()).toBeVisible();
+  const visible = await page.locator("[data-user-row]:visible").count();
+  expect(visible).toBeGreaterThan(0);
+  expect(visible).toBeLessThan(total);
+
+  expect(errors).toEqual([]);
+});
