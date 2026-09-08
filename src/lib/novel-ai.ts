@@ -10,7 +10,7 @@
  */
 import { z } from "zod";
 import { db } from "./db";
-import { getAiRuntimeSettings } from "./ai-admin";
+import { getWriterSettings } from "./writer-settings";
 import { importNovel } from "./novel-import";
 import { checkRateLimit } from "./ratelimit";
 import { logger } from "./logger";
@@ -32,12 +32,12 @@ export const novelGenSchema = z.object({
   style: z.string().trim().max(30).optional(),
   /** 基调，如 温暖/轻松/虐心 */
   tone: z.string().trim().max(30).optional(),
-  /** 目标字数 */
-  words: z.number().int().min(300).max(MAX_WORDS).default(700),
+  /** 目标字数；缺省用 AI 写作设置里的默认值 */
+  words: z.number().int().min(300).max(MAX_WORDS).optional(),
   /** false 只生成不落库（预览） */
   import: z.boolean().default(true),
-  /** 落库状态：approved 直接发布 / pending 进待审队列人工过一遍 */
-  status: z.enum(["approved", "pending"]).default("approved"),
+  /** 落库状态：approved 直接发布 / pending 进待审队列人工过一遍；缺省用设置里的默认值 */
+  status: z.enum(["approved", "pending"]).optional(),
   /** 生成时额外要求（会拼进 prompt） */
   instruction: z.string().trim().max(300).optional(),
 });
@@ -139,10 +139,15 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
   }
   const input = parsed.data;
 
-  const runtime = await getAiRuntimeSettings();
-  if (!runtime.providerApiKey) {
-    return { ok: false, error: "模型服务密钥未配置：请到管理后台「站点设置 → AI 自动运营」填写模型服务密钥" };
+  const writer = await getWriterSettings();
+  if (!writer.enabled) {
+    return { ok: false, error: "AI 写作未启用：请到管理后台「AI 写作」开启并配置模型" };
   }
+  if (!writer.apiKey) {
+    return { ok: false, error: "AI 写作模型密钥未配置：请到管理后台「AI 写作」填写模型服务密钥" };
+  }
+  const words = input.words ?? writer.defaultWords;
+  const status = input.status ?? writer.defaultStatus;
   if (!(await checkRateLimit("novel-ai", 8, 60))) {
     return { ok: false, error: "生成过于频繁，请稍后再试（每分钟最多 8 次）" };
   }
@@ -160,7 +165,7 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
       input.tone ? `基调：${input.tone}` : "",
       input.premise ? `额外设定：${input.premise}` : "",
       input.instruction ? `本章要求：${input.instruction}` : "",
-      `请续写第 ${next} 章，约 ${input.words} 字。chapterTitle 用「第 ${next} 章 标题」格式。`,
+      `请续写第 ${next} 章，约 ${words} 字。chapterTitle 用「第 ${next} 章 标题」格式。`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -172,21 +177,21 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
       input.tone ? `基调：${input.tone}` : "",
       input.premise ? `设定与开篇要求：${input.premise}` : "",
       input.instruction ? `额外要求：${input.instruction}` : "",
-      `请写第一章，约 ${input.words} 字。`,
+      `请写第一章，约 ${words} 字。`,
     ]
       .filter(Boolean)
       .join("\n");
   }
 
-  const baseUrl = runtime.baseUrl.replace(/\/$/, "");
+  const baseUrl = writer.baseUrl.replace(/\/$/, "");
   let rawText = "";
   try {
     const response = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${runtime.providerApiKey}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${writer.apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: runtime.model,
-        temperature: 0.85,
+        model: writer.model,
+        temperature: writer.temperature,
         response_format: { type: "json_object" },
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
@@ -215,7 +220,7 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
     chapterTitle: draft.chapterTitle,
     contentMd: draft.contentMd,
     imported: false,
-    model: runtime.model,
+    model: writer.model,
   };
 
   if (!input.import) return result;
@@ -236,7 +241,7 @@ export async function generateNovelChapter(raw: unknown): Promise<NovelGenResult
     return { ...result, error: `生成成功但落库失败：${imported.error}` };
   }
   // pending 状态：把刚写入的章节改成待审
-  if (input.status === "pending" && imported.threadId) {
+  if (status === "pending" && imported.threadId) {
     const last = await db.post.findFirst({
       where: { threadId: imported.threadId },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { novelGenSchema, parseNovelJson } from "@/lib/novel-ai";
+import { writerSettingsSchema } from "@/lib/writer-settings";
 
 describe("parseNovelJson 模型输出解析", () => {
   const good = '{"title":"雨夜","chapterTitle":"第 1 章 雨夜","contentMd":"# 第 1 章 雨夜\\n\\n正文"}';
@@ -26,11 +27,11 @@ describe("parseNovelJson 模型输出解析", () => {
 });
 
 describe("novelGenSchema 生成参数", () => {
-  it("默认字数 700、直接落库、已发布", () => {
+  it("字数/状态缺省时交给 AI 写作设置决定，import 默认落库", () => {
     const parsed = novelGenSchema.parse({ premise: "一个男生在雨夜捡到一只猫，认识了楼下邻居" });
-    expect(parsed.words).toBe(700);
+    expect(parsed.words).toBeUndefined();
+    expect(parsed.status).toBeUndefined();
     expect(parsed.import).toBe(true);
-    expect(parsed.status).toBe("approved");
   });
 
   it("字数与状态有边界", () => {
@@ -44,5 +45,28 @@ describe("novelGenSchema 生成参数", () => {
     const parsed = novelGenSchema.parse({ threadId: "t1", import: false, instruction: "本章写重逢" });
     expect(parsed.threadId).toBe("t1");
     expect(parsed.import).toBe(false);
+  });
+});
+
+describe("writerSettingsSchema AI 写作独立配置", () => {
+  it("接受 http(s) 地址与合理范围", () => {
+    const parsed = writerSettingsSchema.parse({
+      enabled: true,
+      baseUrl: "https://api.deepseek.com/v1",
+      model: "deepseek-chat",
+      temperature: 0.9,
+      defaultWords: 900,
+      defaultStatus: "pending",
+    });
+    expect(parsed.defaultStatus).toBe("pending");
+    expect(parsed.defaultWords).toBe(900);
+  });
+
+  it("拒绝非 http(s) 地址、越界温度与字数", () => {
+    const base = { enabled: true, model: "m", temperature: 0.85, defaultWords: 700, defaultStatus: "approved" };
+    expect(writerSettingsSchema.safeParse({ ...base, baseUrl: "file:///tmp/x" }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, baseUrl: "https://api.example.com/v1", temperature: 2 }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, baseUrl: "https://api.example.com/v1", defaultWords: 200 }).success).toBe(false);
+    expect(writerSettingsSchema.safeParse({ ...base, baseUrl: "https://api.example.com/v1", defaultStatus: "draft" }).success).toBe(false);
   });
 });

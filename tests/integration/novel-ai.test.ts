@@ -10,7 +10,7 @@ describe.skipIf(!shouldRun)("AI 小说生成(需要数据库 + 本地 mock 模�
   let baseUrl = "";
   let lastBody = "";
   let suffix: string;
-  let prevSettings: { aiBaseUrl: string; aiModel: string; aiProviderApiKeyEncrypted: string | null } | null = null;
+  let prevSettings: { enabled: boolean; baseUrl: string; model: string; apiKeyEncrypted: string | null } | null = null;
 
   beforeAll(async () => {
     server = createServer((req, res) => {
@@ -62,26 +62,28 @@ describe.skipIf(!shouldRun)("AI 小说生成(需要数据库 + 本地 mock 模�
       throw new Error(`集成测试无法连接数据库: ${String(e)}`);
     });
     suffix = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    // 把模型指到本地 mock；密钥走环境变量兜底（CI 没有 AI_SETTINGS_ENCRYPTION_KEY）
-    prevSettings = await db.siteSetting.findUnique({ where: { id: "site" }, select: { aiBaseUrl: true, aiModel: true, aiProviderApiKeyEncrypted: true } });
-    await db.siteSetting.upsert({
-      where: { id: "site" },
-      update: { aiBaseUrl: baseUrl, aiModel: "mock-model", aiProviderApiKeyEncrypted: null },
-      create: { id: "site", aiBaseUrl: baseUrl, aiModel: "mock-model" },
+    // 把 AI 写作模型指到本地 mock；密钥走环境变量兜底（CI 没有 AI_SETTINGS_ENCRYPTION_KEY）
+    prevSettings = await db.writerSetting.findUnique({ where: { id: "writer" }, select: { enabled: true, baseUrl: true, model: true, apiKeyEncrypted: true } });
+    await db.writerSetting.upsert({
+      where: { id: "writer" },
+      update: { enabled: true, baseUrl, model: "mock-model", apiKeyEncrypted: null },
+      create: { id: "writer", enabled: true, baseUrl, model: "mock-model" },
     });
-    process.env.AI_PROVIDER_API_KEY = "test-provider-key";
+    process.env.AI_WRITER_API_KEY = "test-provider-key";
     lastBody = "";
   });
 
   afterEach(async () => {
-    delete process.env.AI_PROVIDER_API_KEY;
+    delete process.env.AI_WRITER_API_KEY;
     if (db && prevSettings) {
-      await db.siteSetting
+      await db.writerSetting
         .update({
-          where: { id: "site" },
-          data: { aiBaseUrl: prevSettings.aiBaseUrl, aiModel: prevSettings.aiModel, aiProviderApiKeyEncrypted: prevSettings.aiProviderApiKeyEncrypted },
+          where: { id: "writer" },
+          data: { enabled: prevSettings.enabled, baseUrl: prevSettings.baseUrl, model: prevSettings.model, apiKeyEncrypted: prevSettings.apiKeyEncrypted },
         })
         .catch(() => {});
+    } else if (db) {
+      await db.writerSetting.deleteMany({ where: { id: "writer" } }).catch(() => {});
     }
     if (!db || !suffix) return;
     await db.board.deleteMany({ where: { slug: { startsWith: `test-${suffix}` } } }).catch(() => {});
@@ -127,10 +129,17 @@ describe.skipIf(!shouldRun)("AI 小说生成(需要数据库 + 本地 mock 模�
   });
 
   it("没配模型密钥时给出可读错误", async () => {
-    delete process.env.AI_PROVIDER_API_KEY;
-    await db!.siteSetting.update({ where: { id: "site" }, data: { aiProviderApiKeyEncrypted: null } });
+    delete process.env.AI_WRITER_API_KEY;
+    await db!.writerSetting.update({ where: { id: "writer" }, data: { apiKeyEncrypted: null } });
     const result = await generateNovelChapter({ premise: "测试设定内容不少于十个字", import: false });
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("模型服务密钥未配置");
+    expect(result.error).toContain("AI 写作模型密钥未配置");
+  });
+
+  it("未启用 AI 写作时直接拒绝", async () => {
+    await db!.writerSetting.update({ where: { id: "writer" }, data: { enabled: false } });
+    const result = await generateNovelChapter({ premise: "测试设定内容不少于十个字", import: false });
+    expect(result.ok).toBe(false);
+    expect(result.error).toContain("AI 写作未启用");
   });
 });

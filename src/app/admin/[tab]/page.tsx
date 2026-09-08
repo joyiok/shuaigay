@@ -46,6 +46,7 @@ import {
   reviewReportAction,
   setUserRoleAction,
   updateAiSettingsAction,
+  updateWriterSettingsAction,
   updateSiteSettingsAction,
   unbanUserAction,
 } from "../actions";
@@ -55,6 +56,7 @@ import { ConfirmForm, NativeConfirmForm } from "../ConfirmForms";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { getCachedSiteSettings } from "@/lib/cached";
 import { getAiSettingsPanel } from "@/lib/ai-admin";
+import { getWriterSettingsPanel } from "@/lib/writer-settings";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
@@ -68,6 +70,7 @@ const TABS = [
   { key: "users", label: "用户管理" },
   { key: "boards", label: "版块管理" },
   { key: "settings", label: "站点设置" },
+  { key: "writer", label: "AI 写作" },
   { key: "reports", label: "举报队列" },
   { key: "pending", label: "待审队列" },
   { key: "medals", label: "勋章" },
@@ -94,6 +97,7 @@ const ERRORS: Record<string, string> = {
   logo_type: "Logo 仅支持 JPG/PNG/GIF/WEBP",
   upload_failed: "Logo 上传失败，请重试",
   ai_secret_key: "服务器尚未配置 AI_SETTINGS_ENCRYPTION_KEY，暂不能保存 AI 密钥",
+  writer_key: "服务器尚未配置 AI_SETTINGS_ENCRYPTION_KEY，暂不能保存 AI 写作密钥",
 };
 
 const ACTION_LABELS: Record<string, string> = {
@@ -128,6 +132,7 @@ const ACTION_LABELS: Record<string, string> = {
   award_medal: "授予勋章",
   revoke_medal: "移除勋章",
   update_site_settings: "修改站点设置",
+  update_writer_settings: "修改 AI 写作设置",
 };
 
 export default async function AdminPage({
@@ -208,6 +213,7 @@ export default async function AdminPage({
       {adminFlag && active === "users" && <UsersTab currentUserId={user.id} />}
       {adminFlag && active === "boards" && <BoardsTab />}
       {adminFlag && active === "settings" && <SettingsTab />}
+      {adminFlag && active === "writer" && <WriterTab />}
       {active === "reports" && <ReportsTab boardScope={modBoards} />}
       {active === "pending" && <PendingTab boardScope={modBoards} />}
       {adminFlag && active === "medals" && <MedalsTab />}
@@ -386,6 +392,76 @@ const paperInput: CSSProperties = {
 };
 
 /** 卡片头：quick-title + 黄色胶带计数徽章 + 右侧 mono 提示 */
+async function WriterTab() {
+  const writer = await getWriterSettingsPanel();
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <PaperCardHeader
+        title="AI 写作"
+        count={writer.enabled && writer.apiKeyConfigured ? "已就绪" : "待配置"}
+        sub="小说生成 · 与站点 AI 自动运营分开配置"
+      />
+      <form action={updateWriterSettingsAction} style={{ display: "grid", gap: 12, padding: 14 }}>
+        <div style={{ color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
+          这里的模型只用于 MCP 的 <code>generate_novel</code>（AI 生成/续写小说），与「站点设置 → AI 自动运营」的审核模型互不影响。
+          可以填不同的服务商、模型和密钥。
+        </div>
+
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+          <input name="enabled" type="checkbox" defaultChecked={writer.enabled} style={{ accentColor: "var(--brand)", width: 16, height: 16 }} />
+          启用 AI 写作
+        </label>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务地址</span>
+            <input name="baseUrl" required maxLength={300} defaultValue={writer.baseUrl} placeholder="https://api.deepseek.com/v1" style={{ ...paperInput, width: "100%", height: 36 }} />
+            <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>OpenAI 兼容的 /chat/completions 接口。</span>
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>模型名称</span>
+            <input name="model" required maxLength={100} defaultValue={writer.model} placeholder="deepseek-chat" style={{ ...paperInput, width: "100%", height: 36 }} />
+          </label>
+        </div>
+
+        <label style={{ display: "grid", gap: 5 }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>
+            模型服务密钥 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{writer.apiKeyConfigured ? "· 已配置" : "· 未配置"}</span>
+          </span>
+          <input name="apiKey" type="password" maxLength={500} autoComplete="new-password" placeholder="输入并自行保留一份；留空不修改" style={{ ...paperInput, width: "100%", height: 36 }} />
+          <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 11 }}>
+            <input name="clearApiKey" type="checkbox" style={{ accentColor: "var(--brand)" }} />
+            清除已保存的密钥
+          </span>
+        </label>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12 }}>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>默认字数 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>300–1500</span></span>
+            <input name="defaultWords" type="number" required min="300" max="1500" step="50" defaultValue={writer.defaultWords} style={{ ...paperInput, width: "100%", height: 36 }} />
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>温度 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>0–1.5</span></span>
+            <input name="temperature" type="number" required min="0" max="1.5" step="0.05" defaultValue={writer.temperature} style={{ ...paperInput, width: "100%", height: 36 }} />
+            <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>越高越发散，建议 0.8–0.95。</span>
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>默认发布状态</span>
+            <select name="defaultStatus" defaultValue={writer.defaultStatus} style={{ ...paperInput, width: "100%", height: 36 }}>
+              <option value="approved">直接发布</option>
+              <option value="pending">进待审队列（人工过一遍）</option>
+            </select>
+          </label>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button type="submit" style={paperDarkBtn}>保存 AI 写作设置</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function PaperCardHeader({ title, count, sub }: { title: string; count: string; sub?: string }) {
   return (
     <div

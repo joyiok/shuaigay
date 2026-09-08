@@ -95,6 +95,20 @@ model SensitiveWord {
   createdAt DateTime @default(now())
 }
 
+/** AI 写作(小说生成)独立配置:与站点 AI 自动运营分离,可配不同模型与密钥 */
+model WriterSetting {
+  id              String   @id @default("writer")
+  enabled         Boolean  @default(false)
+  baseUrl         String   @default("https://api.deepseek.com/v1")
+  model           String   @default("deepseek-chat")
+  apiKeyEncrypted String?
+  temperature     Float    @default(0.85)
+  defaultWords    Int      @default(700)
+  defaultStatus   String   @default("approved")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
 /** 全站品牌与 SEO 设置:单例记录,由管理员维护 */
 model SiteSetting {
   id             String   @id @default("site")

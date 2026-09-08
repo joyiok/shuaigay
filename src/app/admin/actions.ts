@@ -23,6 +23,7 @@ import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
 import { aiSecretSchema, aiSettingsSchema, encryptAiSecret } from "@/lib/ai-admin";
+import { saveWriterSettings, writerSettingsSchema } from "@/lib/writer-settings";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 
@@ -892,6 +893,33 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   revalidateTag("site-settings");
   revalidatePath("/");
   redirect(ADMIN_TAB("settings"));
+}
+
+/** 保存 AI 写作（小说生成）独立配置：与站点 AI 自动运营分开 */
+export async function updateWriterSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const parsed = writerSettingsSchema.safeParse({
+    enabled: formData.get("enabled") === "on",
+    baseUrl: formData.get("baseUrl"),
+    model: formData.get("model"),
+    temperature: formData.get("temperature"),
+    defaultWords: formData.get("defaultWords"),
+    defaultStatus: formData.get("defaultStatus"),
+  });
+  if (!parsed.success) redirect(ADMIN_TAB("writer") + "&error=invalid");
+
+  const apiKeyEntry = formData.get("apiKey");
+  const apiKey = typeof apiKeyEntry === "string" ? apiKeyEntry.trim() : "";
+  const clearApiKey = formData.get("clearApiKey") === "on";
+  const saved = await saveWriterSettings(parsed.data, { apiKey, clearApiKey });
+  if (!saved.ok) redirect(ADMIN_TAB("writer") + "&error=writer_key");
+
+  await db.auditLog
+    .create({ data: { actorId, action: "update_writer_settings", targetType: "site", targetId: "writer" } })
+    .catch(() => {});
+  logger.info("admin.update_writer_settings", { actorId, enabled: parsed.data.enabled, model: parsed.data.model });
+  revalidatePath("/admin/writer");
+  redirect(ADMIN_TAB("writer"));
 }
 
 export async function updateAiSettingsAction(formData: FormData): Promise<void> {
