@@ -62,8 +62,18 @@ test("草稿箱：空态与登录门槛", async ({ page }) => {
   await expect(page.getByText("草稿箱是空的")).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole("link", { name: "写新主题" })).toBeVisible();
 
-  // 退出后要求登录
+  // 退出后要求登录（退出 action 会 redirect 到首页：必须等它落地再 goto，否则两次导航打架）
+  const loggedOut = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
   await page.getByRole("button", { name: "退出" }).first().click();
+  await loggedOut;
+  const loginLink = page.locator("header").getByRole("link", { name: "登录" });
+  try {
+    await expect(loginLink).toBeVisible({ timeout: 8000 });
+  } catch {
+    await page.reload({ waitUntil: "domcontentloaded" });
+  }
+  await expect(loginLink).toBeVisible({ timeout: 20000 });
+
   await page.goto("/drafts");
   await expect(page.getByText("登录后查看草稿")).toBeVisible({ timeout: 15000 });
 });
