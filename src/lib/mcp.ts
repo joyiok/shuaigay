@@ -2,14 +2,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { aiActionSchema, executeAiActions, getAiContext } from "./ai-admin";
 import { adminActionSchema, checkDestructiveAck, executeAdminActions, getAdminContext, MAX_ADMIN_ACTIONS } from "./admin-ops";
+import { getNovelChapters, importNovel, importNovelSchema, MAX_IMPORT_CHAPTERS } from "./novel-import";
 
 export const MCP_TOOL_NAMES = [
   "get_forum_context",
   "get_admin_context",
+  "get_novel_chapters",
   "preview_moderation_actions",
   "preview_admin_actions",
   "apply_moderation_actions",
   "apply_admin_actions",
+  "import_novel",
 ] as const;
 
 function jsonToolResult(value: unknown) {
@@ -47,6 +50,13 @@ export function createForumMcpServer() {
     inputSchema: { limit: z.number().int().min(1).max(60).default(20) },
     annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
   }, async ({ limit }) => jsonToolResult(await getAdminContext(limit)));
+
+  server.registerTool("get_novel_chapters", {
+    title: "读取小说章节",
+    description: "读取某部作品（主题）的章节清单：序号、标题、字数、创建时间，用于续写与去重对账。",
+    inputSchema: { threadId: z.string().trim().min(1).max(64), limit: z.number().int().min(1).max(500).default(200) },
+    annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
+  }, async ({ threadId, limit }) => jsonToolResult(await getNovelChapters(threadId, limit)));
 
   server.registerTool("preview_moderation_actions", {
     title: "预览内容运营动作",
@@ -93,6 +103,27 @@ export function createForumMcpServer() {
     if (!guard.ok) return errorResult(guard.error, { requiredAcknowledge: "IRREVERSIBLE", destructiveActions: guard.required });
     return jsonToolResult(await executeAdminActions(actions, { dryRun: false }));
   });
+
+  server.registerTool("import_novel", {
+    title: "导入小说（按章）",
+    description:
+      "把有权发布的小说按章导入：新建作品传 title + chapters，向已有作品续写传 threadId + chapters。" +
+      "每章落成一条作者回复，自动适配小说阅读器；首章末尾可附来源/授权说明留痕。" +
+      `单次最多 ${MAX_IMPORT_CHAPTERS} 章、每章不超过 20000 字。本工具只做导入，不做任何抓取；` +
+      "请仅导入原创、已授权或公版内容。必须传 confirm=APPLY。",
+    inputSchema: {
+      confirm: z.literal("APPLY"),
+      threadId: importNovelSchema.shape.threadId,
+      boardSlug: importNovelSchema.shape.boardSlug,
+      title: importNovelSchema.shape.title,
+      categoryName: importNovelSchema.shape.categoryName,
+      authorUsername: importNovelSchema.shape.authorUsername,
+      source: importNovelSchema.shape.source,
+      license: importNovelSchema.shape.license,
+      chapters: importNovelSchema.shape.chapters,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
+  }, async ({ confirm: _confirm, ...input }) => jsonToolResult(await importNovel(input)));
 
   return server;
 }

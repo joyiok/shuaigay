@@ -189,6 +189,7 @@ MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管�
 
 - `get_forum_context` — 公开版块/主题/帖子/举报，供 AI 分析
 - `get_admin_context` — 版块+分类、待审主题/帖子、待处理举报、用户概览与统计
+- `get_novel_chapters` — 某作品的章节清单（序号/标题/字数），用于续写与去重对账
 - `preview_moderation_actions` / `preview_admin_actions` — 预览动作，不改数据
 
 写入：
@@ -196,6 +197,9 @@ MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管�
 - `apply_moderation_actions` — AI 运营白名单动作（归类/置顶/精华/锁帖/送审/处理举报），需 `confirm=APPLY`
 - `apply_admin_actions` — 管理动作全集：版块与分类增删改、版主任免、主题帖子增删改与审核、
   用户角色/封禁/积分/重置密码/勋章、敏感词、举报处理、全站公告；需 `confirm=APPLY`
+- `import_novel` — 按章导入小说：新建作品传 `title + chapters`，续写传 `threadId + chapters`；
+  每章落成一条作者回复，自动适配小说阅读器；单次 ≤50 章、每章 ≤20000 字；需 `confirm=APPLY`。
+  只做导入，不做抓取——请仅导入原创/已授权/公版内容，可用 `source`、`license` 参数留痕
 
 安全约定：
 
