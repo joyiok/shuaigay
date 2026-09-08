@@ -90,7 +90,7 @@ jobs:
       - name: Migrate deploy
         run: npx prisma migrate deploy
 
-      - name: Seed (板块 5 · 敏感词等)
+      - name: Seed (默认板块 · 敏感词等)
         run: npx prisma db seed
 
       - name: Typecheck
@@ -226,3 +226,36 @@ jobs:
 
       - name: Validate compose config
         run: docker compose config >/dev/null && echo "compose.yml OK"
+
+  deploy:
+    name: deploy · production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, e2e, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configure SSH
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_ed25519 ~/.ssh/known_hosts
+
+      - name: Backup and deploy
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          ssh -o BatchMode=yes root@"$DEPLOY_HOST" 'bash -s' -- "${{ github.sha }}" <<'REMOTE'
+          set -eu
+          expected_sha=$1
+          cd /opt/shuaigay
+          test -z "$(git status --porcelain)"
+          docker compose exec -T backup sh /scripts/pre-dump.sh
+          git pull --ff-only
+          test "$(git rev-parse HEAD)" = "$expected_sha"
+          docker compose up -d --build
+          curl --fail --silent --show-error http://127.0.0.1:3000/api/health
+          REMOTE
+
+      - name: Verify public site
+        run: curl --fail --silent --show-error https://shuai.gay/api/health
