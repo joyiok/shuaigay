@@ -250,7 +250,7 @@ jobs:
           expected_sha=$1
           cd /opt/shuaigay
           test -z "$(git status --porcelain)"
-          docker compose exec -T backup sh /scripts/pre-dump.sh
+          docker compose exec -T backup sh /scripts/pre-dump.sh </dev/null
           git pull --ff-only
           test "$(git rev-parse HEAD)" = "$expected_sha"
           docker compose up -d --build
