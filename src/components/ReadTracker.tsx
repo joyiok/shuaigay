@@ -68,12 +68,12 @@ export default function ReadTracker({ threadId }: { threadId: string }) {
         height: 36,
         padding: "0 16px",
         borderRadius: 999,
-        border: "1.5px solid var(--line)",
+        border: "1px solid rgba(255,255,255,0.18)",
         background: "var(--inverse)",
         color: "#FFFBF2",
         fontSize: 13,
         fontWeight: 700,
-        boxShadow: "3px 3px 0 rgba(0,0,0,0.25)",
+        boxShadow: "0 10px 28px rgba(22,20,35,0.22)",
         cursor: "pointer",
       }}
     >

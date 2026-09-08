@@ -129,7 +129,7 @@ export default async function BoardPage({
         {(board as unknown as { isLocked: boolean }).isLocked && !viewerIsStaff ? (
           <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--bg-soft)", color: "var(--text-subtle)", border: "1.5px solid var(--line-soft)", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>已锁定</span>
         ) : (
-          <Link href={`/c/${board.slug}/new`} style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 13, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)" }}>发新帖</Link>
+          <Link href={`/c/${board.slug}/new`} className="btn-publish" style={{ flexShrink: 0, minHeight: 36, padding: "0 14px" }}>发新帖</Link>
         )}
       </div>
 

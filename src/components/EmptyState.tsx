@@ -120,20 +120,10 @@ export default function EmptyState({
           {actionHref ? (
             <Link
               href={actionHref}
+              className="btn-publish"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 36,
+                minHeight: 38,
                 padding: "0 18px",
-                background: "var(--brand)",
-                color: "#fff",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 700,
-                border: "2px solid var(--line)",
-                boxShadow: "3px 3px 0 var(--line)",
-                textDecoration: "none",
               }}
             >
               {actionLabel}
@@ -142,20 +132,10 @@ export default function EmptyState({
             <button
               type="button"
               onClick={onAction}
+              className="btn-publish"
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 36,
+                minHeight: 38,
                 padding: "0 18px",
-                background: "var(--brand)",
-                color: "#fff",
-                borderRadius: 999,
-                fontSize: 13,
-                fontWeight: 700,
-                border: "2px solid var(--line)",
-                boxShadow: "3px 3px 0 var(--line)",
-                cursor: "pointer",
               }}
             >
               {actionLabel}

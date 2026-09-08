@@ -300,10 +300,9 @@ export default function Composer({
           marginBottom: 8,
           flexWrap: "wrap",
           padding: "6px 8px",
-          border: "2px solid var(--line)",
-          borderRadius: 8,
+          border: "1px solid var(--line)",
+          borderRadius: 10,
           background: "var(--panel)",
-          boxShadow: "3px 3px 0 var(--line)",
         }}
         aria-label="Markdown 工具栏"
       >
@@ -314,13 +313,13 @@ export default function Composer({
           <span style={{ fontStyle: "italic", fontWeight: 700 }}>I</span>
         </button>
         <button type="button" onClick={handleLink} style={mdBtnStyle} title="链接" aria-label="链接">
-          🔗
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M8.2 11.8 11.8 8.2M6.6 13.4l-1.2 1.2a3.25 3.25 0 0 1-4.6-4.6l2.7-2.7a3.25 3.25 0 0 1 4.6 0M13.4 6.6l1.2-1.2a3.25 3.25 0 0 1 4.6 4.6l-2.7 2.7a3.25 3.25 0 0 1-4.6 0" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
         </button>
         <button type="button" onClick={handleCode} style={mdBtnStyle} title="代码" aria-label="代码">
           {"</>"}
         </button>
         <button type="button" onClick={handleQuote} style={mdBtnStyle} title="引用" aria-label="引用">
-          ❝
+          <svg width="15" height="15" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 6.5h4v4H4v-1A4 4 0 0 1 8 5.5M12 6.5h4v4h-4v-1a4 4 0 0 1 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
         </button>
         <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 6 }}>支持 Markdown · 选中文字后点击工具栏可包裹</span>
       </div>
@@ -370,11 +369,10 @@ export default function Composer({
           <div
             className="post-content"
             style={{
-              border: "2px solid var(--line)",
-              borderRadius: 8,
+              border: "1px solid var(--line)",
+              borderRadius: 10,
               padding: "10px 12px",
               background: "var(--panel)",
-              boxShadow: "4px 4px 0 var(--line)",
               minHeight: 180,
               maxHeight: 400,
               overflowY: "auto",
@@ -407,7 +405,8 @@ export default function Composer({
             cursor: "pointer",
           }}
         >
-          📎 添加附件
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m7.2 10.8 5.4-5.4a2.4 2.4 0 0 1 3.4 3.4l-6.6 6.6a4 4 0 1 1-5.7-5.7l6.5-6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          添加附件
         </button>
         <button
           type="button"
@@ -425,7 +424,8 @@ export default function Composer({
             cursor: "pointer",
           }}
         >
-          😊 表情
+          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5" /><path d="M7 8h.01M13 8h.01M7.5 12.2c.7.9 1.5 1.3 2.5 1.3s1.8-.4 2.5-1.3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
+          表情
         </button>
         <span style={{ color: "var(--text-subtle)", fontSize: 12, marginLeft: "auto" }}>
           {draftKey && text ? (
@@ -535,7 +535,7 @@ export default function Composer({
                       color: "var(--text-muted)",
                     }}
                   >
-                    📎
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="m7.2 10.8 5.4-5.4a2.4 2.4 0 0 1 3.4 3.4l-6.6 6.6a4 4 0 1 1-5.7-5.7l6.5-6.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                     <span style={{ fontSize: 9, maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {f.name.split(".").pop()?.toUpperCase()}
                     </span>
@@ -565,7 +565,7 @@ export default function Composer({
                     justifyContent: "center",
                   }}
                 >
-                  ×
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="m4 4 8 8m0-8-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
                 </button>
               </div>
             );

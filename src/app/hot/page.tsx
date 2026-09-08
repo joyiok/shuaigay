@@ -140,7 +140,7 @@ export default async function HotPage({
               const size = c._count.threads > 10 ? 13 : c._count.threads > 3 ? 12 : 11;
               const weight = c._count.threads > 10 ? 700 : 500;
               return (
-                <Link key={c.id} href={`/c/${c.board.slug}?cat=${c.id}`} prefetch={false} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 999, padding: `4px 10px`, fontSize: size, fontWeight: weight, boxShadow: "1px 1px 0 var(--line)", textDecoration: "none", color: "var(--text)" }}>
+                <Link key={c.id} href={`/c/${c.board.slug}?cat=${c.id}`} prefetch={false} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "var(--panel)", border: "1px solid var(--line)", borderRadius: 999, padding: `4px 10px`, fontSize: size, fontWeight: weight, textDecoration: "none", color: "var(--text)" }}>
                   <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 10, color: "var(--text-subtle)" }}>{c.board.name}</span>
                   <span>{c.name}</span>
                   <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 999, padding: "1px 6px", fontSize: 10, color: "var(--text-subtle)" }}>{c._count.threads}</span>

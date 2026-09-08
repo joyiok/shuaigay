@@ -12,9 +12,7 @@ export default function LevelBadge({ points, role }: { points: number; role?: st
           borderRadius: 999,
           whiteSpace: "nowrap",
           fontWeight: 700,
-          border: "2px solid var(--line)",
-          boxShadow: "2px 2px 0 var(--line)",
-          transform: "rotate(-0.8deg)",
+          border: "1px solid var(--line)",
           display: "inline-flex",
         }}
       >
@@ -31,14 +29,12 @@ export default function LevelBadge({ points, role }: { points: number; role?: st
       style={{
         background: lv.bg,
         color: lv.color,
-        border: `2px solid var(--line)`,
+        border: `1px solid var(--line)`,
         fontSize: 10,
         padding: "2px 7px",
         borderRadius: 999,
         whiteSpace: "nowrap",
         fontWeight: 700,
-        boxShadow: "2px 2px 0 var(--line)",
-        transform: "rotate(-0.8deg)",
         display: "inline-flex",
       }}
     >
