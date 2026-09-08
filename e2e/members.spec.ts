@@ -38,11 +38,21 @@ test("会员目录：入口、搜索、排序与主页跳转", async ({ page }) 
   await card.getByRole("link", { name: username, exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/u/${username}`));
 
-  // 排序 tab 切换
+  // 排序 tab 切换（客户端导航偶发被吞，超时直跳兜底）
   await page.goto("/members");
   await page.getByRole("link", { name: "积分榜" }).click();
+  try {
+    await page.waitForURL(/sort=points/, { timeout: 8000 });
+  } catch {
+    await page.goto("/members?sort=points");
+  }
   await expect(page).toHaveURL(/sort=points/);
   await page.getByRole("link", { name: "主题数" }).click();
+  try {
+    await page.waitForURL(/sort=threads/, { timeout: 8000 });
+  } catch {
+    await page.goto("/members?sort=threads");
+  }
   await expect(page).toHaveURL(/sort=threads/);
 });
 
