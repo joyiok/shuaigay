@@ -36,8 +36,9 @@ async function main() {
     { slug: "general", name: "综合讨论", description: "随便聊聊 · 寻找同好", order: 1 },
     { slug: "tech", name: "技术交流", description: "代码 · 部署 · 折腾记录", order: 2 },
     { slug: "life", name: "生活分享", description: "日常 · 随手拍 · 心情", order: 3 },
-    { slug: "resource", name: "资源互助", description: "资源 · 工具 · 经验共享", order: 4 },
-    { slug: "announce", name: "公告", description: "社区规范 · 更新公告", order: 5 },
+    { slug: "novel", name: "小说", description: "原创连载 · 短篇故事 · 在这里写，也在这里读", order: 4 },
+    { slug: "resource", name: "资源互助", description: "资源 · 工具 · 经验共享", order: 5 },
+    { slug: "announce", name: "公告", description: "社区规范 · 更新公告", order: 6 },
   ];
   for (const board of boards) {
     await db.board.upsert({
@@ -66,6 +67,11 @@ async function main() {
       { boardSlug: "tech", name: "折腾", order: 1 },
       { boardSlug: "tech", name: "分享", order: 2 },
       { boardSlug: "life", name: "日常", order: 1 },
+      { boardSlug: "novel", name: "都市", order: 1 },
+      { boardSlug: "novel", name: "悬疑", order: 2 },
+      { boardSlug: "novel", name: "奇幻", order: 3 },
+      { boardSlug: "novel", name: "科幻", order: 4 },
+      { boardSlug: "novel", name: "短篇", order: 5 },
       { boardSlug: "resource", name: "互助", order: 1 },
     ];
     for (const c of defaults) {

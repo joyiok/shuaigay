@@ -25,6 +25,7 @@ interface ThreadItem {
   lastPostAt: string;
   boardSlug?: string;
   boardName?: string;
+  categoryName?: string | null;
 }
 
 interface PostItem {
@@ -51,6 +52,7 @@ export default function InfiniteList({
   query = "",
   nextHref,
   fetchUrl,
+  novel = false,
 }: {
   children: React.ReactNode;
   variant: "thread" | "post";
@@ -59,6 +61,7 @@ export default function InfiniteList({
   nextHref: string | null;
   /** 取下一页数据的接口地址(不含 cursor 参数,组件自己拼) */
   fetchUrl: string;
+  novel?: boolean;
 }) {
   const [cursor, setCursor] = useState<string | null>(() =>
     nextHref ? new URLSearchParams((nextHref.split("?")[1] ?? "")).get("cursor") : null,
@@ -114,12 +117,12 @@ export default function InfiniteList({
 
   return (
     <>
-      <ul className="post-list">
+      <ul className={`post-list${novel ? " novel-book-list" : ""}`}>
         {children}
         {items.map((it) =>
           variant === "post"
             ? renderPostRow(it as PostItem, query)
-            : renderThreadRow(it as ThreadItem, query),
+            : renderThreadRow(it as ThreadItem, query, novel),
         )}
         {loading && (
           <li
@@ -156,7 +159,7 @@ export default function InfiniteList({
   );
 }
 
-function renderThreadRow(t: ThreadItem, query: string) {
+function renderThreadRow(t: ThreadItem, query: string, novel = false) {
   const boardBg = (() => {
     const n = t.boardName ?? "";
     if (n.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
@@ -166,8 +169,10 @@ function renderThreadRow(t: ThreadItem, query: string) {
     return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
   })();
   return (
-    <li key={t.id} className="post-item" style={{ gap: 12 }}>
-      <div
+    <li key={t.id} className={`post-item${novel ? " novel-book" : ""}`} style={{ gap: 12 }}>
+      {novel ? (
+        <div className="novel-cover" aria-hidden><span>{t.title.trim().slice(0, 1) || "书"}</span></div>
+      ) : <div
         style={{
           width: 36,
           height: 36,
@@ -189,11 +194,12 @@ function renderThreadRow(t: ThreadItem, query: string) {
         ) : (
           t.authorName.slice(0, 1).toUpperCase()
         )}
-      </div>
+      </div>}
       <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
         <div className="post-title-row" style={{ gap: 8 }}>
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+          {novel && t.categoryName && <span className="topic-badge cat-orange">{t.categoryName}</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={t.title} query={query} />
           </Link>
@@ -204,10 +210,10 @@ function renderThreadRow(t: ThreadItem, query: string) {
           )}
         </div>
         <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
-          <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
+          <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(new Date(t.lastPostAt)).split(" ")[0]}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
-            💬 {t.replyCount}
+            {novel ? (t.replyCount > 0 ? "持续更新" : "新作") : `💬 ${t.replyCount}`}
           </span>
         </div>
       </div>

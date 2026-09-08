@@ -97,7 +97,7 @@ export async function generateMetadata({
   };
 }
 
-async function loadThreadPage(rawId: string, cursor: Cursor | null, opOnly: boolean) {
+async function loadThreadPage(rawId: string, cursor: Cursor | null, filter: string | undefined) {
   const id = parseThreadId(rawId);
   const thread = await db.thread.findUnique({
     where: { id },
@@ -107,10 +107,12 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null, opOnly: bool
     },
   });
   if (!thread) return null;
+  const isNovel = thread.board.slug === "novel";
+  const opOnly = isNovel ? filter !== "discussion" : filter === "op";
   const user = await getCurrentUser();
   const isStaffForPosts = user ? (user.role === "ADMIN" || await isBoardModerator(user.id, thread.board.id)) : false;
   const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, isStaffForPosts, 50, opOnly ? thread.authorId : null);
-  return { thread, user, items, nextCursor };
+  return { thread, user, items, nextCursor, isNovel, opOnly };
 }
 
 export default async function ThreadPage({
@@ -122,15 +124,14 @@ export default async function ThreadPage({
 }) {
   const { id } = await params;
   const { cursor: rawCursor, error, filter: rawFilter, pending } = await searchParams;
-  const opOnly = rawFilter === "op";
   let loaded: Awaited<ReturnType<typeof loadThreadPage>>;
   try {
-    loaded = await loadThreadPage(id, decodeCursor(rawCursor), opOnly);
+    loaded = await loadThreadPage(id, decodeCursor(rawCursor), rawFilter);
   } catch {
     return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
   if (!loaded) notFound();
-  const { thread, user, items, nextCursor } = loaded;
+  const { thread, user, items, nextCursor, isNovel, opOnly } = loaded;
   const currentViews = (thread as unknown as { views: number }).views ?? 0;
   void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
   (thread as unknown as { views: number }).views = currentViews + 1;
@@ -191,7 +192,7 @@ export default async function ThreadPage({
   };
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className={isNovel ? "novel-reader" : undefined} style={{ display: "grid", gap: 12 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <link rel="canonical" href={canonical} />
@@ -209,9 +210,9 @@ export default async function ThreadPage({
         </span>
       </div>
 
-      <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}`} style={{ padding: 14 }}>
+      <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}${isNovel ? " novel-thread-head" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
+          <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
           {(thread as any).status === "pending" && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
           {thread.globalPinned && <span className="topic-badge pinned">全局置顶</span>}
@@ -226,7 +227,7 @@ export default async function ThreadPage({
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>
             {(thread as unknown as { views: number }).views} 浏览
           </span>
-          <span>· {items.length} 楼</span>
+          <span>· {isNovel && opOnly ? `${items.length}${nextCursor ? "+" : ""} 章` : `${items.length} 楼`}</span>
         </div>
         {user && (
           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -281,24 +282,31 @@ export default async function ThreadPage({
             </form>
           </div>
         )}
-        <div style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap" }}>
-          <Link
-            href={opOnly ? threadHref(thread.id, thread.title) : `${threadHref(thread.id, thread.title)}?filter=op`}
-            style={{
-              height: 28,
-              padding: "0 10px",
-              display: "inline-flex",
-              alignItems: "center",
-              border: `1px solid ${opOnly ? "var(--brand)" : "var(--line)"}`,
-              borderRadius: 6,
-              background: opOnly ? "#ede9fe" : "var(--panel)",
-              color: opOnly ? "var(--brand)" : "var(--text-muted)",
-              fontSize: 12,
-              fontWeight: 600,
-            }}
-          >
-            {opOnly ? "只看楼主 ✓" : "只看楼主"}
-          </Link>
+        <div className={isNovel ? "novel-view-tabs" : undefined} style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap" }}>
+          {isNovel ? (
+            <>
+              <Link href={threadHref(thread.id, thread.title)} className={`tab ${opOnly ? "active" : ""}`}>章节阅读</Link>
+              <Link href={`${threadHref(thread.id, thread.title)}?filter=discussion`} className={`tab ${!opOnly ? "active" : ""}`}>读者讨论</Link>
+            </>
+          ) : (
+            <Link
+              href={opOnly ? threadHref(thread.id, thread.title) : `${threadHref(thread.id, thread.title)}?filter=op`}
+              style={{
+                height: 28,
+                padding: "0 10px",
+                display: "inline-flex",
+                alignItems: "center",
+                border: `1px solid ${opOnly ? "var(--brand)" : "var(--line)"}`,
+                borderRadius: 6,
+                background: opOnly ? "#ede9fe" : "var(--panel)",
+                color: opOnly ? "var(--brand)" : "var(--text-muted)",
+                fontSize: 12,
+                fontWeight: 600,
+              }}
+            >
+              {opOnly ? "只看楼主 ✓" : "只看楼主"}
+            </Link>
+          )}
         </div>
       </div>
 
@@ -309,7 +317,7 @@ export default async function ThreadPage({
         <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
       )}
 
-      <div className="card" style={{ overflow: "hidden" }}>
+      <div className={`card${isNovel ? " novel-pages" : ""}`} style={{ overflow: "hidden" }}>
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((p, idx) => {
             const isFirstPost = idx === 0 && !rawCursor;
@@ -317,7 +325,7 @@ export default async function ThreadPage({
             const editable = canEditPost(user, p, { threadLocked: thread.locked });
             const canRate = !!user && user.id !== p.authorId;
             return (
-              <li key={p.id} id={`post-${p.id}`} style={{ padding: 14, borderBottom: idx === items.length - 1 ? "none" : "1px solid var(--bg)", display: "grid", gap: 10 }}>
+              <li key={p.id} id={`post-${p.id}`} className={isNovel && p.authorId === thread.authorId ? "novel-chapter" : undefined} style={{ padding: 14, borderBottom: idx === items.length - 1 ? "none" : "1px solid var(--bg)", display: "grid", gap: 10 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
                   <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
@@ -327,7 +335,7 @@ export default async function ThreadPage({
                   ))}
                   {(p as any).status === "pending" && <span style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>待审</span>}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
-                  <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>#{idx + 1}</span>
+                  <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>{isNovel && opOnly ? `第 ${idx + 1} 章` : `#${idx + 1}`}</span>
                   <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                     <button type="button" className="post-quote-btn" data-author={p.authorName} data-floor={idx + 1} data-text={excerpt(p.contentMd)}>引用</button>
                     {editable && <PostEditor postId={p.id} contentMd={p.contentMd} />}
@@ -416,7 +424,7 @@ export default async function ThreadPage({
 
       {nextCursor && (
         <div style={{ textAlign: "center" }}>
-          <Link href={`${threadHref(thread.id, thread.title)}?cursor=${nextCursor}${opOnly ? "&filter=op" : ""}`} style={{ display: "inline-flex", alignItems: "center", height: 32, padding: "0 16px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 13 }}>加载后面的回复 →</Link>
+          <Link href={`${threadHref(thread.id, thread.title)}?cursor=${nextCursor}${isNovel ? (opOnly ? "" : "&filter=discussion") : opOnly ? "&filter=op" : ""}`} style={{ display: "inline-flex", alignItems: "center", height: 32, padding: "0 16px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 13 }}>{isNovel && opOnly ? "继续阅读 →" : "加载后面的回复 →"}</Link>
         </div>
       )}
 
@@ -424,10 +432,10 @@ export default async function ThreadPage({
         {canReplyNow ? (
           <SubmissionForm key={draftKey("reply", thread.id, user!.id)} action={replyAction} style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="threadId" value={thread.id} />
-            <Composer placeholder="回复，支持 Markdown（@提及 / 粘贴图片 / 表情）" rows={5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id, user!.id)} />
+            <Composer placeholder={isNovel ? (user!.id === thread.authorId ? "写下下一章，支持 Markdown" : "留下读后感，内容会显示在读者讨论中") : "回复，支持 Markdown（@提及 / 粘贴图片 / 表情）"} rows={isNovel && user!.id === thread.authorId ? 14 : 5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id, user!.id)} />
             <Turnstile action="create_reply" resetSignal={error} />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
-              <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 32, padding: "0 16px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>回复</button>
+              <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 32, padding: "0 16px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>{isNovel ? (user!.id === thread.authorId ? "更新下一章" : "参与讨论") : "回复"}</button>
             </div>
           </SubmissionForm>
         ) : user ? (

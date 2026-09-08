@@ -10,9 +10,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const board = await db.board.findUnique({ where: { slug } }).catch(() => null);
   if (!board) return { title: "版块不存在" };
+  const isNovel = board.slug === "novel";
   return {
-    title: `在「${board.name}」发新帖`,
-    description: `在 ${board.name} 版块发布新主题 — SHUAI GAY 论坛。`,
+    title: isNovel ? "发布小说作品" : `在「${board.name}」发新帖`,
+    description: isNovel ? "发布原创小说或开始连载 — SHUAI GAY 小说专区。" : `在 ${board.name} 版块发布新主题 — SHUAI GAY 论坛。`,
     robots: { index: false, follow: false },
   };
 }
@@ -52,13 +53,14 @@ export default async function NewThreadPage({
   const user = await getCurrentUser();
   const board = await db.board.findUnique({ where: { slug } });
   if (!board) notFound();
+  const isNovel = board.slug === "novel";
   const categories = await db.threadCategory.findMany({ where: { boardId: board.id }, orderBy: { order: "asc" } });
   const _isStaffNew = isAdmin(user) || (user ? await isBoardModerator(user.id, board.id) : false);
   if ((board as unknown as { isHidden: boolean }).isHidden && !_isStaffNew) notFound();
   if ((board as unknown as { isLocked: boolean }).isLocked && !_isStaffNew && user) {
     return (
       <div style={{ display: "grid", gap: 12 }}>
-        <div className="breadcrumb"><Link href="/">首页</Link><span>/</span><Link href={`/c/${board.slug}`}>{board.name}</Link><span>/</span><span style={{ color: "var(--text)", fontWeight: 600 }}>发新帖</span></div>
+        <div className="breadcrumb"><Link href="/">首页</Link><span>/</span><Link href={`/c/${board.slug}`}>{board.name}</Link><span>/</span><span style={{ color: "var(--text)", fontWeight: 600 }}>{isNovel ? "发布作品" : "发新帖"}</span></div>
         <div className="card" style={{ padding: 16 }}><p style={{ color: "var(--text-muted)", fontSize: 13 }}>版块已锁定，无法发帖。仅版主/管理员可发。</p><Link href={`/c/${board.slug}`} style={{ display: "inline-flex", marginTop: 10, height: 32, padding: "0 12px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 13 }}>返回版块</Link></div>
       </div>
     );
@@ -71,9 +73,9 @@ export default async function NewThreadPage({
           <span>/</span>
           <Link href={`/c/${board.slug}`}>{board.name}</Link>
           <span>/</span>
-          <span style={{ color: "var(--text)", fontWeight: 600 }}>发新帖</span>
+          <span style={{ color: "var(--text)", fontWeight: 600 }}>{isNovel ? "发布作品" : "发新帖"}</span>
         </div>
-        <AuthRequired title="请先登录后发帖" description="登录后才能在版块发布新主题，支持 Markdown、@提及与附件。" next={`/c/${slug}/new`} />
+        <AuthRequired title={isNovel ? "请先登录后发布作品" : "请先登录后发帖"} description={isNovel ? "登录后即可发布原创小说，并通过回复持续更新章节。" : "登录后才能在版块发布新主题，支持 Markdown、@提及与附件。"} next={`/c/${slug}/new`} />
       </div>
     );
   }
@@ -85,11 +87,12 @@ export default async function NewThreadPage({
         <span>/</span>
         <Link href={`/c/${board.slug}`}>{board.name}</Link>
         <span>/</span>
-        <span style={{ color: "var(--text)", fontWeight: 600 }}>发新帖</span>
+        <span style={{ color: "var(--text)", fontWeight: 600 }}>{isNovel ? "发布作品" : "发新帖"}</span>
       </div>
       <SubmissionForm key={draftKey("new", board.slug, user.id)} action={createThreadAction} className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
         <input type="hidden" name="boardSlug" value={board.slug} />
-        <h1 style={{ fontSize: 16, fontWeight: 800, margin: 0, fontFamily: "Crimson Pro, serif" }}>在「{board.name}」发新帖</h1>
+        <h1 style={{ fontSize: isNovel ? 22 : 16, fontWeight: 800, margin: 0, fontFamily: isNovel ? 'Georgia, "Songti SC", "STSong", serif' : undefined }}>{isNovel ? "发布一部新作品" : `在「${board.name}」发新帖`}</h1>
+        {isNovel && <p style={{ margin: "-4px 0 4px", color: "var(--text-muted)", fontSize: 13, lineHeight: 1.7 }}>先写作品简介或第一章；发布后，在作品页回复即可继续更新章节。</p>}
         {error && ERRORS[error] && (
           <HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} />
         )}
@@ -107,22 +110,22 @@ export default async function NewThreadPage({
           </label>
         )}
         <label style={{ display: "grid", gap: 4 }}>
-          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>标题（5-120 字）</span>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>{isNovel ? "作品名" : "标题"}（5-120 字）</span>
           <input
             name="title"
             required
             maxLength={120}
             minLength={5}
-            placeholder="一句话概括你的主题"
+            placeholder={isNovel ? "给你的故事起一个名字" : "一句话概括你的主题"}
             aria-label="标题"
             autoComplete="off"
             style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 14, outline: "none" }}
           />
         </label>
         <Composer
-          placeholder="正文，支持 Markdown（@提及 / 粘贴图片 / 表情）"
-          rows={10}
-          monospace
+          placeholder={isNovel ? "写下作品简介或第一章，支持 Markdown" : "正文，支持 Markdown（@提及 / 粘贴图片 / 表情）"}
+          rows={isNovel ? 18 : 10}
+          monospace={!isNovel}
           maxFiles={MAX_FILES_PER_POST}
           maxBytes={maxUploadBytes()}
           draftKey={draftKey("new", board.slug, user.id)}
@@ -134,7 +137,7 @@ export default async function NewThreadPage({
             type="submit"
             style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 36, padding: "0 18px", fontSize: 14, fontWeight: 600, border: "1px solid var(--brand)" }}
           >
-            发布
+            {isNovel ? "发布作品" : "发布"}
           </button>
           <Link
             href={`/c/${board.slug}`}

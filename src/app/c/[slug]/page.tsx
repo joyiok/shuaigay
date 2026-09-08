@@ -72,6 +72,7 @@ export default async function BoardPage({
     return <ErrorState title="加载版块失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
   const { pinned, items, nextCursor } = loaded;
+  const isNovel = board.slug === "novel";
 
   const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
   const breadcrumbJsonLd = {
@@ -96,7 +97,7 @@ export default async function BoardPage({
   const fetchUrl = `/api/threads?board=${board.slug}${categoryId ? `&cat=${categoryId}` : ""}`;
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div className={isNovel ? "novel-library" : undefined} style={{ display: "grid", gap: 12 }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
       <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
@@ -109,14 +110,15 @@ export default async function BoardPage({
         </span>
       </div>
 
-      <div className="card" style={{ padding: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <div className={`card${isNovel ? " novel-library-head" : ""}`} style={{ padding: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
-            <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{board.name}</h1>
+            <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0 }}>{isNovel ? "小说书架" : board.name}</h1>
             {(board as unknown as { isHidden: boolean }).isHidden && <span style={{ background: "var(--text)", color: "var(--panel)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>隐藏</span>}
             {(board as unknown as { isLocked: boolean }).isLocked && <span style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>锁定</span>}
           </div>
-          {board.description && <p style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}>{board.description}</p>}
+          {board.description && <p style={{ color: "var(--text-muted)", fontSize: isNovel ? 14 : 12, marginTop: isNovel ? 8 : 4 }}>{board.description}</p>}
+          {isNovel && <p className="novel-library-note">一部作品一个主题，作者在主题中回复即可续写下一章。</p>}
           {moderators.length > 0 && (
             <p style={{ color: "var(--text-subtle)", fontSize: 12, marginTop: 8, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
               <span style={{ fontWeight: 600 }}>版主:</span>
@@ -129,7 +131,7 @@ export default async function BoardPage({
         {(board as unknown as { isLocked: boolean }).isLocked && !viewerIsStaff ? (
           <span style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", height: 32, padding: "0 14px", background: "var(--bg-soft)", color: "var(--text-subtle)", border: "1.5px solid var(--line-soft)", borderRadius: 8, fontSize: 12, fontWeight: 600 }}>已锁定</span>
         ) : (
-          <Link href={`/c/${board.slug}/new`} className="btn-publish" style={{ flexShrink: 0, minHeight: 36, padding: "0 14px" }}>发新帖</Link>
+          <Link href={`/c/${board.slug}/new`} className="btn-publish" style={{ flexShrink: 0, minHeight: 36, padding: "0 14px" }}>{isNovel ? "发布作品" : "发新帖"}</Link>
         )}
       </div>
 
@@ -142,13 +144,13 @@ export default async function BoardPage({
 
       <div className="topic-toolbar">
         <div className="tab-bar">
-          <Link href={`/c/${board.slug}`} className={`tab ${!rawCursor ? "active" : ""}`}>全部</Link>
-          <Link href={`/c/${board.slug}`} className="tab">热门</Link>
+          <Link href={`/c/${board.slug}`} className={`tab ${!rawCursor ? "active" : ""}`}>{isNovel ? "全部作品" : "全部"}</Link>
+          {!isNovel && <Link href={`/c/${board.slug}`} className="tab">热门</Link>}
         </div>
       </div>
 
       {categories.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+        <div className={isNovel ? "novel-genres" : undefined} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
           <Link href={`/c/${board.slug}`} className={`tab ${!categoryId ? "active" : ""}`} style={{ height: 28, fontSize: 12 }}>全部</Link>
           {categories.map((c) => (
             <Link key={c.id} href={`/c/${board.slug}?cat=${c.id}`} className={`tab ${categoryId === c.id ? "active" : ""}`} style={{ height: 28, fontSize: 12 }}>
@@ -159,16 +161,22 @@ export default async function BoardPage({
       )}
 
       {nextHref ? (
-        <InfiniteList variant="thread" nextHref={nextHref} fetchUrl={fetchUrl}>
-          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned />))}
-          {items.map((t) => (<ThreadRow key={t.id} t={t} />))}
+        <InfiniteList variant="thread" nextHref={nextHref} fetchUrl={fetchUrl} novel={isNovel}>
+          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} />))}
+          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} />))}
         </InfiniteList>
       ) : pinned.length === 0 && items.length === 0 ? (
-        <EmptyState variant="thread" actionLabel="发第一帖" actionHref={`/c/${board.slug}/new`} />
+        <EmptyState
+          variant="thread"
+          title={isNovel ? "书架还空着" : undefined}
+          description={isNovel ? "来写下这里的第一段故事。" : undefined}
+          actionLabel={isNovel ? "发布第一部作品" : "发第一帖"}
+          actionHref={`/c/${board.slug}/new`}
+        />
       ) : (
         <ul className="post-list">
-          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned />))}
-          {items.map((t) => (<ThreadRow key={t.id} t={t} />))}
+          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} />))}
+          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} />))}
         </ul>
       )}
 
@@ -181,11 +189,15 @@ export default async function BoardPage({
   );
 }
 
-function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
+function ThreadRow({ t, pinned, novel = false }: { t: ThreadListItem; pinned?: boolean; novel?: boolean }) {
   const isPending = (t as any).status === "pending";
   return (
-    <li className="post-item" style={{ opacity: isPending ? 0.7 : 1 }}>
-      <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
+    <li className={`post-item${novel ? " novel-book" : ""}`} style={{ opacity: isPending ? 0.7 : 1 }}>
+      {novel ? (
+        <div className="novel-cover" aria-hidden><span>{t.title.trim().slice(0, 1) || "书"}</span></div>
+      ) : (
+        <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
+      )}
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">{t.globalPinned ? "全局置顶" : "置顶"}</span>}
@@ -196,7 +208,7 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
           <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1 }}>{t.title}</Link>
         </div>
         <div className="post-meta" style={{ gap: 10, marginTop: 6 }}>
-          <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{t.authorName}</span>
+          <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
           <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-subtle)" }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>
@@ -204,7 +216,7 @@ function ThreadRow({ t, pinned }: { t: ThreadListItem; pinned?: boolean }) {
             </span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-              {t.replyCount}
+              {novel ? (t.replyCount > 0 ? "持续更新" : "新作") : t.replyCount}
             </span>
           </span>
           <span style={{ color: "var(--text-subtle)" }}>{formatDate(t.lastPostAt)}</span>

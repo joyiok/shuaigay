@@ -348,6 +348,7 @@ export async function replyAction(formData: FormData): Promise<string> {
     subscriberIds: favRows.map((r) => r.userId),
     alreadyNotifiedIds: new Set(notifyPlan.map((n) => n.userId)),
   });
+  const replyHref = thread.board.slug === "novel" && user.id !== thread.authorId ? `/t/${thread.id}?filter=discussion` : `/t/${thread.id}`;
 
   const approvalUserReply = await fetchApprovalUser(user.id);
   const approvalBoardReply = await fetchApprovalBoard(thread.board.id);
@@ -399,7 +400,7 @@ export async function replyAction(formData: FormData): Promise<string> {
                 ? `${user.username} 回复了你的主题`
                 : `${user.username} 在回复里提到了你`,
             body: excerptForNotify(content.data),
-            link: `/t/${thread.id}`,
+            link: replyHref,
           })),
         });
       }
@@ -410,7 +411,7 @@ export async function replyAction(formData: FormData): Promise<string> {
             type: "favorite",
             title: `${user.username} 回复了你收藏的主题`,
             body: excerptForNotify(content.data),
-            link: `/t/${thread.id}`,
+            link: replyHref,
           })),
         });
       }
@@ -448,7 +449,9 @@ export async function replyAction(formData: FormData): Promise<string> {
     logger.error("post.reply_failed", { userId: user.id, threadId, error: String(e) });
     throw e;
   }
-  return pendingReply ? `/t/${thread.id}?pending=1` : `/t/${thread.id}`;
+  return pendingReply
+    ? `${replyHref}${replyHref.includes("?") ? "&" : "?"}pending=1`
+    : replyHref;
 }
 
 /**
