@@ -181,11 +181,11 @@ export default async function MembersPage({
                     </Link>
                     <LevelBadge points={u.points} role={u.role} />
                   </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-subtle)", display: "flex", gap: 10, flexWrap: "wrap" }}>
-                    <span>{lv.name}</span>
-                    <span>{u.points} 分</span>
-                    <span>{u._count.threads} 主题</span>
-                    <span>{u._count.followers} 粉丝</span>
+                  <div className="member-stats">
+                    <span className="member-stat-name">{lv.name}</span>
+                    <span><strong>{u.points}</strong> 积分</span>
+                    <span><strong>{u._count.threads}</strong> 主题</span>
+                    <span><strong>{u._count.followers}</strong> 粉丝</span>
                   </div>
                   <p className="member-bio">{u.bio?.trim() || "这个人很懒，什么都没写"}</p>
                   <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>

@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 /**
- * 移动端悬浮「发新帖」按钮(仅 <900px 显示,fixed 右下):
- * - 在当前版块页(/c/:slug)时,跳到该版块的 /new
- * - 其他页面跳到首页首个版块的 /new;没有版块时不显示
- * - 已在发帖页(/new)时不显示,避免重复入口
+ * 移动端悬浮「发新帖」按钮(仅 <1020px 显示,fixed 右下):
+ * - 只在「浏览内容」的页面出现：首页 / 热榜 / 版块页 / 搜索
+ * - 个人中心、设置、会员目录、私信、通知等页面不显示（无发布语义，还会遮挡内容）
+ * - 版块页已有显眼的「发新帖」按钮，由 CSS 隐藏本按钮避免重复
+ * - 已在发帖页(/new)时不显示
  */
+const FAB_PAGES = /^\/($|hot(\/|$)|c\/|search(\/|$))/;
 export default function FloatingNewThread({
   firstBoardSlug,
 }: {
@@ -18,7 +20,7 @@ export default function FloatingNewThread({
 
   useEffect(() => {
     const path = window.location.pathname;
-    if (/\/new\/?$/.test(path)) {
+    if (/\/new\/?$/.test(path) || !FAB_PAGES.test(path)) {
       setHref(null);
       return;
     }

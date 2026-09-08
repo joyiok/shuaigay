@@ -198,27 +198,12 @@ export default async function RootLayout({
                     设置
                   </Link>
                   {user.role === "ADMIN" && (
-                    <>
-                      <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE" }}>
-                        管理
-                      </Link>
-                      <span className="nav-role"
-                        style={{
-                          background: "var(--inverse)",
-                          color: "var(--inverse-text)",
-                          fontSize: 10,
-                          fontWeight: 800,
-                          padding: "3px 8px",
-                          borderRadius: 999,
-                          letterSpacing: "0.04em",
-                        }}
-                      >
-                        管理员
-                      </span>
-                    </>
+                    <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE", borderRadius: 999, fontSize: 12 }}>
+                      管理
+                    </Link>
                   )}
                   {online !== null && (
-                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
+                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 11.5, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "3px 9px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <form action={logoutAction} style={{ display: "inline" }}>
                     <button type="submit" style={{ color: "var(--text-subtle)", fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 999 }}>
@@ -229,12 +214,15 @@ export default async function RootLayout({
               ) : (
                 <>
                   {online !== null && (
-                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "4px 10px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
+                    <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 11.5, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "3px 9px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <Link href="/login" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "7px 12px" }}>
                     登录
                   </Link>
-                  <Link href="/register" className="btn-publish">
+                  <Link
+                    href="/register"
+                    style={{ display: "inline-flex", alignItems: "center", height: 36, padding: "0 16px", borderRadius: 9, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--text)", fontSize: 13, fontWeight: 650 }}
+                  >
                     注册
                   </Link>
                 </>
@@ -318,8 +306,8 @@ export default async function RootLayout({
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         {hotTopics.map((t: any, idx: number) => (
-                          <Link key={t.id} href={threadHref(t.id, t.title)} prefetch={false} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: idx === 0 ? "#FFFEF5" : "#fff", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
-                            <span style={{ width: 22, height: 22, borderRadius: 7, background: idx === 0 ? "#FEF3C7" : idx === 1 ? "#EDE9FE" : idx === 2 ? "#FCE7F3" : "#F4F4F5", color: idx === 0 ? "#B45309" : idx === 1 ? "#7C3AED" : idx === 2 ? "#DB2777" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, border: "1px solid rgba(22,22,26,0.08)" }}>{idx + 1}</span>
+                          <Link key={t.id} href={threadHref(t.id, t.title)} prefetch={false} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: "var(--panel)", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
+                            <span style={{ width: 20, height: 20, borderRadius: 6, background: idx === 0 ? "var(--brand)" : idx < 3 ? "var(--brand-soft)" : "var(--bg-soft)", color: idx === 0 ? "#fff" : idx < 3 ? "var(--brand)" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, border: idx < 3 ? "1px solid transparent" : "1px solid var(--line-faint)" }}>{idx + 1}</span>
                             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{t.title}</span>
                             <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "2px 7px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.max(0, (t._count?.posts ?? 1) - 1)} 回</span>
                           </Link>

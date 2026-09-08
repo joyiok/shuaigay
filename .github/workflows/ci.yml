@@ -125,10 +125,12 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start standalone server (:3100)
-        # E2E_BASE_URL 已设置时 playwright 不会自动起 webServer，这里手动后台起
+        # E2E_BASE_URL 已设置时 playwright 不会自动起 webServer，这里手动后台起。
+        # public/ 也要拷进 standalone 目录，否则 /art/*.webp 等静态资源 404（页面图片裂开）。
         run: |
           cp -r .next/static .next/standalone/.next/static
-          (PORT=3100 nohup node .next/standalone/server.js > /tmp/standalone.log 2>&1 &)
+          cp -r public .next/standalone/public
+          (cd .next/standalone && PORT=3100 nohup node server.js > /tmp/standalone.log 2>&1 &)
           for i in $(seq 1 60); do
             curl -sf http://localhost:3100/api/health && break
             sleep 2

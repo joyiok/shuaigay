@@ -142,23 +142,21 @@ export default async function BoardPage({
         <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
       )}
 
-      <div className="topic-toolbar">
-        <div className="tab-bar">
-          <Link href={`/c/${board.slug}`} className={`tab ${!rawCursor ? "active" : ""}`}>{isNovel ? "全部作品" : "全部"}</Link>
-          {!isNovel && <Link href={`/c/${board.slug}`} className="tab">热门</Link>}
+      <div className={`board-toolbar${isNovel ? " novel-genres" : ""}`}>
+        <div className="tab-bar" style={{ minWidth: 0 }}>
+          <span className="toolbar-label">{categories.length > 0 ? "分类" : isNovel ? "全部作品" : "全部主题"}</span>
+          {categories.length > 0 && (
+            <>
+              <Link href={`/c/${board.slug}`} className={`tab ${!categoryId ? "active" : ""}`}>全部</Link>
+              {categories.map((c) => (
+                <Link key={c.id} href={`/c/${board.slug}?cat=${c.id}`} className={`tab ${categoryId === c.id ? "active" : ""}`}>
+                  {c.name}
+                </Link>
+              ))}
+            </>
+          )}
         </div>
       </div>
-
-      {categories.length > 0 && (
-        <div className={isNovel ? "novel-genres" : undefined} style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          <Link href={`/c/${board.slug}`} className={`tab ${!categoryId ? "active" : ""}`} style={{ height: 28, fontSize: 12 }}>全部</Link>
-          {categories.map((c) => (
-            <Link key={c.id} href={`/c/${board.slug}?cat=${c.id}`} className={`tab ${categoryId === c.id ? "active" : ""}`} style={{ height: 28, fontSize: 12 }}>
-              {c.name}
-            </Link>
-          ))}
-        </div>
-      )}
 
       {nextHref ? (
         <InfiniteList variant="thread" nextHref={nextHref} fetchUrl={fetchUrl} novel={isNovel}>
@@ -191,36 +189,49 @@ export default async function BoardPage({
 
 function ThreadRow({ t, pinned, novel = false }: { t: ThreadListItem; pinned?: boolean; novel?: boolean }) {
   const isPending = (t as any).status === "pending";
+  const isHot = t.replyCount > 8;
   return (
-    <li className={`post-item${novel ? " novel-book" : ""}`} style={{ opacity: isPending ? 0.7 : 1 }}>
+    <li className={`post-item${novel ? " novel-book" : ""}`} style={{ opacity: isPending ? 0.72 : 1 }}>
       {novel ? (
         <div className="novel-cover" aria-hidden><span>{t.title.trim().slice(0, 1) || "书"}</span></div>
       ) : (
-        <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={40} radius={10} />
+        <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={38} radius={11} />
       )}
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">{t.globalPinned ? "全局置顶" : "置顶"}</span>}
-          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
-          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
+          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", color: "var(--text)" }}>精华</span>}
+          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", color: "var(--text)" }}>待审</span>}
           {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-          {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
           <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1 }}>{t.title}</Link>
         </div>
-        <div className="post-meta" style={{ gap: 10, marginTop: 6 }}>
-          <span style={{ fontWeight: 500, color: "var(--text-muted)" }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-subtle)" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.6" /><circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" /></svg>
-              {t.views ?? 0}
-            </span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11, fontVariantNumeric: "tabular-nums" }}>
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg>
-              {novel ? (t.replyCount > 0 ? "持续更新" : "新作") : t.replyCount}
-            </span>
-          </span>
-          <span style={{ color: "var(--text-subtle)" }}>{formatDate(t.lastPostAt)}</span>
+        <div className="post-meta">
+          {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
+          <span style={{ fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
+          <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(t.lastPostAt).split(" ")[0]}</span>
+          {isHot && !novel && <span style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>热门</span>}
         </div>
+      </div>
+      <div className="post-right">
+        <span className="post-count views" aria-label={`${t.views ?? 0} 次浏览`}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" stroke="currentColor" strokeWidth="1.7" />
+            <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.7" />
+          </svg>
+          {t.views ?? 0}
+        </span>
+        <span className="post-count replies" aria-label={novel ? "更新状态" : `${t.replyCount} 条回复`}>
+          {novel ? (
+            <span style={{ fontWeight: 700, color: t.replyCount > 0 ? "var(--brand)" : "var(--text-subtle)", fontSize: 11.5 }}>{t.replyCount > 0 ? "连载中" : "新作"}</span>
+          ) : (
+            <>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+              </svg>
+              {t.replyCount}
+            </>
+          )}
+        </span>
       </div>
     </li>
   );
