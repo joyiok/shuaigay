@@ -3,6 +3,7 @@ import { z } from "zod";
 import { aiActionSchema, executeAiActions, getAiContext } from "./ai-admin";
 import { adminActionSchema, checkDestructiveAck, executeAdminActions, getAdminContext, MAX_ADMIN_ACTIONS } from "./admin-ops";
 import { getNovelChapters, importNovel, importNovelSchema, MAX_IMPORT_CHAPTERS } from "./novel-import";
+import { generateNovelChapter, novelGenSchema } from "./novel-ai";
 
 export const MCP_TOOL_NAMES = [
   "get_forum_context",
@@ -13,6 +14,7 @@ export const MCP_TOOL_NAMES = [
   "apply_moderation_actions",
   "apply_admin_actions",
   "import_novel",
+  "generate_novel",
 ] as const;
 
 function jsonToolResult(value: unknown) {
@@ -124,6 +126,27 @@ export function createForumMcpServer() {
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   }, async ({ confirm: _confirm, ...input }) => jsonToolResult(await importNovel(input)));
+
+  server.registerTool("generate_novel", {
+    title: "AI 生成/续写小说",
+    description:
+      "用管理后台配置的模型生成原创小说章节并落库：新建作品传 premise（可加 title/style/tone），" +
+      "续写传 threadId（自动读取最近几章做前情）。每次生成一章，自动适配小说阅读器。" +
+      "import=false 只生成不落库（预览）；status=pending 进待审队列人工过一遍；写入需要 confirm=APPLY。" +
+      "内容红线：禁止现实人物、未成年人恋爱/性内容、露骨性描写、非自愿行为、违法与仇恨内容。",
+    inputSchema: {
+      confirm: z.literal("APPLY").optional(),
+      ...novelGenSchema.shape,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+  }, async ({ confirm, ...input }) => {
+    const parsed = novelGenSchema.safeParse(input);
+    if (!parsed.success) return errorResult(`参数不合法：${parsed.error.issues[0]?.message ?? "未知错误"}`);
+    if (parsed.data.import !== false && confirm !== "APPLY") {
+      return errorResult("写入需要 confirm=APPLY；只想预览请传 import=false");
+    }
+    return jsonToolResult(await generateNovelChapter(parsed.data));
+  });
 
   return server;
 }
