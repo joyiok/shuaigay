@@ -194,6 +194,9 @@ export default async function RootLayout({
                   <Link className="nav-user-name" href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 700, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {user.username}
                   </Link>
+                  <Link href="/settings" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "6px 10px", borderRadius: 999 }} aria-label="账号设置">
+                    设置
+                  </Link>
                   {user.role === "ADMIN" && (
                     <>
                       <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE" }}>

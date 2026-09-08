@@ -18,6 +18,7 @@ import { sniffMime } from "@/lib/filetype";
 import { logger } from "@/lib/logger";
 import { banUser, unbanUser } from "@/lib/ban";
 import { buildAnnouncementRows, chunkIds } from "@/lib/notify";
+import { filterRowsByPreferences } from "@/lib/notifications";
 import { addSensitiveWord, removeSensitiveWord } from "@/lib/sensitive";
 import { getModeratedBoardIds } from "@/lib/moderators";
 import { siteLogoUrlForStoredName, siteSettingsSchema, storedNameFromSiteLogoUrl } from "@/lib/site";
@@ -703,7 +704,10 @@ export async function approvePostAction(formData: FormData): Promise<void> {
   // 通知被提及和收藏者（与正常回帖一致，简化：仅通知楼主）
   const thread = await db.thread.findUnique({ where: { id: post.threadId }, select: { authorId: true } });
   if (thread && thread.authorId !== post.authorId) {
-    await db.notification.create({ data: { userId: thread.authorId, type: "reply", title: "你的主题有新回帖（审核后）", body: "", link: `/t/${post.threadId}` } }).catch(() => {});
+    const rows = await filterRowsByPreferences([
+      { userId: thread.authorId, type: "reply", title: "你的主题有新回帖（审核后）", body: "", link: `/t/${post.threadId}` },
+    ]);
+    if (rows.length) await db.notification.createMany({ data: rows }).catch(() => {});
   }
   await db.auditLog.create({ data: { actorId: staff.id, action: "approve_post", targetType: "post", targetId: postId } }).catch(() => {});
   logger.info("admin.approve_post", { actorId: staff.id, postId });
@@ -778,7 +782,10 @@ export async function awardMedalAction(formData: FormData): Promise<void> {
   const dup = await db.userMedal.findUnique({ where: { userId_medalId: { userId, medalId } } });
   if (dup) redirect(ADMIN_TAB("medals") + "&error=medal_owned");
   await db.userMedal.create({ data: { userId, medalId, reason } });
-  await db.notification.create({ data: { userId, type: "medal", title: `获得新勋章：${medal.name}`, body: reason ?? medal.name, link: `/u/${encodeURIComponent(user.username)}` } }).catch(() => {});
+  const medalRows = await filterRowsByPreferences([
+    { userId, type: "medal", title: `获得新勋章：${medal.name}`, body: reason ?? medal.name, link: `/u/${encodeURIComponent(user.username)}` },
+  ]);
+  if (medalRows.length) await db.notification.createMany({ data: medalRows }).catch(() => {});
   await db.auditLog.create({ data: { actorId, action: "award_medal", targetType: "user", targetId: userId, detail: medal.name } }).catch(() => {});
   logger.info("admin.award_medal", { actorId, userId, medalId });
   revalidateTag("medals");

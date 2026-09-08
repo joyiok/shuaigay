@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { assertNotBanned } from "@/lib/ban";
 import { logger } from "@/lib/logger";
+import { filterRowsByPreferences, prefsFromForm } from "@/lib/notifications";
 import { safeNext } from "@/lib/navigation";
 import {
   INVITE_CODES_PER_USER,
@@ -25,6 +26,25 @@ export async function updateBioAction(formData: FormData): Promise<void> {
 
   await db.user.update({ where: { id: user.id }, data: { bio: bio.data } });
   revalidatePath(`/u/${user.username}`);
+  revalidatePath("/settings");
+}
+
+/**
+ * 更新通知偏好(仅本人);未勾选即关闭,立即生效。
+ * 不在这里 redirect:表单用 SettingsForm 提交后整页跳转,避免 Next 15
+ * 「同路径不同查询参数」的 action 重定向把正文留成空 Suspense 占位。
+ */
+export async function updateNotificationPrefsAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+
+  const prefs = prefsFromForm({
+    reply: formData.get("reply"),
+    follow: formData.get("follow"),
+  });
+  await db.user.update({ where: { id: user.id }, data: prefs });
+  logger.info("user.notify_prefs_updated", { userId: user.id, ...prefs });
+  revalidatePath("/settings");
 }
 
 /** 生成新邀请码:每人最多 5 个 */
@@ -60,16 +80,15 @@ export async function toggleFollowAction(formData: FormData): Promise<void> {
     logger.info("follow.remove", { userId: user.id, followingId: target.id });
   } else {
     await db.follow.create({ data: { followerId: user.id, followingId: target.id } });
-    await db.notification
-      .create({
-        data: {
-          userId: target.id,
-          type: "follow",
-          title: `${user.username} 关注了你`,
-          link: `/u/${encodeURIComponent(user.username)}`,
-        },
-      })
-      .catch(() => {});
+    const rows = await filterRowsByPreferences([
+      {
+        userId: target.id,
+        type: "follow",
+        title: `${user.username} 关注了你`,
+        link: `/u/${encodeURIComponent(user.username)}`,
+      },
+    ]);
+    if (rows.length) await db.notification.createMany({ data: rows }).catch(() => {});
     logger.info("follow.add", { userId: user.id, followingId: target.id });
   }
 

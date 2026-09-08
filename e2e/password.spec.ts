@@ -13,15 +13,15 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await expect(page.locator("header")).toContainText(username);
 
-  // 主页换密码区可见
-  await page.goto(`/u/${username}`);
-  await expect(page.getByPlaceholder("原密码")).toBeVisible();
-  await expect(page.getByPlaceholder("新密码(8-72 位)")).toBeVisible();
+  // 设置页改密区可见（改密已从个人主页迁到 /settings）
+  await page.goto("/settings");
+  await expect(page.locator('input[name="currentPassword"]')).toBeVisible();
+  await expect(page.locator('input[name="newPassword"]')).toBeVisible();
 
   // 原密码填错：被拒
   await page.fill('input[name="currentPassword"]', "wrongpass1");
   await page.fill('input[name="newPassword"]', "ChangedPass123!");
-  await page.getByRole("button", { name: "换密码" }).click();
+  await page.getByRole("button", { name: "保存新密码" }).click();
   // 提交后只等导航、不重发：重发会取消在途跳转反而自残；60s 轮询兜底慢导航
   await expect.poll(() => page.url(), { timeout: 60000 }).toContain("error=wrong_password");
   await expect(page.getByText("原密码不对")).toBeVisible({ timeout: 15000 });
@@ -31,7 +31,7 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   // 换成功（短密码被浏览器 minLength 直接拦，服务端 invalid 分支防绕过不测 UI）
   await page.fill('input[name="currentPassword"]', "ForumTest123!");
   await page.fill('input[name="newPassword"]', "ChangedPass123!");
-  await page.getByRole("button", { name: "换密码" }).click();
+  await page.getByRole("button", { name: "保存新密码" }).click();
   // 同上：只等不重发
   await expect.poll(() => page.url(), { timeout: 60000 }).toContain("ok=password_changed");
   await expect(page.getByText("密码已换好")).toBeVisible({ timeout: 15000 });

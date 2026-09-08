@@ -27,6 +27,9 @@ model User {
   points       Int      @default(0)
   // 邮箱验证:注册后发验证邮件,点击链接置 true。未验证只影响提示,不影响发帖
   emailVerified Boolean  @default(false)
+  // 通知偏好:按分组控制站内通知;待审/举报/系统等运营类通知不受开关影响(始终送达)
+  notifyReply    Boolean @default(true)
+  notifyFollow   Boolean @default(true)
   // 头像 storage 相对路径(storedName);未设置时全站回退到首字母占位
   avatarUrl    String?
   registrationIp String?

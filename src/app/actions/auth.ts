@@ -189,7 +189,9 @@ const changePasswordSchema = z.object({
 export async function changePasswordAction(formData: FormData): Promise<string> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  const back = `/u/${encodeURIComponent(user.username)}`;
+  // 改密表单在 /settings；保留 next 兜底以便旧入口(个人主页)继续可用
+  const fallback = `/u/${encodeURIComponent(user.username)}`;
+  const back = safeNext(formData.get("next"), fallback);
   if (!(await checkRateLimit(`changepw:${user.id}`, 10, 3600))) {
     return `${back}?error=ratelimited`;
   }

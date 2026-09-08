@@ -8,6 +8,7 @@ import { assertNotBanned } from "@/lib/ban";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { containsSensitive } from "@/lib/sensitive";
 import { threadHref } from "@/lib/slug";
+import { filterRowsByPreferences } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 
 const RATE_RATE_LIMIT = Number(process.env.RATE_LIMIT_RATE) || 40;
@@ -80,15 +81,16 @@ export async function ratePostAction(formData: FormData): Promise<void> {
 
   if (isNewUp) {
     try {
-      await db.notification.create({
-        data: {
+      const rows = await filterRowsByPreferences([
+        {
           userId: post.authorId,
           type: "rate",
           title: `${user.username} 赞了你的楼层`,
           body: reason ?? undefined,
           link: `${threadHref(post.thread.id, post.thread.title)}#post-${post.id}`,
         },
-      });
+      ]);
+      if (rows.length) await db.notification.createMany({ data: rows });
     } catch {}
   }
 

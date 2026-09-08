@@ -41,6 +41,7 @@ import {
   planMentionNotifications,
   planReplyNotifications,
 } from "@/lib/notify";
+import { filterRowsByPreferences } from "@/lib/notifications";
 import { logger } from "@/lib/logger";
 
 const titleSchema = z.string().trim().min(5).max(120);
@@ -236,15 +237,17 @@ export async function createThreadAction(formData: FormData): Promise<string> {
           mentionedUserIds: mentionedUsers.map((u) => u.id),
         });
         if (notifyIds.length) {
-          await tx.notification.createMany({
-            data: notifyIds.map((uid) => ({
+          const rows = await filterRowsByPreferences(
+            notifyIds.map((uid) => ({
               userId: uid,
               type: "mention",
               title: `${user.username} 在主题里提到了你`,
               body: excerptForNotify(content.data),
               link: `/t/${t.id}`,
             })),
-          });
+            tx,
+          );
+          if (rows.length) await tx.notification.createMany({ data: rows });
         }
       }
       if (pending) {
@@ -391,8 +394,8 @@ export async function replyAction(formData: FormData): Promise<string> {
         });
       }
       if (!pendingReply && notifyPlan.length) {
-        await tx.notification.createMany({
-          data: notifyPlan.map(({ userId: uid, kind: type }) => ({
+        const rows = await filterRowsByPreferences(
+          notifyPlan.map(({ userId: uid, kind: type }) => ({
             userId: uid,
             type,
             title:
@@ -402,18 +405,22 @@ export async function replyAction(formData: FormData): Promise<string> {
             body: excerptForNotify(content.data),
             link: replyHref,
           })),
-        });
+          tx,
+        );
+        if (rows.length) await tx.notification.createMany({ data: rows });
       }
       if (!pendingReply && favoriteNotifyIds.length) {
-        await tx.notification.createMany({
-          data: favoriteNotifyIds.map((uid) => ({
+        const rows = await filterRowsByPreferences(
+          favoriteNotifyIds.map((uid) => ({
             userId: uid,
             type: "favorite",
             title: `${user.username} 回复了你收藏的主题`,
             body: excerptForNotify(content.data),
             link: replyHref,
           })),
-        });
+          tx,
+        );
+        if (rows.length) await tx.notification.createMany({ data: rows });
       }
       if (pendingReply) {
         const mods = await tx.boardModerator.findMany({ where: { boardId: thread.board.id }, select: { userId: true } });
@@ -662,16 +669,15 @@ export async function toggleDigestAction(formData: FormData): Promise<string> {
   });
   // 刚被加精才打扰作者,取消加精静默
   if (!thread.digested && thread.authorId !== user.id) {
-    await db.notification
-      .create({
-        data: {
-          userId: thread.authorId,
-          type: "digest",
-          title: `你的主题「${thread.title.slice(0, 30)}」被加精了`,
-          link: `/t/${thread.id}`,
-        },
-      })
-      .catch(() => {});
+    const rows = await filterRowsByPreferences([
+      {
+        userId: thread.authorId,
+        type: "digest",
+        title: `你的主题「${thread.title.slice(0, 30)}」被加精了`,
+        link: `/t/${thread.id}`,
+      },
+    ]);
+    if (rows.length) await db.notification.createMany({ data: rows }).catch(() => {});
   }
   await db.auditLog
     .create({ data: { actorId: user.id, action: "toggle_digest", targetType: "thread", targetId: thread.id } })

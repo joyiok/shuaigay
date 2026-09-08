@@ -6,16 +6,12 @@ import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { siteUrl } from "@/lib/site";
-import { updateBioAction, toggleFollowAction } from "@/app/actions/user";
+import { toggleFollowAction } from "@/app/actions/user";
 import { isAdmin } from "@/lib/permissions";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
-import AvatarUploader from "@/components/AvatarUploader";
 import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
-import HumanizedFeedback from "@/components/HumanizedFeedback";
-import SubmissionForm from "@/components/SubmissionForm";
-import { changePasswordAction } from "@/app/actions/auth";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass } from "@/lib/format";
 import { levelForPoints, nextLevelForPoints, permsForPoints, LEVELS } from "@/lib/levels";
@@ -52,10 +48,10 @@ export default async function UserPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ tab?: string; error?: string; ok?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const { username } = await params;
-  const { tab: rawTab, error, ok } = await searchParams;
+  const { tab: rawTab } = await searchParams;
   const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : "topics";
   // 收藏仅本人可见
   const meEarly = await getCurrentUser();
@@ -313,14 +309,14 @@ export default async function UserPage({
                 <strong>{Math.max(0, user._count.posts - user._count.threads)}</strong>
               </span>
               <span style={{ color: "var(--text-subtle)" }}>注册于 {formatDate(user.createdAt)}</span>
-              <span>
+              <Link href={`/u/${encodeURIComponent(user.username)}/followers?tab=following`} style={{ color: "inherit" }}>
                 <span style={{ color: "var(--text-subtle)" }}>关注 </span>
                 <strong>{followingCount}</strong>
-              </span>
-              <span>
+              </Link>
+              <Link href={`/u/${encodeURIComponent(user.username)}/followers`} style={{ color: "inherit" }}>
                 <span style={{ color: "var(--text-subtle)" }}>粉丝 </span>
                 <strong>{followerCount}</strong>
-              </span>
+              </Link>
             </div>
             {/* 等级进度 */}
             {(() => {
@@ -349,14 +345,6 @@ export default async function UserPage({
           </div>
         </div>
 
-        {/* 本人可更换头像 */}
-        {isSelf && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--line-soft)" }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 8 }}>头像设置</div>
-            <AvatarUploader username={user.username} initialUrl={avSrc} />
-          </div>
-        )}
-
         {/* 管理员可见 IP 轨迹 */}
         {me && isAdmin(me) && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
@@ -376,139 +364,42 @@ export default async function UserPage({
           </div>
         )}
 
-        {/* 本人操作反馈：改密成功/失败 */}
-        {isSelf && (error === "wrong_password" || error === "same_password" || error === "invalid" || error === "ratelimited") && (
-          <div style={{ marginTop: 14 }}>
-            <HumanizedFeedback
-              type="error"
-              title={error === "wrong_password" ? "原密码不对" : error === "same_password" ? "新旧一样" : error === "ratelimited" ? "手速太快" : "格式不对"}
-              message={error === "wrong_password" ? "原密码没对上，改密失败。" : error === "same_password" ? "新密码和原密码相同，换一个。" : error === "ratelimited" ? "改密尝试太频繁，歇会儿再试。" : "新密码 12 位以上，或 8 位+含 3 类字符，检查下再试。"}
-              suggestion={error === "wrong_password" ? "忘了就走忘记密码邮件" : "再想一个"}
-            />
-          </div>
-        )}
-        {isSelf && ok === "password_changed" && (
-          <div style={{ marginTop: 14 }}>
-            <HumanizedFeedback type="success" title="密码已换好" message="其它设备已下线，本机继续用。" suggestion="新密码记牢" />
-          </div>
-        )}
-
-        {/* 本人可编辑 bio / 未登录提示 */}
+        {/* 本人资料入口：编辑都收敛到 /settings，主页只做展示 */}
         {isSelf ? (
-          <>
-          <form
-            action={updateBioAction}
+          <div
             style={{
               marginTop: 14,
               paddingTop: 14,
               borderTop: "1px solid var(--line-soft)",
-              display: "grid",
-              gap: 8,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
             }}
           >
-            <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>
-              个人简介(最多 200 字)
-            </label>
-            <textarea
-              name="bio"
-              maxLength={200}
-              rows={2}
-              placeholder="介绍一下自己"
-              defaultValue={user.bio ?? ""}
-              style={{
-                width: "100%",
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                padding: "10px 12px",
-                fontSize: 13,
-                outline: "none",
-                resize: "vertical",
-              }}
-            />
-            <div>
-              <button
-                type="submit"
-                style={{
-                  height: 30,
-                  padding: "0 14px",
-                  background: "var(--brand)",
-                  color: "#fff",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: "1px solid var(--brand)",
-                }}
-              >
-                保存
-              </button>
+            <div style={{ display: "grid", gap: 3 }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>账号设置</span>
+              <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>头像、简介、密码、邮箱验证与通知偏好都在设置页。</span>
             </div>
-          </form>
-
-          {/* 本人自助改密码：验原密码 + 踢其它会话 */}
-          <SubmissionForm
-            action={changePasswordAction}
-            style={{
-              marginTop: 14,
-              paddingTop: 14,
-              borderTop: "1px solid var(--line-soft)",
-              display: "grid",
-              gap: 8,
-            }}
-          >
-            <label style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>
-              修改密码(改后其它设备下线)
-            </label>
-            <input
-              type="password"
-              name="currentPassword"
-              placeholder="原密码"
-              autoComplete="current-password"
-              required
+            <Link
+              href="/settings"
               style={{
-                width: "100%",
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 13,
-                outline: "none",
+                fontSize: 12,
+                fontWeight: 700,
+                height: 30,
+                padding: "0 14px",
+                display: "inline-flex",
+                alignItems: "center",
+                background: "var(--brand)",
+                color: "#fff",
+                borderRadius: 8,
+                border: "1px solid var(--brand)",
               }}
-            />
-            <input
-              type="password"
-              name="newPassword"
-              placeholder="新密码(8-72 位)"
-              autoComplete="new-password"
-              minLength={8}
-              maxLength={72}
-              required
-              style={{
-                width: "100%",
-                border: "1px solid var(--line)",
-                borderRadius: 6,
-                padding: "8px 12px",
-                fontSize: 13,
-                outline: "none",
-              }}
-            />
-            <div>
-              <button
-                type="submit"
-                style={{
-                  height: 30,
-                  padding: "0 14px",
-                  background: "var(--panel)",
-                  color: "var(--text)",
-                  borderRadius: 6,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  border: "1px solid var(--line)",
-                }}
-              >
-                换密码
-              </button>
-            </div>
-          </SubmissionForm>
-          </>
+            >
+              去设置 →
+            </Link>
+          </div>
         ) : !me ? (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
             <AuthRequired title="登录后可编辑个人简介" description="当前为访客身份，登录后可修改头像、简介等个人信息。" next={`/u/${encodeURIComponent(user.username)}`} />
@@ -523,6 +414,9 @@ export default async function UserPage({
             <span style={{ width: 3, height: 12, borderRadius: 999, background: "var(--brand)" }} />
             最近粉丝
             <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-subtle)", fontWeight: 600 }}>{followerCount}</span>
+            <Link href={`/u/${encodeURIComponent(user.username)}/followers`} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--brand)" }}>
+              全部 →
+            </Link>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {followers.map((f) => (

@@ -267,6 +267,9 @@ export default function MobileDrawer({
                     <Link href="/invite" className="mobile-drawer-link" onClick={close}>
                       邀请
                     </Link>
+                    <Link href="/settings" className="mobile-drawer-link" onClick={close}>
+                      账号设置
+                    </Link>
                     {user.role === "ADMIN" && (
                       <Link href="/admin" className="mobile-drawer-link" onClick={close}>
                         管理
