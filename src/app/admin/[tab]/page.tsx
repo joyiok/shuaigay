@@ -280,13 +280,15 @@ async function SettingsTab() {
 
       <div className="card" style={{ overflow: "hidden" }}>
         <PaperCardHeader
-          title="AI 与 MCP"
-          count={aiSettings.adminKeyConfigured ? (aiSettings.enabled ? "双模式已启用" : "MCP 已就绪") : aiSettings.enabled ? "自动运营已开启" : "待配置"}
-          sub="外部 MCP / 站内定时任务"
+          title="MCP 管理"
+          count={aiSettings.adminKeyConfigured ? "已就绪" : "待配置"}
+          sub="外部 AI 管理入口"
         />
         <form action={updateAiSettingsAction} style={{ display: "grid", gap: 12, padding: 14 }}>
+          <input type="hidden" name="baseUrl" value={aiSettings.baseUrl} />
+          <input type="hidden" name="model" value={aiSettings.model} />
           <div id="ai-settings-help" style={{ color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
-            只用 MCP 时，填写管理 API 密钥即可，模型由 MCP 客户端提供。只有开启站内定时自动运营时，才需要模型地址、模型名称和模型服务密钥。
+            填写管理 API 密钥后，即可让支持 MCP 的外部 AI 管理版块和帖子；模型由外部客户端提供。
           </div>
 
           <fieldset style={{ display: "grid", gap: 12, minWidth: 0, margin: 0, padding: 0, border: 0 }}>
@@ -301,7 +303,7 @@ async function SettingsTab() {
               <label style={{ display: "grid", gap: 5, alignContent: "start" }}>
                 <span style={{ fontSize: 12, fontWeight: 700 }}>执行置信度 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>0.5–1</span></span>
                 <input name="autoConfidence" type="number" required min="0.5" max="1" step="0.05" defaultValue={aiSettings.autoConfidence} style={{ ...paperInput, width: "100%", height: 36 }} />
-                <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>MCP 和自动运营共用；越高越谨慎，建议保留 0.9。</span>
+                <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>越高越谨慎，建议保留 0.9。</span>
               </label>
             </div>
 
@@ -310,7 +312,7 @@ async function SettingsTab() {
                 <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                   <div>
                     <div style={{ fontSize: 13, fontWeight: 700 }}>MCP 已可接入</div>
-                    <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11 }}>模型配置可以留默认值；连接后把管理 Prompt 交给外部 AI。</div>
+                    <div style={{ marginTop: 3, color: "var(--text-muted)", fontSize: 11 }}>无需配置本站模型；连接后把管理 Prompt 交给外部 AI。</div>
                   </div>
                   <span className="topic-badge cat-green">已就绪</span>
                 </div>
@@ -324,32 +326,8 @@ async function SettingsTab() {
             )}
           </fieldset>
 
-          <fieldset style={{ display: "grid", gap: 12, minWidth: 0, margin: 0, padding: "14px 0 0", border: 0, borderTop: "1px solid var(--line-soft)" }}>
-            <legend style={{ padding: "0 8px 0 0", fontSize: 14, fontWeight: 700 }}>站内定时自动运营 <span style={{ color: "var(--text-subtle)", fontSize: 11, fontWeight: 400 }}>可选</span></legend>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 700 }}>
-              <input name="enabled" type="checkbox" defaultChecked={aiSettings.enabled} style={{ width: 16, height: 16, accentColor: "var(--brand)" }} />
-              每 10 分钟调用模型检查一次
-            </label>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              <label style={{ display: "grid", gap: 5 }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务地址</span>
-                <input name="baseUrl" required maxLength={300} defaultValue={aiSettings.baseUrl} placeholder="https://api.openai.com/v1" inputMode="url" style={{ ...paperInput, width: "100%", height: 36 }} />
-              </label>
-              <label style={{ display: "grid", gap: 5 }}>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>模型名称</span>
-                <input name="model" required maxLength={100} defaultValue={aiSettings.model} placeholder="gpt-4o-mini" style={{ ...paperInput, width: "100%", height: 36 }} />
-              </label>
-            </div>
-            <label style={{ display: "grid", gap: 5 }}>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>模型服务密钥 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>{aiSettings.providerKeyConfigured ? "· 已配置" : "· 未配置"}</span></span>
-              <input name="providerApiKey" type="password" maxLength={500} autoComplete="new-password" placeholder="留空保持不变" style={{ ...paperInput, width: "100%", height: 36 }} />
-              <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>仅站内定时自动运营需要，用于连接 OpenAI 兼容模型服务。</span>
-              <span style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 11 }}><input name="clearProviderApiKey" type="checkbox" style={{ accentColor: "var(--brand)" }} />清除模型密钥</span>
-            </label>
-          </fieldset>
-
           <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button type="submit" style={paperDarkBtn}>保存 AI 设置</button>
+            <button type="submit" style={paperDarkBtn}>保存 MCP 设置</button>
           </div>
         </form>
       </div>
