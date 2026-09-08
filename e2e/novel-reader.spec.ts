@@ -34,12 +34,14 @@ test("小说阅读：章节目录、上一章/下一章、追更按钮", async (
     const reader = await db.user.create({ data: { email: `${readerName}@test.dev`, username: readerName, passwordHash } });
     userIds.push(author.id, reader.id);
     const board = await db.board.findUniqueOrThrow({ where: { slug: "novel" } });
+    // 时间回拨 30 天：不干扰同批并发的 /hot 周榜用例（p1-sticky 会点热榜第一条）
+    const past = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const thread = await db.thread.create({
-      data: { boardId: board.id, authorId: author.id, title: `雨夜测试-${uniq}`, status: "approved" },
+      data: { boardId: board.id, authorId: author.id, title: `雨夜测试-${uniq}`, status: "approved", createdAt: past, lastPostAt: past },
     });
     threadId = thread.id;
     for (const md of ["# 第一章 雨夜\n\n雨下了一整夜。", "## 第二章 相遇\n\n她在便利店门口停下。", "第三章 告白\n\n他终于说出口。"]) {
-      await db.post.create({ data: { threadId: thread.id, authorId: author.id, contentMd: md, status: "approved" } });
+      await db.post.create({ data: { threadId: thread.id, authorId: author.id, contentMd: md, status: "approved", createdAt: past } });
     }
   } finally {
     await db.$disconnect();

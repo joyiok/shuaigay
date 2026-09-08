@@ -12,6 +12,8 @@ async function submitAndSync(page: import("@playwright/test").Page, button: impo
   await button.click();
   await Promise.all([posted, navigated]);
   await page.waitForLoadState("domcontentloaded");
+  // 动作触发的客户端跳转可能仍在途：等网络静默，否则紧跟的 page.goto 会 ERR_ABORTED
+  await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => {});
 }
 
 async function loginAs(page: import("@playwright/test").Page, email: string, password: string, nameInHeader: string) {
