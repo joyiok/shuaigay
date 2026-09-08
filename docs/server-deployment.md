@@ -164,4 +164,21 @@ docker compose exec -T backup sh /scripts/backup.sh
 
 本机备份不能替代异地灾备。需要异地备份时，在 `.env` 配置 B2 或 S3 兼容存储，并定期演练 `docker/backup/restore.sh`。
 
-AI 自动运营接口：`GET /api/ai/context` 读取公开内容和待处理举报，`POST /api/ai/actions` 执行白名单动作，`POST /api/ai/automation/run` 手动触发一次模型分析。请求使用 `Authorization: Bearer <AI_ADMIN_API_KEY>`。自动任务只会归类、置顶/精华/锁帖或送入待审队列，不提供删除、封号、清空版块或修改权限。
+AI 自动运营接口：`GET /api/ai/context` 读取公开内容和待处理举报，`POST /api/ai/actions` 执行白名单动作，`POST /api/ai/automation/run` 手动触发一次模型分析。请求使用管理后台里的 AI 管理 API 密钥作为 `Authorization: Bearer <密钥>`。自动任务只会归类、置顶/精华/锁帖或送入待审队列，不提供删除、封号、清空版块或修改权限。
+
+MCP 接入：`https://www.shuai.gay/api/mcp` 是标准 Streamable HTTP MCP 地址。支持 URL 加 Bearer Header 的客户端可这样配置：
+
+```json
+{
+  "mcpServers": {
+    "shuaigay": {
+      "url": "https://www.shuai.gay/api/mcp",
+      "headers": {
+        "Authorization": "Bearer <管理后台 AI 管理 API 密钥>"
+      }
+    }
+  }
+}
+```
+
+MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管理 API 密钥，不是模型服务密钥。推荐调用顺序是 `get_forum_context` → `preview_moderation_actions` → `apply_moderation_actions`（传入 `confirm=APPLY` 才会真正修改）。
