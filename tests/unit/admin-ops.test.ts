@@ -10,6 +10,7 @@ describe("adminActionSchema 管理动作解析", () => {
     expect(parse({ type: "create_board", slug: "novel", name: "小说" }).success).toBe(true);
     expect(parse({ type: "delete_thread", threadId: "t1" }).success).toBe(true);
     expect(parse({ type: "set_user_role", username: "alice", role: "ADMIN" }).success).toBe(true);
+    expect(parse({ type: "create_user", username: "reprint_novel", email: "reprint@example.com", password: "Strong-pass-123" }).success).toBe(true);
     expect(parse({ type: "broadcast_announcement", title: "维护通知" }).success).toBe(true);
     expect(parse({ type: "move_thread", threadId: "t1", boardSlug: "tech", categoryName: null }).success).toBe(true);
   });
@@ -25,6 +26,7 @@ describe("adminActionSchema 管理动作解析", () => {
     expect(parse({ type: "drop_database" }).success).toBe(false);
     expect(parse({ type: "ban_user", username: "alice" }).success).toBe(false);
     expect(parse({ type: "set_user_role", username: "alice", role: "SUPER" }).success).toBe(false);
+    expect(parse({ type: "create_user", username: "中文账号", email: "bad", password: "weak" }).success).toBe(false);
   });
 
   it("拒绝越界参数（天数/积分/分类名长度）", () => {

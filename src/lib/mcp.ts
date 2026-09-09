@@ -94,7 +94,7 @@ export function createForumMcpServer() {
   server.registerTool("apply_admin_actions", {
     title: "执行管理动作（admin CLI）",
     description:
-      "执行管理动作：版块/分类增删改、版主任免、主题帖子增删改与审核、用户角色/封禁/积分/密码/勋章、" +
+      "执行管理动作：版块/分类增删改、版主任免、主题帖子增删改与审核、用户创建/角色/封禁/积分/密码/勋章、" +
       "敏感词、举报处理、全站公告。必须传 confirm=APPLY；含不可逆动作时还必须传 acknowledge=IRREVERSIBLE，" +
       "否则整批拒绝、不做部分执行。单次最多 20 个动作，逐个返回 applied/skipped/failed。",
     inputSchema: {

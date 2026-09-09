@@ -14,7 +14,7 @@ import { z } from "zod";
 import { db } from "./db";
 import { logger } from "./logger";
 import { hashPassword } from "./auth";
-import { isStrongPassword } from "./password";
+import { isStrongPassword, passwordSchema } from "./password";
 import { deleteThread, deletePost, settlePendingReports } from "./moderation";
 import { banUser, unbanUser, isUserBanned } from "./ban";
 import { addSensitiveWord, removeSensitiveWord } from "./sensitive";
@@ -68,6 +68,7 @@ export const adminActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("send_post_to_review"), postId: idSchema }),
 
   /* ---------------- 用户 ---------------- */
+  z.object({ type: z.literal("create_user"), username: z.string().trim().regex(/^[a-zA-Z0-9_-]{3,20}$/), email: z.string().trim().toLowerCase().email().max(200), password: passwordSchema }),
   z.object({ type: z.literal("set_user_role"), username: usernameSchema, role: z.enum(["USER", "ADMIN"]) }),
   z.object({ type: z.literal("ban_user"), username: usernameSchema, reason: textSchema(200), days: z.number().int().min(1).max(3650).optional() }),
   z.object({ type: z.literal("unban_user"), username: usernameSchema }),
@@ -476,6 +477,23 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
     }
 
     /* ---------------- 用户 ---------------- */
+    case "create_user": {
+      const email = action.email.toLowerCase();
+      const existing = await db.user.findFirst({ where: { OR: [{ username: action.username }, { email }] }, select: { username: true } });
+      if (existing) return skipped("用户名或邮箱已存在");
+      if (dryRun) return planned(`将创建账号 ${action.username}`);
+      try {
+        const user = await db.user.create({
+          data: { username: action.username, email, passwordHash: await hashPassword(action.password), emailVerified: true },
+          select: { id: true, username: true },
+        });
+        await audit(actor, "create_user", "user", user.id, user.username);
+        return applied(`已创建账号 ${user.username}`);
+      } catch (error) {
+        if (typeof error === "object" && error !== null && (error as { code?: string }).code === "P2002") return skipped("用户名或邮箱已存在");
+        throw error;
+      }
+    }
     case "set_user_role": {
       const user = await findUser(action.username);
       if (!user) return skipped("用户不存在");
