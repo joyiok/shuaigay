@@ -108,7 +108,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .brand { display: inline-flex; align-items: center; gap: 11px; font-weight: 700; font-size: 19px; color: var(--text); white-space: nowrap; text-decoration: none; flex-shrink: 0; }
 .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-family: var(--font-grotesk), sans-serif; }
 .brand-logo { width: 38px; height: 38px; border-radius: 12px; object-fit: contain; display: block; }
-.site-logo { width: auto; max-width: 210px; height: 38px; border-radius: 8px; object-fit: contain; display: block; }
+.site-logo { width: 38px; height: 38px; border-radius: 11px; object-fit: contain; display: block; }
 .brand i { font-style: normal; color: var(--brand); }
 .forum-nav { display: flex; align-items: center; gap: 4px; flex: 1; min-width: 100px; overflow-x: auto; scrollbar-width: none; padding-right: 14px; }
 .forum-nav::-webkit-scrollbar { display: none; }
@@ -734,7 +734,7 @@ mark.search-mark, .search-mark {
   .bar { padding: 0 12px; height: 64px; gap: 8px; }
   .brand { font-size: 16px; gap: 8px; }
   .brand-mark, .brand-logo { width: 32px; height: 32px; font-size: 12px; border-radius: 10px; }
-  .site-logo { max-width: 145px; height: 32px; border-radius: 8px; }
+  .site-logo { width: 32px; height: 32px; border-radius: 9px; }
   .nav-burger { order: -1; width: 40px; height: 40px; }
   .nav-mine { gap: 4px; }
   .nav-mine > a:not([href="/login"]):not([href="/register"]), .nav-mine > form { display: none !important; }
@@ -786,7 +786,7 @@ mark.search-mark, .search-mark {
 }
 
 @media (max-width: 380px) {
-  .site-logo { max-width: 126px; }
+  .site-logo { width: 32px; height: 32px; }
   .nav-mine > a[href="/login"] { display: none; }
 }
 
