@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { aiActionSchema, executeAiActions, getAiContext } from "./ai-admin";
 import { adminActionSchema, checkDestructiveAck, executeAdminActions, getAdminContext, MAX_ADMIN_ACTIONS } from "./admin-ops";
-import { getNovelChapters, importNovel, importNovelBatch, importNovelBatchSchema, importNovelSchema, MAX_IMPORT_BATCH_WORKS, MAX_IMPORT_CHAPTERS } from "./novel-import";
+import { getNovelChapters, importNovel, importNovelBatch, importNovelBatchSchema, importNovelSchema, MAX_IMPORT_BATCH_WORKS, MAX_IMPORT_CHAPTERS, previewNovelBatch } from "./novel-import";
 import { generateNovelChapter, novelGenSchema } from "./novel-ai";
 import { runNovelAuto } from "./novel-auto";
 
@@ -16,6 +16,7 @@ export const MCP_TOOL_NAMES = [
   "apply_admin_actions",
   "import_novel",
   "import_novel_batch",
+  "preview_novel_batch",
   "generate_novel",
   "run_novel_auto",
 ] as const;
@@ -142,6 +143,15 @@ export function createForumMcpServer() {
     },
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   }, async ({ confirm: _confirm, ...input }) => jsonToolResult(await importNovelBatch(input)));
+
+  server.registerTool("preview_novel_batch", {
+    title: "预览小说批次",
+    description:
+      `只读预检最多 ${MAX_IMPORT_BATCH_WORKS} 部小说：检查版块、分类、作者、重复 importKey 与章节规模，不写入任何数据。` +
+      "采集器应先调用本工具，确认 ok=true 后再调用 import_novel_batch。",
+    inputSchema: { works: importNovelBatchSchema.shape.works },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async (input) => jsonToolResult(await previewNovelBatch(input)));
 
   server.registerTool("generate_novel", {
     title: "AI 生成/续写小说",

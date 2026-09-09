@@ -75,6 +75,24 @@ export interface ImportNovelBatchResult {
   results: ImportNovelResult[];
 }
 
+export interface NovelBatchPreviewItem {
+  index: number;
+  ready: boolean;
+  mode: "create" | "append" | "duplicate";
+  title?: string;
+  threadId?: string;
+  chapterCount: number;
+  existingChapterCount?: number;
+  charCount: number;
+  error?: string;
+}
+
+export interface NovelBatchPreviewResult {
+  ok: boolean;
+  error?: string;
+  works: NovelBatchPreviewItem[];
+}
+
 /** 章标题：传了 title 且正文首行不是同名标题时，补一行 # 标题，保证阅读器目录显示一致 */
 export function withChapterTitle(chapter: { title?: string; contentMd: string }): string {
   const title = chapter.title?.trim();
@@ -254,6 +272,46 @@ export async function importNovelBatch(raw: unknown): Promise<ImportNovelBatchRe
     failed: results.filter((result) => !result.ok).length,
     results,
   };
+}
+
+/** 只读预检采集结果；不写入正文，也不创建主题。 */
+export async function previewNovelBatch(raw: unknown): Promise<NovelBatchPreviewResult> {
+  const parsed = importNovelBatchSchema.safeParse(raw);
+  if (!parsed.success) return { ok: false, error: `参数不合法：${firstIssue(parsed.error)}`, works: [] };
+
+  const works = await Promise.all(parsed.data.works.map(async (input, index): Promise<NovelBatchPreviewItem> => {
+    const charCount = input.chapters.reduce((sum, chapter) => sum + chapter.contentMd.length, 0);
+
+    if (input.threadId) {
+      const thread = await db.thread.findUnique({ where: { id: input.threadId }, select: { id: true, title: true, authorId: true } });
+      if (!thread) return { index, ready: false, mode: "append", threadId: input.threadId, chapterCount: input.chapters.length, charCount, error: "主题不存在" };
+      const existingChapterCount = await db.post.count({ where: { threadId: thread.id, authorId: thread.authorId } });
+      return { index, ready: true, mode: "append", title: thread.title, threadId: thread.id, chapterCount: input.chapters.length, existingChapterCount, charCount };
+    }
+
+    if (input.importKey) {
+      const existing = await db.thread.findUnique({ where: { importKey: input.importKey }, select: { id: true, title: true, authorId: true } });
+      if (existing) {
+        const existingChapterCount = await db.post.count({ where: { threadId: existing.id, authorId: existing.authorId } });
+        return { index, ready: true, mode: "duplicate", title: existing.title, threadId: existing.id, chapterCount: input.chapters.length, existingChapterCount, charCount };
+      }
+    }
+
+    if (!input.title) return { index, ready: false, mode: "create", chapterCount: input.chapters.length, charCount, error: "新建作品缺少 title" };
+    const board = await db.board.findUnique({ where: { slug: input.boardSlug }, select: { id: true } });
+    if (!board) return { index, ready: false, mode: "create", title: input.title, chapterCount: input.chapters.length, charCount, error: `版块 ${input.boardSlug} 不存在` };
+    if (input.categoryName) {
+      const category = await db.threadCategory.findUnique({ where: { boardId_name: { boardId: board.id, name: input.categoryName } }, select: { id: true } });
+      if (!category) return { index, ready: false, mode: "create", title: input.title, chapterCount: input.chapters.length, charCount, error: `分类 ${input.categoryName} 不存在` };
+    }
+    const author = input.authorUsername
+      ? await db.user.findUnique({ where: { username: input.authorUsername }, select: { username: true } })
+      : await db.user.findFirst({ where: { role: "ADMIN" }, orderBy: { createdAt: "asc" }, select: { username: true } });
+    if (!author) return { index, ready: false, mode: "create", title: input.title, chapterCount: input.chapters.length, charCount, error: "作者账号不存在" };
+    return { index, ready: true, mode: "create", title: input.title, chapterCount: input.chapters.length, charCount };
+  }));
+
+  return { ok: works.every((work) => work.ready), works };
 }
 
 /** 读取某作品的章节清单（供续写/去重对账） */
