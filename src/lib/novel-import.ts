@@ -12,6 +12,7 @@ import { novelChapterTitle } from "./novel";
 import { threadHref } from "./slug";
 
 export const MAX_IMPORT_CHAPTERS = 50;
+export const MAX_IMPORT_BATCH_WORKS = 10;
 /** 单章上限与站内回复一致（threads.ts 的 contentSchema） */
 export const MAX_CHAPTER_CHARS = 20_000;
 
@@ -29,6 +30,8 @@ export const importNovelSchema = z.object({
   license: z.string().trim().max(200).optional(),
   /** 允许自动追更：AI 生成的作品默认 true；手工导入默认 false */
   autoContinue: z.boolean().optional(),
+  /** 外部来源幂等键；重试同一来源时跳过已创建作品 */
+  importKey: z.string().trim().min(1).max(160).optional(),
   chapters: z
     .array(
       z.object({
@@ -55,6 +58,21 @@ export interface ImportNovelResult {
   chapterCount: number;
   /** 本次第一章的全局序号（从 1 开始） */
   firstChapterIndex: number;
+  /** 新建模式命中 importKey 时为 true */
+  skipped?: boolean;
+}
+
+export const importNovelBatchSchema = z.object({
+  works: z.array(importNovelSchema).min(1).max(MAX_IMPORT_BATCH_WORKS),
+});
+
+export interface ImportNovelBatchResult {
+  ok: boolean;
+  error?: string;
+  created: number;
+  skipped: number;
+  failed: number;
+  results: ImportNovelResult[];
 }
 
 /** 章标题：传了 title 且正文首行不是同名标题时，补一行 # 标题，保证阅读器目录显示一致 */
@@ -131,6 +149,26 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
   }
 
   /* ---------- 新建模式 ---------- */
+  if (input.importKey) {
+    const existing = await db.thread.findUnique({
+      where: { importKey: input.importKey },
+      select: { id: true, title: true, authorId: true, board: { select: { slug: true } } },
+    });
+    if (existing) {
+      const chapterCount = await db.post.count({ where: { threadId: existing.id, authorId: existing.authorId } });
+      return {
+        ok: true,
+        skipped: true,
+        threadId: existing.id,
+        threadUrl: threadHref(existing.id, existing.title),
+        boardSlug: existing.board.slug,
+        title: existing.title,
+        created: 0,
+        chapterCount,
+        firstChapterIndex: chapterCount + 1,
+      };
+    }
+  }
   if (!input.title) return { ok: false, error: "新建作品必须提供 title（5-120 字）", created: 0, chapterCount: 0, firstChapterIndex: 0 };
 
   const board = await db.board.findUnique({ where: { slug: input.boardSlug }, select: { id: true, slug: true, name: true } });
@@ -162,6 +200,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
         categoryId,
         status: "approved",
         autoContinue: input.autoContinue ?? false,
+        importKey: input.importKey,
         createdAt: new Date(base),
         lastPostAt: new Date(base + input.chapters.length - 1),
       },
@@ -195,6 +234,25 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
     created: input.chapters.length,
     chapterCount: input.chapters.length,
     firstChapterIndex: 1,
+  };
+}
+
+/** 一次处理多部作品；逐部复用单部导入，单部失败不影响后续作品。 */
+export async function importNovelBatch(raw: unknown): Promise<ImportNovelBatchResult> {
+  const parsed = importNovelBatchSchema.safeParse(raw);
+  if (!parsed.success) {
+    return { ok: false, error: `参数不合法：${firstIssue(parsed.error)}`, created: 0, skipped: 0, failed: 0, results: [] };
+  }
+
+  const results: ImportNovelResult[] = [];
+  for (const work of parsed.data.works) results.push(await importNovel(work));
+
+  return {
+    ok: results.every((result) => result.ok),
+    created: results.reduce((sum, result) => sum + result.created, 0),
+    skipped: results.filter((result) => result.skipped).length,
+    failed: results.filter((result) => !result.ok).length,
+    results,
   };
 }
 

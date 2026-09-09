@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { aiActionSchema, executeAiActions, getAiContext } from "./ai-admin";
 import { adminActionSchema, checkDestructiveAck, executeAdminActions, getAdminContext, MAX_ADMIN_ACTIONS } from "./admin-ops";
-import { getNovelChapters, importNovel, importNovelSchema, MAX_IMPORT_CHAPTERS } from "./novel-import";
+import { getNovelChapters, importNovel, importNovelBatch, importNovelBatchSchema, importNovelSchema, MAX_IMPORT_BATCH_WORKS, MAX_IMPORT_CHAPTERS } from "./novel-import";
 import { generateNovelChapter, novelGenSchema } from "./novel-ai";
 import { runNovelAuto } from "./novel-auto";
 
@@ -15,6 +15,7 @@ export const MCP_TOOL_NAMES = [
   "apply_moderation_actions",
   "apply_admin_actions",
   "import_novel",
+  "import_novel_batch",
   "generate_novel",
   "run_novel_auto",
 ] as const;
@@ -128,6 +129,19 @@ export function createForumMcpServer() {
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   }, async ({ confirm: _confirm, ...input }) => jsonToolResult(await importNovel(input)));
+
+  server.registerTool("import_novel_batch", {
+    title: "批量导入小说",
+    description:
+      `一次导入多部小说，单次最多 ${MAX_IMPORT_BATCH_WORKS} 部；每部最多 ${MAX_IMPORT_CHAPTERS} 章、每章不超过 20000 字。` +
+      "传 importKey 可让重复请求跳过已经创建的作品；每部仍按一个主题、按章帖子落库。" +
+      "只接受原创、已授权或公版内容，必须传 confirm=APPLY。",
+    inputSchema: {
+      confirm: z.literal("APPLY"),
+      works: importNovelBatchSchema.shape.works,
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  }, async ({ confirm: _confirm, ...input }) => jsonToolResult(await importNovelBatch(input)));
 
   server.registerTool("generate_novel", {
     title: "AI 生成/续写小说",

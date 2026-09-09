@@ -248,6 +248,8 @@ model Thread {
   locked     Boolean  @default(false)
   // 允许 AI 自动追更：AI 生成的作品自动开启，手工导入的可在导入时显式开启
   autoContinue Boolean @default(false)
+  // 外部迁移幂等键:同一来源记录重试时不重复创建主题
+  importKey  String?  @unique
   views      Int      @default(0)
   status     String   @default("approved")
   createdAt  DateTime @default(now())

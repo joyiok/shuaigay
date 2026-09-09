@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_CHAPTER_CHARS, MAX_IMPORT_CHAPTERS, importNovelSchema, withChapterTitle } from "@/lib/novel-import";
+import { MAX_CHAPTER_CHARS, MAX_IMPORT_BATCH_WORKS, MAX_IMPORT_CHAPTERS, importNovelBatchSchema, importNovelSchema, withChapterTitle } from "@/lib/novel-import";
 
 describe("importNovelSchema 导入参数校验", () => {
   it("默认导入到小说版，章节数 1-50", () => {
@@ -36,6 +36,12 @@ describe("importNovelSchema 导入参数校验", () => {
     expect(parsed.threadId).toBe("t1");
     expect(parsed.source).toBe("作者投稿");
     expect(parsed.license).toBe("CC BY-NC 4.0");
+  });
+
+  it("支持批量导入与来源幂等键", () => {
+    const work = { importKey: "discuz:52:13", title: "测试作品标题", chapters: [{ contentMd: "正文" }] };
+    expect(importNovelSchema.parse(work).importKey).toBe("discuz:52:13");
+    expect(importNovelBatchSchema.safeParse({ works: Array.from({ length: MAX_IMPORT_BATCH_WORKS + 1 }, () => work) }).success).toBe(false);
   });
 });
 

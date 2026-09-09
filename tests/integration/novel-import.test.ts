@@ -89,6 +89,26 @@ describe.skipIf(!shouldRun)("小说导入(需要数据库)", () => {
     expect(all.chapters[3]!.title).toBe("第四章 离别");
   });
 
+  it("重复 importKey 不重复创建作品", async () => {
+    const board = await db!.board.create({ data: { slug: `test-${suffix}`, name: "测试小说版" } });
+    const user = await db!.user.create({
+      data: { email: `novelist@${suffix}.test`, username: `nv${suffix}`.slice(0, 20), passwordHash: "x" },
+    });
+    const input = {
+      boardSlug: board.slug,
+      authorUsername: user.username,
+      importKey: "discuz:52:13",
+      title: "测试作品：幂等",
+      chapters: [{ contentMd: "第一章\n\n正文" }],
+    };
+    const first = await importNovel(input);
+    const second = await importNovel(input);
+    expect(first.ok).toBe(true);
+    expect(second).toMatchObject({ ok: true, skipped: true, created: 0, chapterCount: 1 });
+    expect(await db!.thread.count({ where: { boardId: board.id } })).toBe(1);
+    expect(await db!.post.count({ where: { threadId: first.threadId } })).toBe(1);
+  });
+
   it("参数与目标校验：缺 title / 版块不存在 / 主题不存在都返回可读错误", async () => {
     expect((await importNovel({ chapters: [] })).ok).toBe(false);
     const noTitle = await importNovel({ boardSlug: "no-such-board", chapters: [{ contentMd: "x" }] });
