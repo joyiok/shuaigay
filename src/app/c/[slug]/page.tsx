@@ -115,7 +115,7 @@ export default async function BoardPage({
           <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
             <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0 }}>{isNovel ? "小说书架" : board.name}</h1>
             {(board as unknown as { isHidden: boolean }).isHidden && <span style={{ background: "var(--text)", color: "var(--panel)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>隐藏</span>}
-            {(board as unknown as { isLocked: boolean }).isLocked && <span style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>锁定</span>}
+            {(board as unknown as { isLocked: boolean }).isLocked && <span className="topic-badge locked">锁定</span>}
           </div>
           {board.description && <p style={{ color: "var(--text-muted)", fontSize: isNovel ? 14 : 12, marginTop: isNovel ? 8 : 4 }}>{board.description}</p>}
           {isNovel && <p className="novel-library-note">一部作品一个主题，作者在主题中回复即可续写下一章。</p>}
@@ -139,7 +139,7 @@ export default async function BoardPage({
         <p style={{ background: "var(--danger-soft)", color: "var(--danger)", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 12px", fontSize: 13 }}>{ERRORS[error]}</p>
       )}
       {pending && (
-        <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
+        <p className="notice-pending">内容已提交，待版主/管理员审核后可见</p>
       )}
 
       <div className={`board-toolbar${isNovel ? " novel-genres" : ""}`}>
@@ -200,16 +200,16 @@ function ThreadRow({ t, pinned, novel = false }: { t: ThreadListItem; pinned?: b
       <div className="post-body">
         <div className="post-title-row" style={{ gap: 8 }}>
           {pinned && <span className="topic-badge pinned">{t.globalPinned ? "全局置顶" : "置顶"}</span>}
-          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", color: "var(--text)" }}>精华</span>}
-          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", color: "var(--text)" }}>待审</span>}
-          {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+          {t.digested && <span className="topic-badge digest">精华</span>}
+          {isPending && <span className="topic-badge pending">待审</span>}
+          {t.locked && <span className="topic-badge locked">已锁</span>}
           <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1 }}>{t.title}</Link>
         </div>
         <div className="post-meta">
           {t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
           <span style={{ fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(t.lastPostAt).split(" ")[0]}</span>
-          {isHot && !novel && <span style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800 }}>热门</span>}
+          {isHot && !novel && <span className="topic-badge hot">热门</span>}
         </div>
       </div>
       <div className="post-right">

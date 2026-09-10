@@ -265,7 +265,7 @@ export default async function RootLayout({
               {/* 社区数据 — 4 宫格 */}
               <div className="card">
                 <div className="quick-wrap">
-                  <div className="quick-title">社区数据 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace' }}>live</span></div>
+                  <div className="quick-title">社区数据 <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>实时</span></div>
                   <div className="stat-grid">
                     <div className="stat-item">
                       <div className="stat-num">{userCount}</div>
@@ -293,9 +293,9 @@ export default async function RootLayout({
                   <div className="quick-title">热门话题 <Link href="/hot">热榜 →</Link></div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: hotTopics.length ? 13 : 0 }}>
                     {boards.map((b) => (
-                      <Link key={b.id} href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as any)._count.threads} 主题`} style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "#fff", border: "1px solid var(--line-soft)", borderRadius: 999, padding: "5px 6px 5px 12px", fontSize: 12.5, fontWeight: 600 }}>
-                        <span style={{ color: "var(--text)", fontWeight: 700 }}>{b.name}</span>
-                        <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line-faint)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-muted)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{(b as any)._count.threads}</span>
+                      <Link key={b.id} href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as any)._count.threads} 主题`} className="side-chip">
+                        <span style={{ fontWeight: 700 }}>{b.name}</span>
+                        <span className="count">{(b as any)._count.threads}</span>
                       </Link>
                     ))}
                   </div>
@@ -306,10 +306,10 @@ export default async function RootLayout({
                       </div>
                       <div style={{ display: "grid", gap: 6 }}>
                         {hotTopics.map((t: any, idx: number) => (
-                          <Link key={t.id} href={threadHref(t.id, t.title)} prefetch={false} title={t.title} style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-faint)", background: "var(--panel)", fontSize: 12.5, color: "var(--text)", minWidth: 0, textDecoration: "none" }}>
-                            <span style={{ width: 20, height: 20, borderRadius: 6, background: idx === 0 ? "var(--brand)" : idx < 3 ? "var(--brand-soft)" : "var(--bg-soft)", color: idx === 0 ? "#fff" : idx < 3 ? "var(--brand)" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, flexShrink: 0, border: idx < 3 ? "1px solid transparent" : "1px solid var(--line-faint)" }}>{idx + 1}</span>
+                          <Link key={t.id} href={threadHref(t.id, t.title)} prefetch={false} title={t.title} className="side-topic">
+                            <span className={`rank${idx === 0 ? " first" : idx < 3 ? " top" : ""}`}>{idx + 1}</span>
                             <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 600 }}>{t.title}</span>
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "2px 7px", borderRadius: 999, fontSize: 11, color: "var(--text-subtle)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{Math.max(0, (t._count?.posts ?? 1) - 1)} 回</span>
+                            <span className="reply-count">{Math.max(0, (t._count?.posts ?? 1) - 1)} 回</span>
                           </Link>
                         ))}
                       </div>
@@ -349,23 +349,12 @@ export default async function RootLayout({
                             href={`/c/${c.board.slug}?cat=${c.id}`}
                             prefetch={false}
                             title={`${c.name} · ${c.board.name} · ${cnt} 主题`}
-                            style={{
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 5,
-                              background: "var(--bg-soft)",
-                              border: "1px solid var(--line)",
-                              borderRadius: 999,
-                              padding: "4px 10px",
-                              fontSize: size,
-                              fontWeight: weight,
-                              color: "var(--text)",
-                              transition: "all 0.14s",
-                            }}
+                            className="tag-chip"
+                            style={{ fontSize: size, fontWeight: weight }}
                           >
-                            <span style={{ color: "var(--brand)" }}>#</span>
+                            <span className="hash">#</span>
                             {c.name}
-                            <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "0 5px", fontSize: 10, color: "var(--text-muted)", fontWeight: 600 }}>{cnt}</span>
+                            <span className="count">{cnt}</span>
                           </Link>
                         );
                       })}

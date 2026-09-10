@@ -24,3 +24,17 @@ export function catToneClass(name: string): string {
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) | 0;
   return `cat-${CAT_TONES[Math.abs(h) % CAT_TONES.length]}`;
 }
+
+/** 版块名 → 稳定色相（列表/搜索/无限滚动共用，避免各处各一套硬编码） */
+const BOARD_TONES: [string, string][] = [
+  ["综合", "cat-violet"],
+  ["技术", "cat-blue"],
+  ["生活", "cat-orange"],
+  ["资源", "cat-green"],
+  ["公告", "cat-pink"],
+  ["小说", "cat-teal"],
+];
+export function boardToneClass(name: string): string {
+  for (const [key, cls] of BOARD_TONES) if (name.includes(key)) return cls;
+  return catToneClass(name);
+}

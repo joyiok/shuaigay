@@ -59,6 +59,29 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   not_found: { title: "找不到了", msg: "目标不存在，可能已被删除。", tip: "回首页看看" },
 };
 
+/* 线性小图标：与全站 1.6-1.7 描边保持一致 */
+function UpIcon() {
+  return (
+    <svg className="rate-ico" width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M6 2.4 10.2 9.4H1.8L6 2.4Z" fill="currentColor" />
+    </svg>
+  );
+}
+function DownIcon() {
+  return (
+    <svg className="rate-ico" width="11" height="11" viewBox="0 0 12 12" aria-hidden="true">
+      <path d="M6 9.6 1.8 2.6h8.4L6 9.6Z" fill="currentColor" />
+    </svg>
+  );
+}
+function ClipIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M20 11.5 12 19.5a5 5 0 0 1-7-7l8.5-8.5a3.2 3.2 0 0 1 4.5 4.5L9.8 16.7a1.4 1.4 0 0 1-2-2l7.6-7.6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -239,11 +262,11 @@ export default async function ThreadPage({
       <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}${isNovel ? " novel-thread-head" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
-          {(thread as any).status === "pending" && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>待审</span>}
+          {(thread as any).status === "pending" && <span className="topic-badge pending">待审</span>}
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
           {thread.globalPinned && <span className="topic-badge pinned">全局置顶</span>}
-          {thread.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
-          {thread.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+          {thread.digested && <span className="topic-badge digest">精华</span>}
+          {thread.locked && <span className="topic-badge locked">已锁</span>}
           {threadCategory && <span className={`topic-badge ${catToneClass(threadCategory.name)}`}>{threadCategory.name}</span>}
         </div>
         <div style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -342,7 +365,7 @@ export default async function ThreadPage({
         <HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} />
       )}
       {pending && (
-        <p style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 600 }}>内容已提交，待版主/管理员审核后可见</p>
+        <p className="notice-pending">内容已提交，待版主/管理员审核后可见</p>
       )}
 
       {isNovel && opOnly && chapters.length > 0 && (
@@ -363,18 +386,18 @@ export default async function ThreadPage({
             const editable = canEditPost(user, p, { threadLocked: thread.locked });
             const canRate = !!user && user.id !== p.authorId;
             return (
-              <li key={p.id} id={`post-${p.id}`} className={isNovel && p.authorId === thread.authorId ? "novel-chapter" : undefined} style={{ padding: 14, borderBottom: idx === items.length - 1 ? "none" : "1px solid var(--bg)", display: "grid", gap: 10 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13 }}>
+              <li key={p.id} id={`post-${p.id}`} className={`thread-post${isNovel && p.authorId === thread.authorId ? " novel-chapter" : ""}`}>
+                <div className="post-head">
                   <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
                   <LevelBadge points={p.authorPoints} role={p.authorRole} />
                   {(medalsByUser.get(p.authorId) ?? []).map((med: any) => (
-                    <span key={med.id} title={`${med.name} · ${med.description ?? ""}`} style={{ display: "inline-flex", alignItems: "center", gap: 3, background: med.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 10, fontWeight: 700 }}>{med.icon} {med.name}</span>
+                    <span key={med.id} className="post-medal" title={`${med.name} · ${med.description ?? ""}`} style={{ background: med.color }}>{med.icon} {med.name}</span>
                   ))}
-                  {(p as any).status === "pending" && <span style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontSize: 10, padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>待审</span>}
+                  {(p as any).status === "pending" && <span className="topic-badge pending">待审</span>}
                   <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(p.createdAt)}</span>
-                  <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: 4 }}>{isNovel && opOnly ? `第 ${chapterOffset + idx + 1} 章` : `#${idx + 1}`}</span>
-                  <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>{isNovel && opOnly ? `第 ${chapterOffset + idx + 1} 章` : `#${idx + 1}`}</span>
+                  <div className="post-head-actions">
                     <button type="button" className="post-quote-btn" data-author={p.authorName} data-floor={idx + 1} data-text={excerpt(p.contentMd)}>引用</button>
                     {editable && <PostEditor postId={p.id} contentMd={p.contentMd} />}
                     {(!user || user.id !== p.authorId) && <ReportButton postId={p.id} />}
@@ -394,7 +417,7 @@ export default async function ThreadPage({
                   <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, borderTop: "1px solid var(--line-soft)", paddingTop: 8, fontSize: 12 }}>
                     {p.attachments.map((a) => (
                       <li key={a.id} style={{ display: "flex", alignItems: "center", gap: 6, background: "var(--bg)", padding: "4px 8px", borderRadius: 6 }}>
-                        <a href={`/uploads/${a.storedName}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-hover)" }}>📎 {a.fileName}</a>
+                        <a href={`/uploads/${a.storedName}`} target="_blank" rel="noopener noreferrer" style={{ color: "var(--brand-hover)", display: "inline-flex", alignItems: "center", gap: 5 }}><ClipIcon /> {a.fileName}</a>
                         <span style={{ color: "var(--text-subtle)" }}>({formatBytes(a.sizeBytes)})</span>
                       </li>
                     ))}
@@ -407,17 +430,19 @@ export default async function ThreadPage({
                       <form action={ratePostAction}>
                         <input type="hidden" name="postId" value={p.id} />
                         <input type="hidden" name="value" value="1" />
-                        <button type="submit" className={`post-rating-btn ${p.rating.mine === 1 ? "active-up" : ""}`} title={p.rating.mine === 1 ? "取消支持" : "支持"}>▲ {p.rating.up || 0}</button>
+                        <button type="submit" className={`post-rating-btn ${p.rating.mine === 1 ? "active-up" : ""}`} title={p.rating.mine === 1 ? "取消支持" : "支持"}><UpIcon /> {p.rating.up || 0}</button>
                       </form>
                       <form action={ratePostAction}>
                         <input type="hidden" name="postId" value={p.id} />
                         <input type="hidden" name="value" value="-1" />
-                        <button type="submit" className={`post-rating-btn ${p.rating.mine === -1 ? "active-down" : ""}`} title={p.rating.mine === -1 ? "取消反对" : "反对"}>▼ {p.rating.down || 0}</button>
+                        <button type="submit" className={`post-rating-btn ${p.rating.mine === -1 ? "active-down" : ""}`} title={p.rating.mine === -1 ? "取消反对" : "反对"}><DownIcon /> {p.rating.down || 0}</button>
                       </form>
                     </>
                   ) : (
-                    <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>
-                      ▲ {p.rating.up} · ▼ {p.rating.down}
+                    <span className="post-rating-note">
+                      <UpIcon /> {p.rating.up}
+                      <span aria-hidden>·</span>
+                      <DownIcon /> {p.rating.down}
                       {!user && " · 登录后可评分"}
                       {user && user.id === p.authorId && " · 不能给自己评分"}
                     </span>
@@ -432,7 +457,7 @@ export default async function ThreadPage({
                           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
                             {p.rating.reasons.map((r, i) => (
                               <li key={i} style={{ fontSize: 12, background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 6, padding: "6px 8px" }}>
-                                <span style={{ fontWeight: 700, color: r.value === 1 ? "var(--brand)" : "var(--danger)" }}>{r.value === 1 ? "▲" : "▼"} {r.username}</span>
+                                <span style={{ fontWeight: 700, display: "inline-flex", alignItems: "center", gap: 4, color: r.value === 1 ? "var(--brand)" : "var(--danger)" }}>{r.value === 1 ? <UpIcon /> : <DownIcon />} {r.username}</span>
                                 <span style={{ color: "var(--text-muted)", marginLeft: 6 }}>{r.reason}</span>
                                 <span style={{ color: "var(--text-subtle)", marginLeft: 6, fontSize: 11 }}>{formatDate(r.createdAt)}</span>
                               </li>

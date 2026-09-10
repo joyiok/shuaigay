@@ -166,7 +166,7 @@ export default function MobileDrawer({
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 6 }}>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
                       <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.userCount}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>用户</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>成员</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
                       <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.threadCount}</div>
@@ -174,7 +174,7 @@ export default function MobileDrawer({
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
                       <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.postCount}</div>
-                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>帖子</div>
+                      <div style={{ fontSize: 11, color: "var(--text-subtle)" }}>回帖</div>
                     </div>
                     <div style={{ textAlign: "center", padding: "8px 4px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}>
                       <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", fontVariantNumeric: "tabular-nums" }}>{stats.online ?? "—"}</div>
@@ -190,10 +190,10 @@ export default function MobileDrawer({
                   <div className="mobile-drawer-title">热门话题</div>
                   <div style={{ display: "grid", gap: 6 }}>
                     {hotTopics.slice(0, 5).map((t, idx) => (
-                      <Link key={t.id} href={threadHref(t.id, t.title)} onClick={close} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, border: "1px solid var(--line-soft)", background: "var(--bg-soft)", fontSize: 12, color: "var(--text)", textDecoration: "none", minWidth: 0 }}>
-                        <span style={{ width: 18, height: 18, borderRadius: 6, background: idx === 0 ? "#fef3c7" : idx === 1 ? "#ede9fe" : "#f3f4f6", color: idx === 0 ? "#d97706" : idx === 1 ? "#7c3aed" : "var(--text-subtle)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{idx + 1}</span>
+                      <Link key={t.id} href={threadHref(t.id, t.title)} onClick={close} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "var(--bg-soft)", fontSize: 12, color: "var(--text)", textDecoration: "none", minWidth: 0 }}>
+                        <span className={`rank${idx === 0 ? " first" : idx < 3 ? " top" : ""}`} style={{ width: 18, height: 18, borderRadius: 6, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 800, flexShrink: 0 }}>{idx + 1}</span>
                         <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-                        <span style={{ background: "#fff", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 6px", fontSize: 11, color: "var(--text-subtle)", flexShrink: 0 }}>{t.replyCount} 回</span>
+                        <span style={{ background: "var(--panel)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-subtle)", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{t.replyCount} 回</span>
                       </Link>
                     ))}
                   </div>

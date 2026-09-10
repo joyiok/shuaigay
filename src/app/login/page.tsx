@@ -49,14 +49,14 @@ export default async function LoginPage({
           {next && <input type="hidden" name="next" value={next} />}
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", letterSpacing: "0.02em" }}>邮箱</span>
-            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)", }} />
+            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" className="auth-input" />
           </label>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", display: "flex", justifyContent: "space-between" }}>
               <span>密码</span>
               <Link href="/forgot" style={{ fontWeight: 500, color: "var(--text-subtle)", fontSize: 12, textDecoration: "underline", textUnderlineOffset: 2 }}>忘记了？</Link>
             </span>
-            <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)" }} />
+            <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" className="auth-input" />
           </label>
           <Turnstile action="login" resetSignal={error} />
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>

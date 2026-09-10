@@ -47,7 +47,7 @@ function Section({
     <section className="card" style={{ padding: 16, display: "grid", gap: 12 }}>
       <div>
         <h2 style={{ margin: 0, fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ width: 3, height: 14, borderRadius: 999, background: "var(--brand)" }} />
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--brand)" }} />
           {title}
         </h2>
         {description && <p style={{ margin: "6px 0 0", fontSize: 12, color: "var(--text-subtle)", lineHeight: 1.7 }}>{description}</p>}
@@ -139,9 +139,14 @@ export default async function SettingsPage({
               <strong style={{ fontSize: 15 }}>{user.username}</strong>
               <LevelBadge points={user.points} role={user.role} />
               {user.emailVerified ? (
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#166534", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 999, padding: "2px 8px" }}>✓ 邮箱已验证</span>
+                <span className="chip-success">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M2.5 6.4 5 8.8l4.5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  邮箱已验证
+                </span>
               ) : (
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 999, padding: "2px 8px" }}>邮箱未验证</span>
+                <span className="chip-warn">邮箱未验证</span>
               )}
             </div>
             <div style={{ fontSize: 12, color: "var(--text-subtle)", display: "flex", gap: 14, flexWrap: "wrap" }}>

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { formatDate } from "@/lib/format";
+import { formatDate, boardToneClass, catToneClass } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { Highlight } from "@/components/Highlight";
+import UserAvatar from "@/components/UserAvatar";
 
 /**
  * 渐进增强的无限滚动:
@@ -160,60 +161,41 @@ export default function InfiniteList({
 }
 
 function renderThreadRow(t: ThreadItem, query: string, novel = false) {
-  const boardBg = (() => {
-    const n = t.boardName ?? "";
-    if (n.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-    if (n.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
-    if (n.includes("生活")) return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
-    if (n.includes("资源")) return { bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" };
-    return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-  })();
   return (
     <li key={t.id} className={`post-item${novel ? " novel-book" : ""}`} style={{ gap: 12 }}>
       {novel ? (
         <div className="novel-cover" aria-hidden><span>{t.title.trim().slice(0, 1) || "书"}</span></div>
-      ) : <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: "linear-gradient(135deg,#7c3aed,#ec4899)",
-          color: "#fff",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 800,
-          fontSize: 13,
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
-      >
-        {t.authorAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/avatar?file=${encodeURIComponent(t.authorAvatarUrl)}`} alt={t.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          t.authorName.slice(0, 1).toUpperCase()
-        )}
-      </div>}
+      ) : (
+        <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={36} radius={10} />
+      )}
       <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
         <div className="post-title-row" style={{ gap: 8 }}>
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
-          {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
-          {novel && t.categoryName && <span className="topic-badge cat-orange">{t.categoryName}</span>}
+          {t.locked && <span className="topic-badge locked">已锁</span>}
+          {novel && t.categoryName && <span className={`topic-badge ${catToneClass(t.categoryName)}`}>{t.categoryName}</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={t.title} query={query} />
           </Link>
           {t.boardName && (
-            <span className="topic-badge" style={{ background: boardBg.bg, color: boardBg.color, border: `1px solid ${boardBg.border}` }}>
+            <span className={`topic-badge ${boardToneClass(t.boardName)}`}>
               {t.boardName}
             </span>
           )}
         </div>
-        <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
+        <div className="post-meta" style={{ gap: 10, marginTop: 3 }}>
           <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(new Date(t.lastPostAt)).split(" ")[0]}</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
-            {novel ? (t.replyCount > 0 ? "持续更新" : "新作") : `💬 ${t.replyCount}`}
+          <span className="post-count" style={{ fontSize: 11 }} aria-label={novel ? "更新状态" : `${t.replyCount} 条回复`}>
+            {novel ? (
+              <span style={{ fontWeight: 700, color: t.replyCount > 0 ? "var(--brand)" : "var(--text-subtle)", fontSize: 11.5 }}>{t.replyCount > 0 ? "连载中" : "新作"}</span>
+            ) : (
+              <>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                </svg>
+                {t.replyCount}
+              </>
+            )}
           </span>
         </div>
       </div>
@@ -224,35 +206,13 @@ function renderThreadRow(t: ThreadItem, query: string, novel = false) {
 function renderPostRow(p: PostItem, query: string) {
   return (
     <li key={p.id} className="post-item" style={{ gap: 12 }}>
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: "linear-gradient(135deg,#10b981,#06b6d4)",
-          color: "#fff",
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontWeight: 800,
-          fontSize: 13,
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
-      >
-        {p.authorAvatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={`/api/avatar?file=${encodeURIComponent(p.authorAvatarUrl)}`} alt={p.authorName} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : (
-          p.authorName.slice(0, 1).toUpperCase()
-        )}
-      </div>
+      <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={36} radius={10} />
       <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
         <div className="post-title-row" style={{ gap: 8 }}>
           <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={p.threadTitle} query={query} />
           </Link>
-          <span className="topic-badge" style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", color: "var(--text-muted)" }}>
+          <span className="topic-badge muted">
             回复
           </span>
         </div>

@@ -298,7 +298,7 @@ export default async function UserPage({
                 {user.points}
               </span>
               {me && isAdmin(me) && (
-                <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>
+                <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>
                   注册IP: {user.registrationIp ?? "—"} · 末登IP: {user.lastLoginIp ?? "—"}
                 </span>
               )}
@@ -328,17 +328,17 @@ export default async function UserPage({
               const pct = next ? Math.max(5, Math.min(100, Math.round(((user.points - lv.min) / (next.missing + (user.points - lv.min))) * 100))) : 100;
               return (
                 <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--bg-soft)", border: "1.5px solid var(--line-soft)", borderRadius: 10 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, fontWeight: 700, color: "var(--text-muted)", fontFamily: "var(--font-jet)" }}>
                     <span>{lv.name} · {user.points} 分</span>
                     <span>{next ? `距 ${next.name} 还差 ${next.missing} 分` : "已满级"}</span>
                   </div>
                   <div style={{ height: 6, background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: lv.color, borderRadius: 999 }} />
                   </div>
-                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, fontSize: 10, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
                     <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>日发帖 {perms.dailyThreads}</span>
                     <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>日回帖 {perms.dailyReplies}</span>
-                    <span style={{ background: perms.canPostLink ? "var(--panel)" : "#FFF1F0", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999, color: perms.canPostLink ? "var(--text)" : "var(--danger)" }}>{perms.canPostLink ? "可发外链" : "外链需审核"}</span>
+                    <span style={{ background: perms.canPostLink ? "var(--panel)" : "var(--danger-soft)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999, color: perms.canPostLink ? "var(--text)" : "var(--danger)" }}>{perms.canPostLink ? "可发外链" : "外链需审核"}</span>
                     <span style={{ background: "var(--panel)", border: "1px solid var(--line)", padding: "2px 6px", borderRadius: 999 }}>附件 {perms.maxUploadMB}MB</span>
                   </div>
                 </div>
@@ -350,14 +350,14 @@ export default async function UserPage({
         {/* 管理员可见 IP 轨迹 */}
         {me && isAdmin(me) && (
           <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--line-soft)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", marginBottom: 6 }}>IP 轨迹 · 仅管理员可见</div>
-            <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", marginBottom: 6 }}>IP 轨迹 · 仅管理员可见</div>
+            <div style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-jet)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "8px 10px" }}>
               注册: {user.registrationIp ?? "—"} · 末登: {user.lastLoginIp ?? "—"} {user.lastLoginAt ? `(${new Date(user.lastLoginAt).toLocaleString("zh-CN")})` : ""} · 末活跃: {user.lastActiveIp ?? "—"}
             </div>
             {ipLogs.length > 0 && (
               <div style={{ marginTop: 8, display: "grid", gap: 4 }}>
                 {ipLogs.map((log: any) => (
-                  <div key={log.id} style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "JetBrains Mono, monospace", display: "flex", gap: 8, justifyContent: "space-between", background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 6, padding: "4px 8px" }}>
+                  <div key={log.id} style={{ fontSize: 11, color: "var(--text-muted)", fontFamily: "var(--font-jet)", display: "flex", gap: 8, justifyContent: "space-between", background: "var(--panel)", border: "1px solid var(--line-soft)", borderRadius: 6, padding: "4px 8px" }}>
                     <span>{log.ip}</span><span>{log.action}</span><span>{new Date(log.createdAt).toLocaleString("zh-CN")}</span>
                   </div>
                 ))}
@@ -413,7 +413,7 @@ export default async function UserPage({
       {followerCount > 0 && (
         <div className="card" style={{ padding: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)", marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
-            <span style={{ width: 3, height: 12, borderRadius: 999, background: "var(--brand)" }} />
+            <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--brand)" }} />
             最近粉丝
             <span style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", borderRadius: 999, padding: "1px 7px", fontSize: 11, color: "var(--text-subtle)", fontWeight: 600 }}>{followerCount}</span>
             <Link href={`/u/${encodeURIComponent(user.username)}/followers`} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 600, color: "var(--brand)" }}>

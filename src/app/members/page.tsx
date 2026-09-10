@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { getOnlineIds } from "@/lib/online";
-import { levelForPoints } from "@/lib/levels";
 import EmptyState from "@/components/EmptyState";
 import LevelBadge from "@/components/LevelBadge";
 import UserAvatar from "@/components/UserAvatar";
@@ -167,7 +166,6 @@ export default async function MembersPage({
         <ul className="member-grid">
           {rows.map((u) => {
             const isOnline = !!onlineIds?.has(u.id);
-            const lv = levelForPoints(u.points);
             return (
               <li key={u.id} className="member-card">
                 <Link href={`/u/${encodeURIComponent(u.username)}`} className="member-avatar" aria-label={`${u.username} 主页`}>
@@ -182,7 +180,6 @@ export default async function MembersPage({
                     <LevelBadge points={u.points} role={u.role} />
                   </div>
                   <div className="member-stats">
-                    <span className="member-stat-name">{lv.name}</span>
                     <span><strong>{u.points}</strong> 积分</span>
                     <span><strong>{u._count.threads}</strong> 主题</span>
                     <span><strong>{u._count.followers}</strong> 粉丝</span>

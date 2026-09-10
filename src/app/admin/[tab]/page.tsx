@@ -345,8 +345,8 @@ async function SettingsTab() {
 
 /* ---------------- 纸质面板通用组件 ---------------- */
 
-const GROTESK = "Space Grotesk, sans-serif";
-const MONO = "JetBrains Mono, monospace";
+const GROTESK = "var(--font-grotesk)";
+const MONO = "var(--font-jet)";
 
 const tapeBadge: CSSProperties = {
   display: "inline-flex",
@@ -851,18 +851,18 @@ async function BoardsTab() {
       <div className="card" style={{ padding: 16, position: "relative" }}>
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
           <div>
-            <div className="quick-title" style={{ margin: 0, fontFamily: "Space Grotesk, sans-serif" }}>新建版块</div>
-            <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", marginTop: 2 }}>{boards.length} 个版块 · slug 唯一，建议小写英文-数字</div>
+            <div className="quick-title" style={{ margin: 0, fontFamily: "var(--font-grotesk)" }}>新建版块</div>
+            <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", marginTop: 2 }}>{boards.length} 个版块 · slug 唯一，建议小写英文-数字</div>
           </div>
-          <span style={{ fontSize: 10, background: "#FFF7A8", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>ADMIN ONLY</span>
+          <span style={{ fontSize: 10, background: "#FFF7A8", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontFamily: "var(--font-jet)", fontWeight: 600 }}>ADMIN ONLY</span>
         </div>
         <form action={createBoardAction} style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 90px", gap: 10, alignItems: "end" }}>
             <label style={{ display: "grid", gap: 4 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>Slug · 地址后缀 <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>/c/</span></span>
               <span style={{ display: "flex", alignItems: "center", gap: 6, height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", background: "var(--panel)", boxShadow: "2px 2px 0 var(--line)" }}>
-                <span style={{ fontSize: 12, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", fontWeight: 600 }}>/c/</span>
-                <input name="slug" required pattern="[a-z0-9-]{1,32}" placeholder="general" style={{ flex: 1, border: 0, outline: "none", fontSize: 13, fontFamily: "JetBrains Mono, monospace", background: "transparent" }} />
+                <span style={{ fontSize: 12, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", fontWeight: 600 }}>/c/</span>
+                <input name="slug" required pattern="[a-z0-9-]{1,32}" placeholder="general" style={{ flex: 1, border: 0, outline: "none", fontSize: 13, fontFamily: "var(--font-jet)", background: "transparent" }} />
               </span>
             </label>
             <label style={{ display: "grid", gap: 4 }}>
@@ -879,7 +879,7 @@ async function BoardsTab() {
             <input name="description" maxLength={200} placeholder="例如：随便聊聊 · 寻找同好" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", fontSize: 13, outline: "none", boxShadow: "2px 2px 0 var(--line)" }} />
           </label>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
-            <button type="submit" style={{ height: 36, padding: "0 18px", background: "var(--text)", color: "var(--panel)", border: "2px solid var(--line)", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "3px 3px 0 var(--line)", fontFamily: "Space Grotesk, sans-serif", cursor: "pointer" }}>+ 创建版块</button>
+            <button type="submit" style={{ height: 36, padding: "0 18px", background: "var(--text)", color: "var(--panel)", border: "2px solid var(--line)", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "3px 3px 0 var(--line)", fontFamily: "var(--font-grotesk)", cursor: "pointer" }}>+ 创建版块</button>
           </div>
         </form>
       </div>
@@ -888,11 +888,11 @@ async function BoardsTab() {
         {boards.map((b, i) => (
           <div key={b.id} className="card" style={{ overflow: "hidden", padding: 0, display: "grid" }}>
             <div style={{ display: "flex", gap: 12, padding: "14px 14px 12px", alignItems: "flex-start", borderBottom: "1.5px solid var(--line)", background: "var(--panel)" }}>
-              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--bg-soft)", border: "1.5px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, fontFamily: "JetBrains Mono, monospace", flexShrink: 0, boxShadow: "1px 1px 0 var(--line)" }}>#{b.order}</div>
+              <div style={{ width: 32, height: 32, borderRadius: 8, background: "var(--bg-soft)", border: "1.5px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, fontFamily: "var(--font-jet)", flexShrink: 0, boxShadow: "1px 1px 0 var(--line)" }}>#{b.order}</div>
               <div style={{ minWidth: 0, flex: 1 }}>
                 <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                  <Link href={`/c/${b.slug}`} style={{ fontWeight: 800, fontSize: 15, fontFamily: "Space Grotesk, sans-serif", color: "var(--text)", textDecoration: "none", letterSpacing: "-0.02em" }}>{b.name}</Link>
-                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>/ {b.slug}</span>
+                  <Link href={`/c/${b.slug}`} style={{ fontWeight: 800, fontSize: 15, fontFamily: "var(--font-grotesk)", color: "var(--text)", textDecoration: "none", letterSpacing: "-0.02em" }}>{b.name}</Link>
+                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", background: "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>/ {b.slug}</span>
                   {(b as unknown as { isHidden: boolean }).isHidden && <span style={{ fontSize: 10, background: "var(--text)", color: "var(--panel)", padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>隐藏</span>}
                   {(b as unknown as { isLocked: boolean }).isLocked && <span style={{ fontSize: 10, background: "#FFF7A8", border: "1.5px solid var(--line)", padding: "2px 6px", borderRadius: 999, fontWeight: 700 }}>锁定</span>}
                   <span style={{ fontSize: 11, fontWeight: 700, background: b._count.threads > 10 ? "#FFF7A8" : "var(--panel)", border: "1.5px solid var(--line)", padding: "2px 7px", borderRadius: 999, boxShadow: "1px 1px 0 var(--line)" }}>{b._count.threads} 主题 · 今日 {todayMap.get(b.id) ?? 0}</span>
@@ -932,8 +932,8 @@ async function BoardsTab() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 12, padding: 12, background: "var(--bg)" }}>
               <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "Space Grotesk, sans-serif" }}>版主 · {b.moderators.length}</span>
-                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.moderators.length ? `${b.moderators.length} 人` : "空"}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "var(--font-grotesk)" }}>版主 · {b.moderators.length}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.moderators.length ? `${b.moderators.length} 人` : "空"}</span>
                 </div>
                 {b.moderators.length ? (
                   <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 10 }}>
@@ -955,7 +955,7 @@ async function BoardsTab() {
                 <form action={addModeratorAction} style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input type="hidden" name="boardId" value={b.id} />
                   <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 6, height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 8px", background: "var(--panel)", boxShadow: "1px 1px 0 var(--line)" }}>
-                    <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>@</span>
+                    <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>@</span>
                     <input name="username" required placeholder="用户名" pattern="[a-zA-Z0-9_-]{3,20}" style={{ flex: 1, border: 0, outline: "none", fontSize: 12, background: "transparent" }} />
                   </div>
                   <button type="submit" style={{ height: 32, padding: "0 12px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer", whiteSpace: "nowrap" }}>添加</button>
@@ -964,15 +964,15 @@ async function BoardsTab() {
 
               <div style={{ background: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 10, padding: 12, boxShadow: "2px 2px 0 var(--line)" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "Space Grotesk, sans-serif" }}>主题分类 · {b.categories.length}</span>
-                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.categories.length ? `${b.categories.length} 项` : "空"}</span>
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text)", fontFamily: "var(--font-grotesk)" }}>主题分类 · {b.categories.length}</span>
+                  <span style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", padding: "1px 6px", borderRadius: 999 }}>{b.categories.length ? `${b.categories.length} 项` : "空"}</span>
                 </div>
                 {b.categories.length ? (
                   <div style={{ display: "grid", gap: 6, marginBottom: 10 }}>
                     {b.categories.map((c, idx) => (
                       <div key={c.id} style={{ display: "flex", gap: 6, alignItems: "center", background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 8, padding: "6px 8px" }}>
                         <span className={`topic-badge ${catToneClass(c.name)}`} style={{ fontSize: 11, flexShrink: 0 }}>{c.name}</span>
-                        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>#{c.order}</span>
+                        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>#{c.order}</span>
                         <form action={renameCategoryAction} style={{ display: "flex", gap: 4, flex: 1, marginLeft: 6 }}>
                           <input type="hidden" name="categoryId" value={c.id} />
                           <input name="name" defaultValue={c.name} maxLength={20} style={{ flex: 1, height: 24, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 11, background: "var(--panel)" }} />
@@ -1184,7 +1184,7 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
       <div className="card" style={{ overflow: "hidden" }}>
         <div style={{ padding: "12px 14px", borderBottom: "1px solid var(--line-soft)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div className="quick-title" style={{ margin: 0 }}>待审队列 <span>主题 {threads.length} · 回帖 {posts.length} {boardScope ? "· 仅自己版块" : ""}</span></div>
-          <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>新人/版块审核/敏感词 → 待审</span>
+          <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>新人/版块审核/敏感词 → 待审</span>
         </div>
         {threads.length === 0 && posts.length === 0 ? (
           <div style={{ padding: 24, textAlign: "center", color: "var(--text-subtle)", fontSize: 13 }}>
@@ -1235,7 +1235,7 @@ async function MedalsTab() {
   return (
     <div style={{ display: "grid", gap: 12 }}>
       <div className="card" style={{ padding: 16 }}>
-        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "Space Grotesk, sans-serif" }}>新建勋章 <span>{medals.length} 枚</span></div>
+        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "var(--font-grotesk)" }}>新建勋章 <span>{medals.length} 枚</span></div>
         <form action={createMedalAction} style={{ display: "grid", gap: 10 }}>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 80px 120px", gap: 10 }}>
             <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 700 }}>名称</span><input name="name" required maxLength={20} placeholder="勋章名" style={{ height: 32, border: "1.5px solid var(--line)", borderRadius: 8, padding: "0 10px", fontSize: 13 }} /></label>
@@ -1417,16 +1417,16 @@ async function StatsTab() {
     <div style={{ background: "var(--panel)", border: "2px solid var(--line)", borderRadius: 12, padding: 14, boxShadow: "3px 3px 0 var(--line)", display: "grid", gap: 6 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ width: 28, height: 28, borderRadius: 8, background: bg, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 14, border: "1.5px solid var(--line)" }}>{icon}</span>
-        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{label}</span>
+        <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: "0.04em", color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", letterSpacing: "-0.02em" }}>{value}</div>
-      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{sub}</div>
+      <div style={{ fontSize: 22, fontWeight: 800, fontFamily: "var(--font-grotesk)", letterSpacing: "-0.02em" }}>{value}</div>
+      <div style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>{sub}</div>
     </div>
   );
 
   const bar = (label: string, value: number, max: number, color: string) => (
     <div style={{ display: "grid", gap: 4 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}><span>{label}</span><span style={{ fontWeight: 700, color: "var(--text)" }}>{value}</span></div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}><span>{label}</span><span style={{ fontWeight: 700, color: "var(--text)" }}>{value}</span></div>
       <div style={{ height: 8, background: "var(--bg-soft)", border: "1px solid var(--line-soft)", borderRadius: 999, overflow: "hidden" }}>
         <div style={{ width: `${Math.round((value / max) * 100)}%`, height: "100%", background: color, borderRadius: 999 }} />
       </div>
@@ -1443,11 +1443,11 @@ async function StatsTab() {
       </div>
 
       <div className="card" style={{ padding: 16 }}>
-        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "Space Grotesk, sans-serif" }}>近7日趋势 <span>发帖/回帖/注册</span></div>
+        <div className="quick-title" style={{ margin: "0 0 12px", fontFamily: "var(--font-grotesk)" }}>近7日趋势 <span>发帖/回帖/注册</span></div>
         <div style={{ display: "grid", gap: 10 }}>
           {dayLabels.map((d) => (
             <div key={d} style={{ display: "grid", gridTemplateColumns: "40px 1fr", gap: 10, alignItems: "center" }}>
-              <span style={{ fontSize: 11, fontFamily: "JetBrains Mono, monospace", color: "var(--text-subtle)", textAlign: "right" }}>{d}</span>
+              <span style={{ fontSize: 11, fontFamily: "var(--font-jet)", color: "var(--text-subtle)", textAlign: "right" }}>{d}</span>
               <div style={{ display: "grid", gap: 4 }}>
                 {bar(`主题 ${tMap.get(d) ?? 0}`, tMap.get(d) ?? 0, maxDay, "#7C3AED")}
                 {bar(`回帖 ${pMap.get(d) ?? 0}`, pMap.get(d) ?? 0, maxDay, "#FF3B30")}
@@ -1456,7 +1456,7 @@ async function StatsTab() {
             </div>
           ))}
         </div>
-        <div style={{ marginTop: 12, fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>数据源：Post/Thread/User createdAt · 隐藏版块已过滤</div>
+        <div style={{ marginTop: 12, fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>数据源：Post/Thread/User createdAt · 隐藏版块已过滤</div>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
@@ -1469,8 +1469,8 @@ async function StatsTab() {
               return (
                 <div key={b.id} style={{ display: "grid", gap: 4 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-                    <span style={{ fontWeight: 600 }}>{b.name} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "JetBrains Mono, monospace" }}>/ {b.slug}</span></span>
-                    <span style={{ fontFamily: "JetBrains Mono, monospace", fontSize: 11 }}>{b._count.threads} 主题</span>
+                    <span style={{ fontWeight: 600 }}>{b.name} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "var(--font-jet)" }}>/ {b.slug}</span></span>
+                    <span style={{ fontFamily: "var(--font-jet)", fontSize: 11 }}>{b._count.threads} 主题</span>
                   </div>
                   <div style={{ height: 6, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
                     <div style={{ width: `${pct}%`, height: "100%", background: "var(--text)", borderRadius: 999 }} />
@@ -1489,7 +1489,7 @@ async function StatsTab() {
                 <Link key={t.id} href={threadHref(t.id, t.title)} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 10px", border: "1px solid var(--line-soft)", borderRadius: 8, background: "var(--bg-soft)", textDecoration: "none" }}>
                   <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? "#FFF7A8" : "var(--panel)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
                   <span style={{ flex: 1, fontSize: 12, fontWeight: 600, color: "var(--text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.title}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{t.views} 浏览 · {Math.max(0, t._count.posts - 1)} 回复</span>
+                  <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>{t.views} 浏览 · {Math.max(0, t._count.posts - 1)} 回复</span>
                 </Link>
               ))}
             </div>
@@ -1501,7 +1501,7 @@ async function StatsTab() {
                 <Link key={u.username} href={`/u/${u.username}`} style={{ display: "flex", gap: 10, alignItems: "center", padding: "8px 10px", border: "1px solid var(--line-soft)", borderRadius: 8, background: "var(--bg-soft)", textDecoration: "none" }}>
                   <span style={{ width: 20, height: 20, borderRadius: 6, background: i === 0 ? "#FFF7A8" : "var(--panel)", border: "1px solid var(--line)", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{i + 1}</span>
                   <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text)" }}>{u.username}</span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>{u.points} 分 · {u._count.threads} 主题</span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>{u.points} 分 · {u._count.threads} 主题</span>
                 </Link>
               ))}
             </div>
@@ -1510,7 +1510,7 @@ async function StatsTab() {
       </div>
 
       <div className="card" style={{ padding: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "JetBrains Mono, monospace" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/atom.xml" style={{ color: "var(--brand)" }}>/atom.xml</Link> · <Link href="/feed.json" style={{ color: "var(--brand)" }}>/feed.json</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
+        <span style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>RSS: <Link href="/rss.xml" style={{ color: "var(--brand)", fontWeight: 600 }}>/rss.xml</Link> · <Link href="/atom.xml" style={{ color: "var(--brand)" }}>/atom.xml</Link> · <Link href="/feed.json" style={{ color: "var(--brand)" }}>/feed.json</Link> · OG: <code style={{ background: "var(--bg-soft)", padding: "1px 4px", borderRadius: 4 }}>/api/og?title=...&board=...&author=...</code></span>
         <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>数据 60s 缓存，隐藏版块已过滤</span>
       </div>
 

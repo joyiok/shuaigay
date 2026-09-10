@@ -26,16 +26,16 @@ const TYPE_LABEL: Record<string, string> = {
   system: "系统",
 };
 
-const TYPE_STYLE: Record<string, { bg: string; color: string; border: string }> = {
-  reply: { bg: "#EDE9FE", color: "#7C3AED", border: "#DDD6FE" },
-  mention: { bg: "#EFF6FF", color: "#2563EB", border: "#BFDBFE" },
-  rate: { bg: "#FDF2F8", color: "#DB2777", border: "#FBCFE8" },
-  favorite: { bg: "#FFFBEB", color: "#B45309", border: "#FDE68A" },
-  report: { bg: "#FEF2F2", color: "#DC2626", border: "#FECACA" },
-  follow: { bg: "#ECFDF5", color: "#047857", border: "#A7F3D0" },
-  medal: { bg: "#FFF7ED", color: "#C2410C", border: "#FED7AA" },
-  digest: { bg: "#FEFCE8", color: "#A16207", border: "#FDE68A" },
-  system: { bg: "#F4F4F5", color: "#52525B", border: "#E4E4E7" },
+const TYPE_STYLE: Record<string, { bg: string; color: string }> = {
+  reply: { bg: "#EDE9FE", color: "#7C3AED" },
+  mention: { bg: "#EFF6FF", color: "#2563EB" },
+  rate: { bg: "#FDF2F8", color: "#DB2777" },
+  favorite: { bg: "#FFF7ED", color: "#C2410C" },
+  report: { bg: "#FEF2F2", color: "#DC2626" },
+  follow: { bg: "#ECFDF5", color: "#047857" },
+  medal: { bg: "#FFF7ED", color: "#C2410C" },
+  digest: { bg: "#FEFCE8", color: "#A16207" },
+  system: { bg: "#F4F4F5", color: "#52525B" },
 };
 
 function typeBadge(type: string) {
@@ -43,7 +43,7 @@ function typeBadge(type: string) {
   return (
     <span
       className="topic-badge"
-      style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}`, flexShrink: 0 }}
+      style={{ background: s.bg, color: s.color, flexShrink: 0 }}
     >
       {TYPE_LABEL[type] ?? "通知"}
     </span>
@@ -168,7 +168,7 @@ export default async function NotificationsPage({
               className="post-item"
               style={{
                 alignItems: "flex-start",
-                background: n.read ? undefined : "#FFFBEA",
+                background: n.read ? undefined : "#f8f5ff",
               }}
             >
               <span

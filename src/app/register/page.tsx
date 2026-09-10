@@ -57,15 +57,15 @@ export default async function RegisterPage({
           {inviteCode && <input type="hidden" name="invite" value={inviteCode} />}
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", letterSpacing: "0.02em", }}>邮箱</span>
-            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)", }} />
+            <input name="email" type="email" required autoComplete="email" inputMode="email" placeholder="you@example.com" aria-label="邮箱" className="auth-input" />
           </label>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)", letterSpacing: "0.02em" }}>用户名 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 10 }}>3-20 位 字母/数字/_/-</span></span>
-            <input name="username" required minLength={3} maxLength={20} pattern="[a-zA-Z0-9_-]{3,20}" autoComplete="username" placeholder="shuaigay_01" aria-label="用户名" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)", }} />
+            <input name="username" required minLength={3} maxLength={20} pattern="[a-zA-Z0-9_-]{3,20}" autoComplete="username" placeholder="shuaigay_01" aria-label="用户名" className="auth-input" />
           </label>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>密码 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 10 }}>至少 8 位</span></span>
-            <input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" aria-label="密码" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 10, padding: "11px 12px", fontSize: 16, outline: "none", background: "var(--panel)" }} />
+            <input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" aria-label="密码" className="auth-input" />
           </label>
           <Turnstile action="signup" resetSignal={error} />
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>

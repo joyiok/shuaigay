@@ -15,14 +15,14 @@ export default function GlobalError({
   }, [error]);
 
   return (
-    <div style={{ display: "grid", gap: 16, justifyItems: "center", padding: "56px 16px 40px", textAlign: "center" }}>
+    <div className="error-shell">
       <div
         aria-hidden="true"
         style={{
           width: 72,
           height: 72,
-          borderRadius: 16,
-          background: "var(--bg-soft)",
+          borderRadius: 18,
+          background: "var(--brand-soft)",
           border: "1px solid var(--line)",
           display: "grid",
           placeItems: "center",
@@ -37,59 +37,25 @@ export default function GlobalError({
       </div>
 
       <div style={{ display: "grid", gap: 8, maxWidth: 520 }}>
-        <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "var(--text)", letterSpacing: "-0.02em" }}>出了点问题</h1>
-        <p style={{ margin: 0, color: "var(--text-muted)", fontSize: 13, lineHeight: 1.7 }}>
+        <h1 className="error-title">出了点问题</h1>
+        <p className="error-copy">
           页面加载时遇到错误，请重试。若持续出现，可能是网络或服务暂时不可用。
         </p>
         {error?.digest && (
-          <p style={{ margin: 0, color: "#94a3b8", fontSize: 11, fontFamily: "ui-monospace, monospace" }}>digest: {error.digest}</p>
+          <p style={{ margin: 0, color: "var(--text-subtle)", fontSize: 11, fontFamily: "var(--font-jet)" }}>digest: {error.digest}</p>
         )}
       </div>
 
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", justifyContent: "center", marginTop: 8 }}>
-        <button
-          type="button"
-          onClick={() => reset()}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 36,
-            padding: "0 18px",
-            background: "linear-gradient(135deg,#7c3aed,#a855f7)",
-            color: "#fff",
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 700,
-            border: "1px solid transparent",
-            cursor: "pointer",
-            boxShadow: "0 4px 12px rgba(124,58,237,0.22)",
-          }}
-        >
+      <div className="error-actions">
+        <button type="button" onClick={() => reset()} className="btn-publish">
           重试
         </button>
-        <a
-          href="/"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 36,
-            padding: "0 18px",
-            background: "var(--panel)",
-            color: "var(--text)",
-            borderRadius: 999,
-            fontSize: 13,
-            fontWeight: 600,
-            border: "1px solid var(--line)",
-            textDecoration: "none",
-          }}
-        >
+        <a href="/" className="btn-ghost">
           返回首页
         </a>
       </div>
 
-      <p style={{ margin: 0, fontSize: 11, color: "var(--text-subtle)" }}>SHUAI GAY · 活力渐变 · 极简错误态</p>
+      <p className="error-tagline">SHUAI GAY · 极简社区</p>
     </div>
   );
 }

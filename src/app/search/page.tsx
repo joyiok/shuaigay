@@ -2,7 +2,7 @@ import Link from "next/link";
 import { db } from "@/lib/db";
 import { searchPosts, searchThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
-import { formatDate } from "@/lib/format";
+import { boardToneClass, formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import { Highlight } from "@/components/Highlight";
 import InfiniteList from "@/components/InfiniteList";
@@ -212,32 +212,27 @@ export default async function SearchPage({
 
 /** 主题结果行:复用 post-list / post-item 样式,标题高亮关键词 */
 function ThreadRow({ t, q }: { t: ThreadSearchItem; q: string }) {
-  const badge = (() => {
-    const n = t.boardName ?? "";
-    if (n.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-    if (n.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
-    if (n.includes("生活")) return { bg: "#fef3c7", color: "#d97706", border: "#fde68a" };
-    if (n.includes("资源")) return { bg: "#ecfdf5", color: "#059669", border: "#a7f3d0" };
-    return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-  })();
   return (
     <li className="post-item" style={{ gap: 12 }}>
       <UserAvatar username={t.authorName} avatarUrl={t.authorAvatarUrl} size={36} radius={10} />
       <div className="post-body" style={{ minWidth: 0, flex: 1 }}>
         <div className="post-title-row" style={{ gap: 8 }}>
           {t.pinned && <span className="topic-badge pinned">置顶</span>}
-          {t.locked && <span className="topic-badge" style={{ background: "var(--line-soft)" }}>已锁</span>}
+          {t.locked && <span className="topic-badge locked">已锁</span>}
           <Link href={threadHref(t.id, t.title)} prefetch={false} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={t.title} query={q} />
           </Link>
-          <span className="topic-badge" style={{ background: badge.bg, color: badge.color, border: `1px solid ${badge.border}` }}>
+          <span className={`topic-badge ${boardToneClass(t.boardName ?? "")}`}>
             {t.boardName}
           </span>
         </div>
-        <div className="post-meta" style={{ gap: 8, marginTop: 3 }}>
+        <div className="post-meta" style={{ gap: 10, marginTop: 3 }}>
           <span style={{ fontWeight: 500, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "2px 7px", borderRadius: 999, fontSize: 11 }}>
-            💬 {t.replyCount}
+          <span className="post-count" aria-label={`${t.replyCount} 条回复`} style={{ fontSize: 11 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+            </svg>
+            {t.replyCount}
           </span>
           <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>· {formatDate(t.lastPostAt).split(" ")[0]}</span>
         </div>
@@ -256,7 +251,7 @@ function PostRow({ p, q }: { p: PostSearchItem; q: string }) {
           <Link href={`${threadHref(p.threadId, p.threadTitle)}#post-${p.id}`} prefetch={false} className="post-title" style={{ flex: 1, minWidth: 0 }}>
             <Highlight text={p.threadTitle} query={q} />
           </Link>
-          <span className="topic-badge" style={{ background: "var(--bg-soft)", border: "1px solid var(--line)", color: "var(--text-muted)" }}>
+          <span className="topic-badge muted">
             回复
           </span>
         </div>

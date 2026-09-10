@@ -1,18 +1,9 @@
 import Link from "next/link";
 import { listAllThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
-import { formatDate } from "@/lib/format";
+import { boardToneClass, formatDate } from "@/lib/format";
 import UserAvatar from "@/components/UserAvatar";
 import { threadHref } from "@/lib/slug";
-
-function boardBadge(name: string): { bg: string; color: string; border: string } {
-  if (name.includes("综合")) return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-  if (name.includes("技术")) return { bg: "#eff6ff", color: "#2563eb", border: "#dbeafe" };
-  if (name.includes("生活")) return { bg: "#fef3c7", color: "#925414", border: "#fde68a" };
-  if (name.includes("资源")) return { bg: "#ecfdf5", color: "#24724e", border: "#a7f3d0" };
-  if (name.includes("公告")) return { bg: "#fff7ed", color: "#9a481c", border: "#fed7aa" };
-  return { bg: "#f5f3ff", color: "#7c3aed", border: "#ede9fe" };
-}
 
 export default async function HomePage({
   searchParams,
@@ -144,7 +135,6 @@ export default async function HomePage({
 }
 
 function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
-  const badge = boardBadge(t.boardName);
   const isPending = t.status === "pending";
   const isHot = t.replyCount > 8;
   return (
@@ -153,17 +143,17 @@ function ThreadRow({ t, pinned }: { t: any; pinned?: boolean }) {
       <div className="post-body">
         <div className="post-title-row">
           {pinned && <span className="topic-badge pinned" style={{ flexShrink: 0 }}>置顶</span>}
-          {t.digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>精华</span>}
-          {isPending && <span className="topic-badge" style={{ background: "#FFF7A8", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 800, flexShrink: 0 }}>待审</span>}
+          {t.digested && <span className="topic-badge digest" style={{ flexShrink: 0 }}>精华</span>}
+          {isPending && <span className="topic-badge pending" style={{ flexShrink: 0 }}>待审</span>}
           <Link href={threadHref(t.id, t.title)} className="post-title" title={t.title} prefetch={false}>
             {t.title}
           </Link>
         </div>
         <div className="post-meta">
-          <span className="topic-badge" style={{ background: badge.bg, color: badge.color }}>{t.boardName}</span>
+          <span className={`topic-badge ${boardToneClass(t.boardName)}`}>{t.boardName}</span>
           <span style={{ fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(t.lastPostAt).split(" ")[0]}</span>
-          {isHot && <span style={{ background: "#FEF3C7", color: "#B45309", border: "1px solid #FDE68A", padding: "1px 7px", borderRadius: 999, fontSize: 10, fontWeight: 800, letterSpacing: "0.02em" }}>热门</span>}
+          {isHot && <span className="topic-badge hot">热门</span>}
         </div>
       </div>
       <div className="post-right">

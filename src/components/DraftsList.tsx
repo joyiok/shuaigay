@@ -70,20 +70,23 @@ export default function DraftsList({ userId }: { userId: string }) {
 
   if (items.length === 0) {
     return (
-      <div className="card" style={{ padding: "32px 20px", textAlign: "center", display: "grid", gap: 8, justifyItems: "center" }}>
-        <div aria-hidden="true" style={{ width: 56, height: 56, borderRadius: 16, background: "var(--bg-soft)", border: "1px solid var(--line)", display: "grid", placeItems: "center", fontSize: 24 }}>
-          📝
+      <div className="card" style={{ padding: "32px 20px", textAlign: "center", display: "grid", gap: 10, justifyItems: "center" }}>
+        <div aria-hidden="true" className="auth-gate-icon" style={{ width: 52, height: 52, borderRadius: 15 }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" stroke="currentColor" strokeWidth={1.7} strokeLinejoin="round" />
+            <path d="M14 3v5h5M9 13h6M9 17h4" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </div>
-        <strong style={{ fontSize: 15 }}>草稿箱是空的</strong>
+        <strong style={{ fontSize: 15, fontWeight: 800, letterSpacing: "-0.02em" }}>草稿箱是空的</strong>
         <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-subtle)", maxWidth: 360, lineHeight: 1.7 }}>
           发帖、回帖、私信写了一半没提交，会自动存在这台设备上（保留 7 天），下次回来在这里接着写。
         </p>
-        <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-          <Link href="/" className="tab">
-            去逛逛
-          </Link>
-          <Link href="/c/general/new" className="tab">
+        <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap", justifyContent: "center" }}>
+          <Link href="/c/general/new" className="btn-publish" style={{ minHeight: 38 }}>
             写新主题
+          </Link>
+          <Link href="/" className="btn-ghost">
+            去逛逛
           </Link>
         </div>
       </div>
