@@ -47,12 +47,19 @@ handle_path /uploads/* {
 	not header Next-Router-Prefetch *
 	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
 }
-header @anon_doc Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
-header @anon_doc -Vary
-
 # 健康检查端点直通,便于外部监控直接命中
 handle /api/health* {
 	reverse_proxy app:3000
+}
+
+# 匿名读者的文档请求：下游（源站）返回后再改写缓存头，Cloudflare 边缘可缓存 60s
+handle @anon_doc {
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {client_ip}
+		header_up -CF-Connecting-IP
+		header_down Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+		header_down -Vary
+	}
 }
 
 # 其余全部反代到 Next.js
