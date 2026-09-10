@@ -21,8 +21,18 @@ test("P1: 热榜 /hot 今日+本周 Tab", async ({ page }) => {
 
 test("P1: 只看楼主 filter=op 切换", async ({ page }) => {
   await page.goto("/hot?range=week");
-  const first = page.locator(".post-list .post-item").first();
-  await first.locator("a.post-title").click();
+  // 榜首可能是小说主题（走章节阅读/读者讨论，没有「只看楼主」），先收集候选再逐个试
+  const hrefs = await page
+    .locator(".post-list .post-item a.post-title")
+    .evaluateAll((els) => els.slice(0, 10).map((el) => el.getAttribute("href")).filter((href): href is string => Boolean(href)));
+  const opened = await (async () => {
+    for (const href of hrefs) {
+      await page.goto(href);
+      if ((await page.locator(".novel-reader").count()) === 0) return true;
+    }
+    return false;
+  })();
+  expect(opened, "热榜里应有普通主题").toBeTruthy();
   await expect(page.getByRole("link", { name: "只看楼主", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "只看楼主", exact: true }).click();
   // 并发下客户端导航偶发被吞：先等，超时则直跳同 URL + 参数兜底

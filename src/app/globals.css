@@ -448,6 +448,35 @@ mark.search-mark, .search-mark {
 .novel-view-tabs .tab { min-height: 34px; border-color: #dfd1ba; background: #fffaf0; }
 .novel-view-tabs .tab.active { border-color: transparent; background: #704956; color: #fff; }
 .novel-pages { background: #fffdf9; border-color: #e8dfd0; }
+/* 翻页阅读：一章一屏，左右滑动/方向键翻章，章内上下滚动 */
+.novel-pager {
+  position: relative;
+  display: flex;
+  height: clamp(440px, 72vh, 880px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.novel-pager::-webkit-scrollbar { display: none; }
+.novel-pager:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
+.novel-pager > ul { display: flex; width: 100%; height: 100%; }
+.novel-pager .novel-chapter {
+  flex: 0 0 100%;
+  width: 100%;
+  min-width: 0;
+  align-content: start;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  border-bottom: 0;
+}
+.novel-page-hint { position: absolute; right: 14px; bottom: 10px; pointer-events: none; font-size: 11px; color: var(--text-subtle); background: rgba(255,255,255,0.9); border: 1px solid #e8dfd0; border-radius: 999px; padding: 2px 9px; animation: novel-hint 6s ease forwards; }
+@keyframes novel-hint { 0%, 72% { opacity: 1; } 100% { opacity: 0; } }
 .novel-pages .novel-chapter { padding: 42px clamp(22px, 7vw, 72px) !important; gap: 18px !important; }
 .novel-pages .novel-chapter > * { width: min(100%, 70ch); margin-inline: auto; }
 .novel-pages .novel-chapter > div:first-child { flex-wrap: wrap; }
@@ -756,10 +785,16 @@ mark.search-mark, .search-mark {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 8px 10px;
   flex-wrap: wrap;
+  padding: 10px 12px;
   font-size: 12.5px;
 }
+.novel-nav-info { flex: 1 1 180px; min-width: 0; display: grid; gap: 6px; }
+.novel-nav-title { display: block; min-width: 0; font-size: 12px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.novel-nav-track { height: 4px; background: var(--bg-soft); border-radius: 999px; overflow: hidden; }
+.novel-nav-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width 220ms var(--ease-out); }
+.novel-chapter-nav .novel-nav-count { flex: 0 0 auto; border: 0; background: var(--bg-soft); color: var(--text-subtle); border-radius: 999px; padding: 3px 9px; font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .novel-chapter-nav a, .novel-chapter-nav span, .novel-chapter-nav button {
   display: inline-flex;
   align-items: center;
@@ -853,6 +888,10 @@ mark.search-mark, .search-mark {
   .novel-view-tabs { flex-wrap: nowrap !important; }
   .novel-view-tabs .tab { flex: 1; min-height: 42px; }
   .novel-pages .novel-chapter { padding: 30px 18px !important; }
+  .novel-pager { height: calc(100dvh - 232px); min-height: 360px; }
+  .novel-nav-info { flex-basis: 100%; }
+  .novel-chapter-nav .novel-nav-count { margin-right: auto; }
+  .novel-page-hint { display: none; }
   .novel-pages .novel-chapter .post-content { font-size: 17px; line-height: 2; }
   .novel-pages .novel-chapter > div:first-child > div:last-child { width: 100%; margin-left: 48px !important; }
   .member-grid { grid-template-columns: 1fr; }

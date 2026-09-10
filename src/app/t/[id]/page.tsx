@@ -181,6 +181,8 @@ export default async function ThreadPage({
   }
   if (!loaded) notFound();
   const { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset } = loaded;
+  /** 小说章节阅读：一章一屏左右翻页 */
+  const paged = isNovel && opOnly && chapters.length > 0;
   const currentViews = (thread as unknown as { views: number }).views ?? 0;
   void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
   (thread as unknown as { views: number }).views = currentViews + 1;
@@ -378,7 +380,13 @@ export default async function ThreadPage({
         />
       )}
 
-      <div className={`card${isNovel ? " novel-pages" : ""}`} style={{ overflow: "hidden" }}>
+      <div
+        id={paged ? "novel-pager" : undefined}
+        className={`card${isNovel ? " novel-pages" : ""}${paged ? " novel-pager" : ""}`}
+        style={paged ? undefined : { overflow: "hidden" }}
+        tabIndex={paged ? 0 : undefined}
+        aria-label={paged ? "章节阅读区：左右滑动或按方向键翻章" : undefined}
+      >
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((p, idx) => {
             const isFirstPost = idx === 0 && !rawCursor;
@@ -483,6 +491,11 @@ export default async function ThreadPage({
             );
           })}
         </ul>
+        {paged && (
+          <span className="novel-page-hint" aria-hidden="true">
+            ← → 翻章
+          </span>
+        )}
       </div>
 
       {nextCursor && (

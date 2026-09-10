@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export interface NovelChapter {
   id: string;
@@ -10,10 +10,18 @@ export interface NovelChapter {
   title: string;
 }
 
+const PAGER_ID = "novel-pager";
+
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+}
+
 /**
- * 小说阅读器辅助条：章节目录 + 当前章高亮 + 底部「上一章/下一章」。
- * 章节条目就是页面里的 `li[id^="post-"]`，用 IntersectionObserver 跟随滚动。
- * 分页场景下目录只列当前页章节，翻页用「继续阅读」入口（与既有分页一致）。
+ * 小说阅读器：一章一屏，左右翻页。
+ * - 触屏滑动 / 触控板横向滚动：由 scroll-snap 原生完成
+ * - 方向键 ← →：翻上一章 / 下一章（焦点在正文里时不劫持）
+ * - 目录与底部条：跳到指定章，同步地址栏 #post-<id>，刷新后回到原章
+ * 分页场景（50 章/页）在最后一章接「继续阅读」跳到下一页 cursor。
  */
 export default function NovelReader({
   chapters,
@@ -30,26 +38,88 @@ export default function NovelReader({
 }) {
   const [currentId, setCurrentId] = useState(chapters[0]?.id ?? "");
   const [tocOpen, setTocOpen] = useState(false);
+  const [edge, setEdge] = useState<"start" | "end" | null>(null);
+  const indexRef = useRef(0);
 
+  const pager = useCallback((): HTMLElement | null => document.getElementById(PAGER_ID), []);
+
+  const goToIndex = useCallback(
+    (index: number, behavior?: ScrollBehavior) => {
+      const el = pager();
+      if (!el) return;
+      const clamped = Math.max(0, Math.min(chapters.length - 1, index));
+      el.scrollTo({ left: clamped * el.clientWidth, behavior: behavior ?? (prefersReducedMotion() ? "auto" : "smooth") });
+    },
+    [chapters.length, pager],
+  );
+
+  /* 滚动跟随：算出当前第几章，同步高亮、进度与地址栏 */
   useEffect(() => {
-    const ids = new Set(chapters.map((c) => c.id));
-    const els = chapters
-      .map((c) => document.getElementById(`post-${c.id}`))
-      .filter((el): el is HTMLElement => !!el && ids.has(el.id.replace(/^post-/, "")));
-    if (!els.length || typeof IntersectionObserver === "undefined") return;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        // 取当前视口内最靠上的章节作为「当前章」
-        const visible = entries.filter((e) => e.isIntersecting).map((e) => e.target as HTMLElement);
-        if (!visible.length) return;
-        visible.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
-        setCurrentId(visible[0]!.id.replace(/^post-/, ""));
-      },
-      { rootMargin: "-20% 0px -55% 0px", threshold: [0, 1] },
-    );
-    els.forEach((el) => obs.observe(el));
-    return () => obs.disconnect();
-  }, [chapters]);
+    const el = pager();
+    if (!el || !chapters.length) return;
+    const mountedPath = window.location.pathname;
+    let raf = 0;
+    const sync = () => {
+      const width = el.clientWidth || 1;
+      const index = Math.max(0, Math.min(chapters.length - 1, Math.round(el.scrollLeft / width)));
+      indexRef.current = index;
+      const chapter = chapters[index];
+      if (chapter) {
+        setCurrentId((prev) => (prev === chapter.id ? prev : chapter.id));
+        setEdge(index === 0 ? "start" : index === chapters.length - 1 ? "end" : null);
+        const hash = `#post-${chapter.id}`;
+        // 只在仍停留在本页时改 hash，避免客户端跳转过程中污染新路由
+        if (window.location.pathname === mountedPath && window.location.hash !== hash) {
+          window.history.replaceState(null, "", hash);
+        }
+      }
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(sync);
+    };
+    sync();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+    };
+  }, [chapters, pager]);
+
+  /* 带 #post-xxx 打开时定位到该章 */
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, "");
+    if (!hash.startsWith("post-")) return;
+    const id = hash.slice(5);
+    const index = chapters.findIndex((c) => c.id === id);
+    if (index > 0) requestAnimationFrame(() => goToIndex(index, "auto"));
+  }, [chapters, goToIndex]);
+
+  /* 方向键翻章：输入框/可编辑区域内不劫持 */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select" || target?.isContentEditable) return;
+      if (event.key === "ArrowLeft") {
+        if (indexRef.current === 0) return;
+        event.preventDefault();
+        goToIndex(indexRef.current - 1);
+      } else if (event.key === "ArrowRight") {
+        if (indexRef.current >= chapters.length - 1) {
+          if (hasNextPage && nextHref) window.location.href = nextHref;
+          return;
+        }
+        event.preventDefault();
+        goToIndex(indexRef.current + 1);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [chapters.length, goToIndex, hasNextPage, nextHref]);
 
   const currentIndex = useMemo(() => Math.max(0, chapters.findIndex((c) => c.id === currentId)), [chapters, currentId]);
   const current = chapters[currentIndex];
@@ -58,10 +128,6 @@ export default function NovelReader({
   const pct = chapters.length ? Math.round(((currentIndex + 1) / chapters.length) * 100) : 0;
 
   if (!chapters.length) return null;
-
-  const jump = (id: string) => {
-    document.getElementById(`post-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
 
   return (
     <div className="novel-reader-tools">
@@ -82,14 +148,14 @@ export default function NovelReader({
         </div>
         {tocOpen && (
           <ul className="novel-toc-list">
-            {chapters.map((c) => (
+            {chapters.map((c, i) => (
               <li key={c.id} className="novel-toc-item">
                 <a
                   href={`#post-${c.id}`}
                   className={`novel-toc-link ${c.id === currentId ? "current" : ""}`}
                   onClick={(e) => {
                     e.preventDefault();
-                    jump(c.id);
+                    goToIndex(i);
                     setTocOpen(false);
                   }}
                 >
@@ -103,18 +169,21 @@ export default function NovelReader({
         )}
       </div>
 
-      {/* 底部阅读条 */}
-      <div className="novel-chapter-nav card" style={{ padding: "10px 12px" }}>
-        <div style={{ display: "grid", gap: 6, flex: 1, minWidth: 140 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, border: "none", background: "transparent", padding: 0 }}>
+      {/* 底部翻页条 */}
+      <div className="novel-chapter-nav card">
+        <div className="novel-nav-info">
+          <span className="novel-nav-title">
             第 {current?.index ?? "—"} 章 · {current?.title ?? ""}
           </span>
-          <div style={{ height: 4, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden" }}>
-            <div style={{ width: `${pct}%`, height: "100%", background: "var(--brand)", borderRadius: 999 }} />
+          <div className="novel-nav-track">
+            <div className="novel-nav-fill" style={{ width: `${pct}%` }} />
           </div>
         </div>
+        <span className="novel-nav-count" aria-label={`第 ${currentIndex + 1} 章，共 ${chapters.length} 章`}>
+          {currentIndex + 1}/{chapters.length}
+        </span>
         {prev ? (
-          <button type="button" onClick={() => jump(prev.id)} style={{ cursor: "pointer" }}>
+          <button type="button" onClick={() => goToIndex(currentIndex - 1)} title="上一章（←）" style={{ cursor: "pointer" }}>
             ← 上一章
           </button>
         ) : hasPrevPage ? (
@@ -125,7 +194,7 @@ export default function NovelReader({
           <span style={{ opacity: 0.5, cursor: "not-allowed" }}>已是第一章</span>
         )}
         {next ? (
-          <button type="button" onClick={() => jump(next.id)} style={{ cursor: "pointer" }}>
+          <button type="button" onClick={() => goToIndex(currentIndex + 1)} title="下一章（→）" style={{ cursor: "pointer" }}>
             下一章 →
           </button>
         ) : hasNextPage && nextHref ? (
@@ -134,6 +203,9 @@ export default function NovelReader({
           <span style={{ opacity: 0.5, cursor: "not-allowed" }}>已是最后一章</span>
         )}
       </div>
+      <p className="sr-only" aria-live="polite">
+        当前第 {currentIndex + 1} 章，共 {chapters.length} 章{edge === "end" ? "，" + (hasNextPage ? "可继续阅读下一页" : "全书完") : ""}
+      </p>
     </div>
   );
 }
