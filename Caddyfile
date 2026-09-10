@@ -57,6 +57,7 @@ handle @anon_doc {
 	reverse_proxy app:3000 {
 		header_up X-Forwarded-For {client_ip}
 		header_up -CF-Connecting-IP
+		header_down -Cache-Control
 		header_down Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
 		header_down -Vary
 	}
