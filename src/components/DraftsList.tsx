@@ -28,7 +28,7 @@ function timeAgo(ms: number): string {
   return new Date(ms).toLocaleDateString("zh-CN");
 }
 
-export default function DraftsList({ userId }: { userId: string }) {
+export default function DraftsList({ userId, newThreadHref }: { userId: string; newThreadHref?: string | null }) {
   const [items, setItems] = useState<(DraftEntry & { meta?: DraftTargetMeta })[] | null>(null);
 
   useEffect(() => {
@@ -82,9 +82,11 @@ export default function DraftsList({ userId }: { userId: string }) {
           发帖、回帖、私信写了一半没提交，会自动存在这台设备上（保留 7 天），下次回来在这里接着写。
         </p>
         <div style={{ display: "flex", gap: 10, marginTop: 6, flexWrap: "wrap", justifyContent: "center" }}>
-          <Link href="/c/general/new" className="btn-publish" style={{ minHeight: 38 }}>
-            写新主题
-          </Link>
+          {newThreadHref && (
+            <Link href={newThreadHref} className="btn-publish" style={{ minHeight: 38 }}>
+              写新主题
+            </Link>
+          )}
           <Link href="/" className="btn-ghost">
             去逛逛
           </Link>

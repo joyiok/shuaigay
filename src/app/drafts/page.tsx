@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getCurrentUser } from "@/lib/auth";
+import { getCachedBoards } from "@/lib/cached";
 import AuthRequired from "@/components/AuthRequired";
 import DraftsList from "@/components/DraftsList";
 
@@ -14,6 +15,8 @@ export const dynamic = "force-dynamic";
 
 export default async function DraftsPage() {
   const me = await getCurrentUser();
+  const boards = await getCachedBoards();
+  const newThreadHref = boards[0] ? `/c/${boards[0].slug}/new` : null;
   if (!me) {
     return (
       <div style={{ display: "grid", gap: 12 }}>
@@ -41,7 +44,7 @@ export default async function DraftsPage() {
           发帖、回帖、私信没提交的内容会自动存到这台设备，这里可以继续写或删除。
         </p>
       </div>
-      <DraftsList userId={me.id} />
+      <DraftsList userId={me.id} newThreadHref={newThreadHref} />
     </div>
   );
 }

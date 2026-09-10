@@ -80,6 +80,8 @@ export default async function RootLayout({
     getCachedSiteSettings(),
   ]);
   const { userCount, threadCount, postCount } = stats;
+  // 「社区公告」入口跟随实际存在的版块：优先 announce，其次按 order 首个
+  const announceBoard = boards.find((b) => b.slug === "announce") ?? boards[0] ?? null;
 
   // 私信未读数 + 通知未读数（实时，不缓存）
   let unreadCount = 0;
@@ -364,17 +366,19 @@ export default async function RootLayout({
               )}
 
               {/* 社区公告 */}
-              <div className="card">
-                <div className="quick-wrap">
-                  <div className="quick-title">社区公告 <Link href="/c/general">更多 ›</Link></div>
-                  <Link href="/c/general" style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
-                    <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--danger)", boxShadow: "0 0 0 3px var(--danger-soft)", flexShrink: 0 }} />
-                    <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>社区发帖规范及注意事项</span>
-                    <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>
-                  </Link>
-                  <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: 'var(--font-jet), ui-monospace, SFMono-Regular, Menlo, monospace' }}>2026-08-20 · 已置顶</div>
+              {announceBoard && (
+                <div className="card">
+                  <div className="quick-wrap">
+                    <div className="quick-title">社区公告 <Link href={`/c/${announceBoard.slug}`}>更多 ›</Link></div>
+                    <Link href={`/c/${announceBoard.slug}`} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
+                      <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--danger)", boxShadow: "0 0 0 3px var(--danger-soft)", flexShrink: 0 }} />
+                      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>社区发帖规范及注意事项</span>
+                      <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>
+                    </Link>
+                    <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: "var(--font-jet)" }}>2026-08-20 · 已置顶</div>
+                  </div>
                 </div>
-              </div>
+              )}
             </aside>
           </div>
         </div>

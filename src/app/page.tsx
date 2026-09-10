@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listAllThreads } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
+import { getCachedBoards } from "@/lib/cached";
 import { boardToneClass, formatDate } from "@/lib/format";
 import UserAvatar from "@/components/UserAvatar";
 import { threadHref } from "@/lib/slug";
@@ -11,7 +12,12 @@ export default async function HomePage({
   searchParams: Promise<{ cursor?: string }>;
 }) {
   const { cursor: rawCursor } = await searchParams;
-  const { pinned, items, nextCursor } = await listAllThreads(decodeCursor(rawCursor), 20);
+  const [{ pinned, items, nextCursor }, boards] = await Promise.all([
+    listAllThreads(decodeCursor(rawCursor), 20),
+    getCachedBoards(),
+  ]);
+  // 发帖入口跟随实际存在的版块（按 order 首个），避免硬编码 slug 被删后跳 404
+  const postBoardSlug = boards[0]?.slug ?? null;
 
   // C：首页 ItemList 结构化数据（利于收录，20 条内）
   const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
@@ -74,9 +80,11 @@ export default async function HomePage({
           <Link href="/hot" className="tab">热榜</Link>
           <Link href="/search?type=post" className="tab">搜回复</Link>
         </div>
-        <Link href="/c/general/new" className="btn-publish">
-          <span aria-hidden>+</span> 发个帖子
-        </Link>
+        {postBoardSlug && (
+          <Link href={`/c/${postBoardSlug}/new`} className="btn-publish">
+            <span aria-hidden>+</span> 发个帖子
+          </Link>
+        )}
       </div>
 
       {/* 全站帖子 - 只有点板块才过滤，首页永远展示全部 */}
@@ -91,9 +99,11 @@ export default async function HomePage({
           <li className="post-item" style={{ justifyContent: "center", color: "var(--text-subtle)", flexDirection: "column", gap: 10, padding: "48px 20px" }}>
             <div style={{ fontWeight: 800, color: "var(--text)", fontSize: 14 }}>还没有帖子</div>
             <div style={{ fontSize: 12 }}>去板块发第一帖，首页会自动聚合全站内容</div>
-            <Link href="/c/general" className="tab" style={{ marginTop: 8 }}>
-              去版块看看 →
-            </Link>
+            {postBoardSlug && (
+              <Link href={`/c/${postBoardSlug}`} className="tab" style={{ marginTop: 8 }}>
+                去版块看看 →
+              </Link>
+            )}
           </li>
         )}
       </ul>
@@ -121,15 +131,17 @@ export default async function HomePage({
         )}
       </div>
 
-      <div className="bottom-banner">
-        <div>
-          <p className="bottom-banner-title">别一个人刷过，来认识同频的人</p>
-          <p className="bottom-banner-copy">彩虹交友，从一句“嗨”开始</p>
+      {postBoardSlug && (
+        <div className="bottom-banner">
+          <div>
+            <p className="bottom-banner-title">别一个人刷过，来认识同频的人</p>
+            <p className="bottom-banner-copy">彩虹交友，从一句“嗨”开始</p>
+          </div>
+          <Link href={`/c/${postBoardSlug}/new`} className="btn-publish" style={{ flexShrink: 0, position: "relative", zIndex: 1 }}>
+            去发帖 →
+          </Link>
         </div>
-        <Link href="/c/general/new" className="btn-publish" style={{ flexShrink: 0, position: "relative", zIndex: 1 }}>
-          去发帖 →
-        </Link>
-      </div>
+      )}
     </div>
   );
 }

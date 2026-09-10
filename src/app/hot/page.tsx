@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getCachedCategoryCloud, getCachedHotRanking } from "@/lib/cached";
+import { getCachedCategoryCloud, getCachedHotRanking, getCachedBoards } from "@/lib/cached";
 import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
 import UserAvatar from "@/components/UserAvatar";
@@ -22,7 +22,9 @@ export default async function HotPage({
   const isWeek = rawRange === "week";
   const rangeDays = isWeek ? 7 : 1;
   const rangeLabel = isWeek ? "本周热榜" : "今日热榜";
-  const [topics, tagCloud] = await Promise.all([getCachedHotRanking(rangeDays), getCachedCategoryCloud()]);
+  const [topics, tagCloud, boards] = await Promise.all([getCachedHotRanking(rangeDays), getCachedCategoryCloud(), getCachedBoards()]);
+  // 发帖入口跟随实际存在的版块，避免硬编码 slug 被删后跳 404
+  const postBoardSlug = boards[0]?.slug ?? null;
 
   const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
   const itemListJsonLd = {
@@ -65,7 +67,9 @@ export default async function HotPage({
         <div className="card" style={{ padding: "38px 20px", textAlign: "center" }}>
           <div style={{ fontWeight: 700, color: "var(--text)", marginBottom: 6, fontSize: 15 }}>还没有热帖</div>
           <div style={{ fontSize: 12.5, color: "var(--text-subtle)", marginBottom: 16 }}>{rangeLabel}暂无数据，去发一帖抢占榜首吧</div>
-          <Link href="/c/general/new" className="btn-publish" style={{ minHeight: 38 }}>去发帖</Link>
+          {postBoardSlug && (
+            <Link href={`/c/${postBoardSlug}/new`} className="btn-publish" style={{ minHeight: 38 }}>去发帖</Link>
+          )}
         </div>
       ) : (
         <ul className="post-list">

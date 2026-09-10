@@ -19,7 +19,9 @@ import { isBoardModerator, listBoardModerators } from "@/lib/moderators";
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
   const board = await db.board.findUnique({ where: { slug } }).catch(() => null);
-  if (!board) return { title: "版块不存在" };
+  // 版块被删：正文会走 notFound()；这里给描述性标题并禁止收录
+  // （根 layout 有 loading 边界，流式渲染下状态码可能是 200）
+  if (!board) return { title: "版块不存在", robots: { index: false, follow: false } };
   const site = process.env.SITE_URL ?? "https://forum.example.com";
   const url = `${site}/c/${board.slug}`;
   const title = board.name;
