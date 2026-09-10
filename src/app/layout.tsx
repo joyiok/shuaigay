@@ -6,8 +6,9 @@ import { trackAndCountOnline } from "@/lib/online";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
+import { formatDate } from "@/lib/format";
 import { DEFAULT_SITE_SETTINGS, siteUrl } from "@/lib/site";
-import { getCachedActiveUsers, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedSiteSettings, getCachedStats } from "@/lib/cached";
+import { getCachedActiveUsers, getCachedAnnouncement, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedSiteSettings, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
@@ -71,13 +72,14 @@ export default async function RootLayout({
   const online = await trackAndCountOnline(user?.id);
 
   // —— 性能：板块/统计/热帖/活跃用户走 60s 缓存，避免每请求 5 次 DB（A+B）——
-  const [boards, stats, hotTopics, activeUsers, categoryCloud, settings] = await Promise.all([
+  const [boards, stats, hotTopics, activeUsers, categoryCloud, settings, announcement] = await Promise.all([
     getCachedBoards(),
     getCachedStats(),
     getCachedHotTopics(),
     getCachedActiveUsers(),
     getCachedCategoryCloud(),
     getCachedSiteSettings(),
+    getCachedAnnouncement(),
   ]);
   const { userCount, threadCount, postCount } = stats;
   // 「社区公告」入口跟随实际存在的版块：优先 announce，其次按 order 首个
@@ -370,12 +372,14 @@ export default async function RootLayout({
                 <div className="card">
                   <div className="quick-wrap">
                     <div className="quick-title">社区公告 <Link href={`/c/${announceBoard.slug}`}>更多 ›</Link></div>
-                    <Link href={`/c/${announceBoard.slug}`} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
+                    <Link href={announcement ? threadHref(announcement.id, announcement.title) : `/c/${announceBoard.slug}`} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
                       <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--danger)", boxShadow: "0 0 0 3px var(--danger-soft)", flexShrink: 0 }} />
-                      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>社区发帖规范及注意事项</span>
-                      <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>
+                      <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>{announcement?.title ?? "版块公告与站点通知"}</span>
+                      {announcement?.pinned && <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>}
                     </Link>
-                    <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: "var(--font-jet)" }}>2026-08-20 · 已置顶</div>
+                    <div style={{ fontSize: 11, color: "var(--text-subtle)", marginTop: 8, textAlign: "right", fontFamily: "var(--font-jet)" }}>
+                      {announcement ? `${formatDate(announcement.createdAt).split(" ")[0]}${announcement.pinned ? " · 已置顶" : ""}` : "暂无公告"}
+                    </div>
                   </div>
                 </div>
               )}

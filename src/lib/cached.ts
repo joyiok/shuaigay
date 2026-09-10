@@ -26,6 +26,23 @@ export const getCachedBoards = unstable_cache(
   { revalidate: 60, tags: ["boards"] },
 );
 
+/** 侧栏「社区公告」：版块内置顶/最新的公告主题 */
+export const getCachedAnnouncement = unstable_cache(
+  async () => {
+    try {
+      return await db.thread.findFirst({
+        where: { board: { slug: "announce" }, status: "approved" },
+        orderBy: [{ pinned: "desc" }, { createdAt: "desc" }],
+        select: { id: true, title: true, pinned: true, createdAt: true },
+      });
+    } catch {
+      return null;
+    }
+  },
+  ["sg:announcement"],
+  { revalidate: 60, tags: ["boards", "threads"] },
+);
+
 export const getCachedStats = unstable_cache(
   async () => {
     try {
