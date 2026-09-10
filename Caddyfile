@@ -38,12 +38,23 @@ handle_path /uploads/* {
 }
 
 # 匿名读者的文档请求：交给 Cloudflare 边缘缓存 60s（国内用户直接命中香港/圣何塞节点，
-# 不必每次回法国源站）。登录用户、RSC/预取请求、需登录态的页面一律不缓存。
+# 不必每次回法国源站）。登录用户、预取请求、需登录态的页面一律不缓存。
 @anon_doc {
 	method GET
 	header Accept *text/html*
 	not header Cookie *session=*
 	not header RSC *
+	not header Next-Router-Prefetch *
+	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
+}
+
+# 匿名读者的站内跳转（Next RSC 载荷，带 ?_rsc= 与 RSC 头）：同样交给边缘缓存。
+# 排除预取（Next-Router-Prefetch），它只含骨架，缓存后会被后续导航命中。
+@anon_rsc {
+	method GET
+	header RSC 1
+	query _rsc=*
+	not header Cookie *session=*
 	not header Next-Router-Prefetch *
 	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
 }
@@ -58,6 +69,16 @@ handle @anon_doc {
 		header_up X-Forwarded-For {client_ip}
 		header_up -CF-Connecting-IP
 		# header_down 对已存在的头是追加语义，用「查找替换」形式改写，避免出现两个 Cache-Control
+		header_down Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate" "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+		header_down -Vary
+	}
+}
+
+# 匿名站内跳转的 RSC 载荷：同样可被边缘缓存（URL 带 ?_rsc=，与文档缓存互不干扰）
+handle @anon_rsc {
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {client_ip}
+		header_up -CF-Connecting-IP
 		header_down Cache-Control "private, no-cache, no-store, max-age=0, must-revalidate" "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
 		header_down -Vary
 	}
