@@ -37,6 +37,19 @@ handle_path /uploads/* {
 	header Cache-Control "public, max-age=31536000, immutable"
 }
 
+# 匿名读者的文档请求：交给 Cloudflare 边缘缓存 60s（国内用户直接命中香港/圣何塞节点，
+# 不必每次回法国源站）。登录用户、RSC/预取请求、需登录态的页面一律不缓存。
+@anon_doc {
+	method GET
+	header Accept *text/html*
+	not header Cookie *session=*
+	not header RSC *
+	not header Next-Router-Prefetch *
+	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
+}
+header @anon_doc Cache-Control "public, max-age=0, s-maxage=60, stale-while-revalidate=300"
+header @anon_doc -Vary
+
 # 健康检查端点直通,便于外部监控直接命中
 handle /api/health* {
 	reverse_proxy app:3000
