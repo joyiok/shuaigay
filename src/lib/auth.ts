@@ -47,8 +47,12 @@ export async function createSession(userId: string): Promise<void> {
   // token 本体只存 cookie,库里只存哈希:拖库也伪造不了会话
   const token = randomBytes(32).toString("base64url");
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86_400_000);
+  // 记录设备信息，设置页可查看并远程下线
+  const h = await headers();
+  const ip = (h.get("cf-connecting-ip") ?? h.get("x-forwarded-for")?.split(",")[0] ?? "").trim().slice(0, 64);
+  const ua = (h.get("user-agent") ?? "").slice(0, 300);
   await db.session.create({
-    data: { tokenHash: hashToken(token), userId, expiresAt },
+    data: { tokenHash: hashToken(token), userId, expiresAt, ip: ip || null, ua: ua || null },
   });
   const jar = await cookies();
   const forwardedProto = (await headers()).get("x-forwarded-proto")?.split(",", 1)[0]?.trim().toLowerCase();
@@ -89,6 +93,14 @@ export const getCurrentUser = cache(
     if (session.expiresAt < new Date()) {
       await db.session.delete({ where: { id: session.id } }).catch(() => {});
       return null;
+    }
+    // 活跃时间：5 分钟粒度更新，供「登录设备」展示与邮件提醒判断在线状态
+    if (Date.now() - session.lastSeenAt.getTime() > 5 * 60_000) {
+      void db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
+      const u = session.user as unknown as { lastActiveAt?: Date | null };
+      if (!u.lastActiveAt || Date.now() - u.lastActiveAt.getTime() > 5 * 60_000) {
+        void db.user.update({ where: { id: session.user.id }, data: { lastActiveAt: new Date() } }).catch(() => {});
+      }
     }
     return {
       id: session.user.id,

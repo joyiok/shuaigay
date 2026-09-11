@@ -8,6 +8,7 @@ import AuthRequired from "@/components/AuthRequired";
 import EmptyState from "@/components/EmptyState";
 import UserAvatar from "@/components/UserAvatar";
 import MessageComposer from "@/components/MessageComposer";
+import { isBlockedBetween } from "@/lib/block";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export default async function ConversationPage({
   });
   if (!other) notFound();
   if (other.id === me.id) redirect("/messages");
+  const blocked = await isBlockedBetween(me.id, other.id);
 
   // 进入即标已读
   await db.directMessage
@@ -71,6 +73,7 @@ export default async function ConversationPage({
   const existingMentions = new Set(mentionUsers.map((u) => u.username));
 
   const ERRORS: Record<string, string> = {
+    blocked: "你们之间有屏蔽关系，无法互发私信",
     invalid: "内容格式不对",
     sensitive: "内容包含敏感词，请修改后重试",
     ratelimited: "发送太频繁，请稍后再试",
@@ -195,7 +198,15 @@ export default async function ConversationPage({
           </ul>
         )}
 
-        <MessageComposer key={`${me.id}:${other.username}`} receiverUsername={other.username} userId={me.id} />
+        {blocked ? (
+          <div className="card" style={{ padding: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", background: "var(--bg-soft)" }}>
+            <span className="topic-badge" style={{ background: "var(--panel)", border: "1px solid var(--line)", color: "var(--text-muted)", fontWeight: 700 }}>已屏蔽</span>
+            <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>你或对方开启了屏蔽，私信已关闭。</span>
+            <Link href="/settings" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--brand)" }}>管理屏蔽 →</Link>
+          </div>
+        ) : (
+          <MessageComposer key={`${me.id}:${other.username}`} receiverUsername={other.username} userId={me.id} />
+        )}
       </div>
     </div>
   );

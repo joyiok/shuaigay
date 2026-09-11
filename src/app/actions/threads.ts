@@ -45,6 +45,9 @@ import {
   planReplyNotifications,
 } from "@/lib/notify";
 import { filterRowsByPreferences } from "@/lib/notifications";
+import { blockersOf } from "@/lib/block";
+import { maybeEmailNotify } from "@/lib/email-notify";
+import { after } from "next/server";
 import { logger } from "@/lib/logger";
 
 const titleSchema = z.string().trim().min(5).max(120);
@@ -362,6 +365,11 @@ export async function replyAction(formData: FormData): Promise<string> {
   });
   const replyHref = thread.board.slug === "novel" && user.id !== thread.authorId ? `/t/${thread.id}?filter=discussion` : `/t/${thread.id}`;
 
+  // 屏蔽：不给「屏蔽了我」的人发通知（对方看不到你，也别打扰对方）
+  const blockers = await blockersOf(user.id, [...notifyPlan.map((n) => n.userId), ...favoriteNotifyIds]);
+  const visiblePlan = notifyPlan.filter((n) => !blockers.has(n.userId));
+  const visibleFavIds = favoriteNotifyIds.filter((uid) => !blockers.has(uid));
+
   const approvalUserReply = await fetchApprovalUser(user.id);
   const approvalBoardReply = await fetchApprovalBoard(thread.board.id);
   const { pending: pendingReply, reason: pendingReasonReply } = approvalUserReply && approvalBoardReply ? await needsApproval(approvalUserReply, approvalBoardReply, "", content.data, _isStaffReply) : { pending: false, reason: null };
@@ -402,9 +410,9 @@ export async function replyAction(formData: FormData): Promise<string> {
           data: { points: { increment: REPLY_POINTS } },
         });
       }
-      if (!pendingReply && notifyPlan.length) {
+      if (!pendingReply && visiblePlan.length) {
         const rows = await filterRowsByPreferences(
-          notifyPlan.map(({ userId: uid, kind: type }) => ({
+          visiblePlan.map(({ userId: uid, kind: type }) => ({
             userId: uid,
             type,
             title:
@@ -418,9 +426,9 @@ export async function replyAction(formData: FormData): Promise<string> {
         );
         if (rows.length) await tx.notification.createMany({ data: rows });
       }
-      if (!pendingReply && favoriteNotifyIds.length) {
+      if (!pendingReply && visibleFavIds.length) {
         const rows = await filterRowsByPreferences(
-          favoriteNotifyIds.map((uid) => ({
+          visibleFavIds.map((uid) => ({
             userId: uid,
             type: "favorite",
             title: `${user.username} 回复了你收藏的主题`,
@@ -430,6 +438,19 @@ export async function replyAction(formData: FormData): Promise<string> {
           tx,
         );
         if (rows.length) await tx.notification.createMany({ data: rows });
+      }
+      if (!pendingReply && visiblePlan.length) {
+        // 邮件提醒：不在线的人才发，10 分钟一人一封
+        for (const item of visiblePlan.slice(0, 3)) {
+          after(() =>
+            maybeEmailNotify({
+              userId: item.userId,
+              subject: item.kind === "reply" ? `${user.username} 回复了你的主题` : `${user.username} 在回复里提到了你`,
+              body: `${user.username} 在《${thread.title.slice(0, 30)}》里${item.kind === "reply" ? "回复了你" : "提到了你"}：${excerptForNotify(content.data)}`,
+              link: replyHref,
+            }),
+          );
+        }
       }
       if (pendingReply) {
         const mods = await tx.boardModerator.findMany({ where: { boardId: thread.board.id }, select: { userId: true } });

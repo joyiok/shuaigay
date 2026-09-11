@@ -9,6 +9,9 @@ import { siteUrl } from "@/lib/site";
 import { toggleFollowAction } from "@/app/actions/user";
 import { isAdmin } from "@/lib/permissions";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
+import { blockUserAction, unblockUserAction } from "@/app/actions/block";
+import { getBlockedIdSet } from "@/lib/block";
+import { ConfirmForm } from "@/app/admin/ConfirmForms";
 import ActionToggle from "@/components/ActionToggle";
 import UserAvatar from "@/components/UserAvatar";
 import EmptyState from "@/components/EmptyState";
@@ -126,6 +129,10 @@ export default async function UserPage({
         })
       : [];
 
+  // 我是否屏蔽了 TA（用于按钮态与回帖过滤）
+  const blockedIds = await getBlockedIdSet(me?.id);
+  const isBlocked = blockedIds.has(user.id);
+
   // 关注关系:是否已关注 + 关注/粉丝数 + 最近粉丝列表
   const [isFollowing, followerCount, followingCount, followers] = me
     ? await Promise.all([
@@ -207,11 +214,14 @@ export default async function UserPage({
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{user.username}</h1>
               <LevelBadge points={user.points} role={user.role} />
-              {userMedals.map((um: any) => (
+              {userMedals.slice(0, 3).map((um: any) => (
                 <span key={um.id} title={`${um.medal.name}${um.reason ? " · " + um.reason : ""} · ${um.medal.description ?? ""}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: um.medal.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700, boxShadow: "1px 1px 0 var(--line)" }}>
                   <span>{um.medal.icon}</span>{um.medal.name}
                 </span>
               ))}
+              {userMedals.length > 3 && (
+                <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>+{userMedals.length - 3} 枚</span>
+              )}
               {isSelf && (
                 <Link
                   href="/invite"
@@ -260,6 +270,38 @@ export default async function UserPage({
                     }}
                   />
                 </>
+              )}
+              {!isSelf && me && (
+                <ConfirmForm
+                  action={isBlocked ? unblockUserAction : blockUserAction}
+                  message={
+                    isBlocked
+                      ? `解除对 ${user.username} 的屏蔽？\n• 之后能重新看到对方的回帖与私信`
+                      : `屏蔽 ${user.username}？\n• 互相看不到回帖与私信\n• 对方也无法给你发消息\n• 可随时在设置里解除`
+                  }
+                >
+                  <input type="hidden" name="targetId" value={user.id} />
+                  <input type="hidden" name="username" value={user.username} />
+                  <input type="hidden" name="back" value={`/u/${encodeURIComponent(user.username)}`} />
+                  <button
+                    type="submit"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 600,
+                      height: 28,
+                      padding: "0 12px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      borderRadius: 999,
+                      border: `1px solid ${isBlocked ? "var(--line)" : "#fecaca"}`,
+                      background: "var(--panel)",
+                      color: isBlocked ? "var(--text-muted)" : "var(--danger)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {isBlocked ? "解除屏蔽" : "屏蔽"}
+                  </button>
+                </ConfirmForm>
               )}
               {!isSelf && !me && (
                 <Link
@@ -408,6 +450,39 @@ export default async function UserPage({
           </div>
         ) : null}
       </div>
+
+      {/* 勋章墙 */}
+      {userMedals.length > 0 && (
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ marginBottom: 12 }}>
+            勋章墙 <span>{userMedals.length} 枚</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 8 }}>
+            {userMedals.map((um: any) => (
+              <div
+                key={um.id}
+                style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "10px 12px", borderRadius: 10, background: "var(--bg-soft)", border: "1px solid var(--line-soft)" }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: 34, height: 34, borderRadius: 10, display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 18, background: um.medal.color, border: "1.5px solid var(--line)" }}
+                >
+                  {um.medal.icon}
+                </span>
+                <span style={{ display: "grid", gap: 2, minWidth: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>{um.medal.name}</span>
+                  <span style={{ fontSize: 11.5, color: "var(--text-subtle)", lineHeight: 1.5 }}>
+                    {um.reason || um.medal.description || "社区贡献"}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+                    {new Date(um.createdAt).toLocaleDateString("zh-CN")}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 粉丝列表 */}
       {followerCount > 0 && (

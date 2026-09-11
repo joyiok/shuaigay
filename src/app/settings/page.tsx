@@ -2,6 +2,11 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
+import { cookies } from "next/headers";
+import { createHash } from "node:crypto";
+import { listBlocked } from "@/lib/block";
+import { unblockUserAction } from "@/app/actions/block";
+import { revokeOtherSessionsAction, revokeSessionAction, updateEmailAction, updateNotifyPrefsAction } from "@/app/actions/account";
 import { formatDate } from "@/lib/format";
 import { levelForPoints, nextLevelForPoints } from "@/lib/levels";
 import { NOTIFY_GROUPS } from "@/lib/notifications";
@@ -23,6 +28,7 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
+const btnStyle: React.CSSProperties = { height: 34, padding: "0 16px", background: "var(--panel)", color: "var(--text)", borderRadius: 8, fontSize: 13, fontWeight: 700, border: "1px solid var(--line)" };
 const inputStyle = {
   width: "100%",
   border: "1px solid var(--line)",
@@ -64,6 +70,23 @@ const PASSWORD_ERRORS: Record<string, { title: string; message: string; suggesti
   invalid: { title: "格式不对", message: "新密码 12 位以上，或 8 位+含 3 类字符，检查下再试。", suggestion: "换一个更强的密码" },
 };
 
+function deviceIcon(ua: string): string {
+  const u = ua.toLowerCase();
+  if (!ua) return "💻";
+  if (/iphone|android.*mobile|windows phone/.test(u)) return "📱";
+  if (/ipad|tablet/.test(u)) return "📟";
+  if (/curl|wget|python|bot|http/.test(u)) return "🤖";
+  return "💻";
+}
+
+function deviceName(ua: string): string {
+  const u = ua.toLowerCase();
+  if (!ua) return "未知设备";
+  const browser = /edg\//.test(u) ? "Edge" : /chrome\//.test(u) ? "Chrome" : /safari\//.test(u) ? "Safari" : /firefox\//.test(u) ? "Firefox" : "浏览器";
+  const os = /windows/.test(u) ? "Windows" : /iphone|ipad|ios/.test(u) ? "iOS" : /android/.test(u) ? "Android" : /mac os/.test(u) ? "macOS" : /linux/.test(u) ? "Linux" : "";
+  return os ? `${os} · ${browser}` : browser;
+}
+
 export default async function SettingsPage({
   searchParams,
 }: {
@@ -98,6 +121,7 @@ export default async function SettingsPage({
       avatarUrl: true,
       notifyReply: true,
       notifyFollow: true,
+      emailNotify: true,
       createdAt: true,
       _count: { select: { threads: true, posts: true, favorites: true } },
     },
@@ -115,6 +139,27 @@ export default async function SettingsPage({
       </div>
     );
   }
+
+  // 登录设备：当前会话用 cookie token 反查
+  const currentToken = (await cookies()).get("session")?.value ?? "";
+  const currentHash = currentToken ? createHash("sha256").update(currentToken).digest("hex") : "";
+  const sessionRows = await db.session
+    .findMany({
+      where: { userId: me.id, expiresAt: { gt: new Date() } },
+      orderBy: { lastSeenAt: "desc" },
+      take: 20,
+      select: { id: true, ip: true, ua: true, createdAt: true, lastSeenAt: true, tokenHash: true },
+    })
+    .catch(() => []);
+  const sessions = sessionRows.map((s) => ({
+    id: s.id,
+    ip: s.ip,
+    ua: s.ua ?? "",
+    createdAt: s.createdAt.toLocaleString("zh-CN", { hour12: false }),
+    lastSeenAt: s.lastSeenAt.toLocaleString("zh-CN", { hour12: false }),
+    current: s.tokenHash === currentHash,
+  }));
+  const blocked = await listBlocked(me.id);
 
   const lv = levelForPoints(user.points);
   const next = nextLevelForPoints(user.points);
@@ -255,6 +300,104 @@ export default async function SettingsPage({
             </button>
           </div>
         </SettingsForm>
+      </Section>
+
+      {/* 换绑邮箱 */}
+      <Section title="换绑邮箱" description="换绑需要到新邮箱点确认链接才生效；旧邮箱会收到一封提醒邮件。当前邮箱是找回密码的唯一通道，请填常用邮箱。">
+        {sp.ok === "email_sent" && (
+          <HumanizedFeedback type="success" title="确认邮件已发送" message="请到新邮箱点击确认链接完成换绑。" autoDismiss={8000} />
+        )}
+        {sp.ok === "email_changed" && (
+          <HumanizedFeedback type="success" title="邮箱已更新" message="之后请用新邮箱登录与找回密码。" autoDismiss={8000} />
+        )}
+        {sp.error === "email_taken" && <HumanizedFeedback type="error" title="这个邮箱已被占用" message="换一个邮箱，或先用该邮箱找回原账号。" />}
+        {sp.error === "email_same" && <HumanizedFeedback type="error" title="邮箱没变" message="新邮箱与当前邮箱相同。" />}
+        {sp.error === "email_invalid" && <HumanizedFeedback type="error" title="邮箱格式不对" message="检查一下再提交。" />}
+        {sp.error === "email_ratelimited" && <HumanizedFeedback type="error" title="提交太频繁" message="每小时最多发起 3 次换绑，请稍后再试。" />}
+        <SettingsForm action={updateEmailAction} next="/settings" style={{ display: "grid", gap: 8 }}>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>新邮箱</span>
+            <input name="newEmail" type="email" required placeholder="you@example.com" style={inputStyle} autoComplete="email" />
+          </label>
+          <div>
+            <button type="submit" style={btnStyle}>发送确认邮件</button>
+          </div>
+        </SettingsForm>
+      </Section>
+
+      {/* 邮件提醒 */}
+      <Section title="邮件提醒" description="开启后，有人回复你、@你或给你发私信时，若你不在线会收到一封邮件。默认关闭。">
+        <SettingsForm action={updateNotifyPrefsAction} next="/settings?ok=notify_saved" style={{ display: "grid", gap: 10 }}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13 }}>
+            <input type="checkbox" name="emailNotify" defaultChecked={Boolean((me as any).emailNotify)} style={{ marginTop: 3 }} />
+            <span>
+              <strong>有人回复 / @我 / 私信我时发邮件</strong>
+              <span style={{ display: "block", color: "var(--text-subtle)", fontSize: 12, marginTop: 2 }}>
+                同一人 10 分钟内只发一封；在线时只发站内通知，不发邮件。
+              </span>
+            </span>
+          </label>
+          <div>
+            <button type="submit" style={btnStyle}>保存邮件偏好</button>
+          </div>
+        </SettingsForm>
+      </Section>
+
+      {/* 登录设备 */}
+      <Section title="登录设备" description="查看当前登录的会话，发现陌生设备可立即下线（改密码会下线全部其它设备）。">
+        <div style={{ display: "grid", gap: 8 }}>
+          {sessions.map((s) => (
+            <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--line-soft)", borderRadius: 10, background: "var(--bg-soft)", flexWrap: "wrap" }}>
+              <span style={{ fontSize: 15 }} aria-hidden>{deviceIcon(s.ua)}</span>
+              <span style={{ display: "grid", gap: 2, minWidth: 0, flex: 1 }}>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>
+                  {deviceName(s.ua)}
+                  {s.current && <span className="topic-badge" style={{ marginLeft: 8, background: "var(--brand-soft)", color: "var(--brand)", border: "none", fontWeight: 800 }}>当前设备</span>}
+                </span>
+                <span style={{ fontSize: 11.5, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+                  {s.ip || "未知 IP"} · 登录于 {s.createdAt} · 最近活跃 {s.lastSeenAt}
+                </span>
+              </span>
+              {!s.current && (
+                <form action={revokeSessionAction}>
+                  <input type="hidden" name="sessionId" value={s.id} />
+                  <button type="submit" style={{ fontSize: 12, fontWeight: 700, height: 28, padding: "0 12px", borderRadius: 999, border: "1px solid var(--line)", background: "var(--panel)", color: "var(--danger)", cursor: "pointer" }}>
+                    下线
+                  </button>
+                </form>
+              )}
+            </div>
+          ))}
+          {sessions.length === 0 && <span style={{ fontSize: 12.5, color: "var(--text-subtle)" }}>没有可显示的会话。</span>}
+        </div>
+        {sessions.length > 1 && (
+          <form action={revokeOtherSessionsAction}>
+            <button type="submit" style={btnStyle}>下线其它所有设备</button>
+          </form>
+        )}
+      </Section>
+
+      {/* 屏蔽管理 */}
+      <Section title="屏蔽管理" description="被你屏蔽的人：你俩互相看不到回帖与私信，也不会收到对方通知。">
+        {blocked.length === 0 ? (
+          <span style={{ fontSize: 12.5, color: "var(--text-subtle)" }}>还没有屏蔽任何人。在用户主页可以屏蔽。</span>
+        ) : (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            {blocked.map((b) => (
+              <span key={b.id} style={{ display: "inline-flex", alignItems: "center", gap: 8, padding: "6px 10px", border: "1px solid var(--line)", borderRadius: 999, background: "var(--panel)", fontSize: 12.5 }}>
+                <UserAvatar username={b.target.username} avatarUrl={b.target.avatarUrl} size={20} radius={6} />
+                <Link href={`/u/${encodeURIComponent(b.target.username)}`} style={{ color: "var(--text)", fontWeight: 600 }}>{b.target.username}</Link>
+                <form action={unblockUserAction}>
+                  <input type="hidden" name="targetId" value={b.target.id} />
+                  <input type="hidden" name="back" value="/settings" />
+                  <button type="submit" style={{ fontSize: 11.5, color: "var(--danger)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
+                    解除
+                  </button>
+                </form>
+              </span>
+            ))}
+          </div>
+        )}
       </Section>
 
       {/* 快捷入口 */}

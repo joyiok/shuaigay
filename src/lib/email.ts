@@ -65,18 +65,45 @@ function hashToken(raw: string): string {
 }
 
 /** 创建一次性令牌并落库,返回明文 raw(仅用于邮件链接) */
+export type VerificationKind = "VERIFY_EMAIL" | "RESET_PASSWORD" | "CHANGE_EMAIL";
+
 export async function createVerificationToken(
   userId: string,
-  type: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  type: VerificationKind,
   ttlHours: number,
+  /** 换绑邮箱时记录目标邮箱 */
+  email?: string,
 ): Promise<string> {
   const raw = randomBytes(32).toString("base64url");
   const tokenHash = hashToken(raw);
   const expiresAt = new Date(Date.now() + ttlHours * 3_600_000);
   await db.verificationToken.create({
-    data: { userId, tokenHash, type, expiresAt },
+    data: { userId, tokenHash, type, expiresAt, ...(email ? { email } : {}) },
   });
   return raw;
+}
+
+/** 换绑邮箱确认邮件（发到新邮箱） */
+export async function sendEmailChangeEmail(to: string, rawToken: string): Promise<void> {
+  const base = siteUrl().origin;
+  const link = `${base}/verify-email?change=1&token=${encodeURIComponent(rawToken)}`;
+  await sendMail({
+    to,
+    subject: "确认换绑邮箱 - SHUAI GAY 论坛",
+    text: `有人申请把 SHUAI GAY 论坛账号换绑到这个邮箱。确认请点：${link}（24 小时内有效）`,
+    html: `<p>有人申请把 SHUAI GAY 论坛账号换绑到这个邮箱。</p><p><a href="${link}">点此确认换绑</a>（24 小时内有效）</p><p>若非本人操作，请忽略本邮件，换绑不会生效。</p>`,
+  });
+}
+
+/** 换绑提醒（发到旧邮箱） */
+export async function sendEmailChangeNotice(oldEmail: string, newEmail: string): Promise<void> {
+  const masked = newEmail.replace(/^(.).*(@.*)$/, "$1***$2");
+  await sendMail({
+    to: oldEmail,
+    subject: "你的邮箱正在被换绑 - SHUAI GAY 论坛",
+    text: `你的账号申请把邮箱换绑为 ${masked}。如果不是你操作，请立即修改密码。`,
+    html: `<p>你的账号申请把邮箱换绑为 <strong>${masked}</strong>。</p><p>若不是你本人操作，请立即修改密码并联系管理员。</p>`,
+  });
 }
 
 /** 发送验证邮件:注册后调用 */
@@ -106,9 +133,9 @@ export async function sendPasswordResetEmail(to: string, rawToken: string): Prom
 /** 校验一次性令牌,返回 userId 或 null;一次性使用,成功后删除 */
 export async function consumeVerificationToken(
   rawToken: string,
-  type: "VERIFY_EMAIL" | "RESET_PASSWORD",
+  type: VerificationKind,
   client: Pick<typeof db, "verificationToken"> = db,
-): Promise<{ userId: string } | null> {
+): Promise<{ userId: string; email: string | null } | null> {
   const tokenHash = hashToken(rawToken);
   const record = await client.verificationToken.findUnique({ where: { tokenHash } });
   if (!record) return null;
@@ -116,7 +143,7 @@ export async function consumeVerificationToken(
   const consumed = await client.verificationToken.deleteMany({
     where: { id: record.id, type, expiresAt: { gt: new Date() } },
   });
-  return consumed.count === 1 ? { userId: record.userId } : null;
+  return consumed.count === 1 ? { userId: record.userId, email: record.email ?? null } : null;
 }
 
 export async function verifyEmailToken(token: string): Promise<boolean> {
@@ -131,12 +158,12 @@ export async function verifyEmailToken(token: string): Promise<boolean> {
 /** 仅校验不消费(用于页面展示合法性) */
 export async function peekVerificationToken(
   rawToken: string,
-  type: "VERIFY_EMAIL" | "RESET_PASSWORD",
-): Promise<{ userId: string; expiresAt: Date } | null> {
+  type: VerificationKind,
+): Promise<{ userId: string; expiresAt: Date; email: string | null } | null> {
   const tokenHash = hashToken(rawToken);
   const record = await db.verificationToken.findUnique({ where: { tokenHash } });
   if (!record) return null;
   if (record.type !== type) return null;
   if (record.expiresAt < new Date()) return null;
-  return { userId: record.userId, expiresAt: record.expiresAt };
+  return { userId: record.userId, expiresAt: record.expiresAt, email: record.email ?? null };
 }

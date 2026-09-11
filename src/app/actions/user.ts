@@ -7,6 +7,9 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
 import { assertNotBanned } from "@/lib/ban";
 import { logger } from "@/lib/logger";
+import { blockersOf } from "@/lib/block";
+import { maybeEmailNotify } from "@/lib/email-notify";
+import { after } from "next/server";
 import { filterRowsByPreferences, prefsFromForm } from "@/lib/notifications";
 import {
   INVITE_CODES_PER_USER,
@@ -81,15 +84,29 @@ export async function toggleFollowAction(formData: FormData): Promise<boolean> {
     logger.info("follow.remove", { userId: user.id, followingId: target.id });
   } else {
     await db.follow.create({ data: { followerId: user.id, followingId: target.id } });
-    const rows = await filterRowsByPreferences([
-      {
-        userId: target.id,
-        type: "follow",
-        title: `${user.username} 关注了你`,
-        link: `/u/${encodeURIComponent(user.username)}`,
-      },
-    ]);
-    if (rows.length) await db.notification.createMany({ data: rows }).catch(() => {});
+    // 对方屏蔽了我就不再打扰
+    const blockers = await blockersOf(user.id, [target.id]);
+    const rows = blockers.has(target.id)
+      ? []
+      : await filterRowsByPreferences([
+          {
+            userId: target.id,
+            type: "follow",
+            title: `${user.username} 关注了你`,
+            link: `/u/${encodeURIComponent(user.username)}`,
+          },
+        ]);
+    if (rows.length) {
+      await db.notification.createMany({ data: rows }).catch(() => {});
+      after(() =>
+        maybeEmailNotify({
+          userId: target.id,
+          subject: `${user.username} 关注了你`,
+          body: `${user.username} 关注了你，点开看看对方的主页。`,
+          link: `/u/${encodeURIComponent(user.username)}`,
+        }),
+      );
+    }
     nowFollowing = true;
     logger.info("follow.add", { userId: user.id, followingId: target.id });
   }

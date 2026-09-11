@@ -1,15 +1,43 @@
 import Link from "next/link";
 import { peekVerificationToken } from "@/lib/email";
 import { resendVerificationAction, verifyEmailAction } from "@/app/actions/auth";
+import { confirmEmailChangeAction } from "@/app/actions/account";
 
 export const dynamic = "force-dynamic";
 
 export default async function VerifyEmailPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string; ok?: string; error?: string; sent?: string }>;
+  searchParams: Promise<{ token?: string; ok?: string; error?: string; sent?: string; change?: string }>;
 }) {
-  const { token, ok, error, sent } = await searchParams;
+  const { token, ok, error, sent, change } = await searchParams;
+
+  // 换绑邮箱确认
+  if (token && change === "1") {
+    const peek = await peekVerificationToken(token, "CHANGE_EMAIL");
+    if (!peek) {
+      return (
+        <div className="card" style={{ maxWidth: 480, margin: "0 auto", padding: 18, textAlign: "center" }}>
+          <h1 style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>换绑链接失效</h1>
+          <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 12 }}>链接无效或已过期，请到设置页重新发起换绑。</p>
+          <a href="/settings" style={{ fontSize: 13, fontWeight: 700, color: "var(--brand)" }}>去账号设置 →</a>
+        </div>
+      );
+    }
+    return (
+      <div className="card" style={{ maxWidth: 480, margin: "0 auto", padding: 18, textAlign: "center" }}>
+        <h1 style={{ fontSize: 18, fontWeight: 800, marginBottom: 12 }}>确认换绑邮箱</h1>
+        <p style={{ color: "var(--text-muted)", fontSize: 13, marginBottom: 6 }}>
+          新邮箱：<strong style={{ color: "var(--text)" }}>{peek.email}</strong>
+        </p>
+        <p style={{ color: "var(--text-subtle)", fontSize: 12, marginBottom: 12 }}>确认后该邮箱将成为你的登录与找回密码邮箱。</p>
+        <form action={confirmEmailChangeAction}>
+          <input type="hidden" name="token" value={token} />
+          <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, padding: "8px 14px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>确认换绑</button>
+        </form>
+      </div>
+    );
+  }
 
   // 只预览令牌，不在 GET 消费，避免邮件安全扫描器提前打开链接导致令牌失效。
   if (token) {

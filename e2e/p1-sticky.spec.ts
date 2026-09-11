@@ -90,9 +90,10 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
   await expect(page.getByRole("button", { name: "+ 关注", exact: true })).toBeVisible();
 });
 
-test("P1: 全局标签云(含分类)与分类链接", async ({ page }) => {
+test("P1: 全局分类云与分类链接", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("话题标签")).toBeVisible();
+  // 侧栏这块列的是版块分类（不是主题标签），标题已改为「话题分类」以示区分
+  await expect(page.getByText("话题分类")).toBeVisible();
   const tag = page.locator(".sidebar").getByRole("link", { name: /灌水/ });
   await expect(tag).toBeVisible();
   await tag.click();

@@ -8,6 +8,9 @@ import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { containsSensitive } from "@/lib/sensitive";
 import { assertNotBanned } from "@/lib/ban";
 import { logger } from "@/lib/logger";
+import { isBlockedBetween } from "@/lib/block";
+import { maybeEmailNotify } from "@/lib/email-notify";
+import { after } from "next/server";
 
 const contentSchema = z.string().trim().min(1).max(5000);
 
@@ -43,6 +46,11 @@ export async function sendMessageAction(formData: FormData): Promise<string> {
     logger.warn("message.receiver_not_found", { senderId: user.id, receiverUsername });
     return "/messages?error=user_not_found";
   }
+  // 任一方屏蔽即不可私信
+  if (await isBlockedBetween(user.id, receiver.id)) {
+    logger.info("message.blocked", { senderId: user.id, receiverId: receiver.id });
+    return `/messages/${encodeURIComponent(receiverUsername)}?error=blocked`;
+  }
   if (receiver.id === user.id) {
     logger.warn("message.send_self", { senderId: user.id });
     return `/messages/${encodeURIComponent(receiverUsername)}?error=self`;
@@ -66,6 +74,14 @@ export async function sendMessageAction(formData: FormData): Promise<string> {
       },
     });
     logger.info("message.send", { senderId: user.id, receiverId: receiver.id, ip });
+    after(() =>
+      maybeEmailNotify({
+        userId: receiver.id,
+        subject: `${user.username} 给你发了私信`,
+        body: `${user.username} 给你发了私信：${content.data.slice(0, 80)}`,
+        link: `/messages/${encodeURIComponent(user.username)}`,
+      }),
+    );
   } catch (e) {
     logger.error("message.send_failed", { senderId: user.id, receiverId: receiver.id, error: String(e), ip });
     throw e;

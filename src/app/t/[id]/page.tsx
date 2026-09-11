@@ -38,6 +38,7 @@ import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import { parseThreadId, threadHref } from "@/lib/slug";
 import { getProgress } from "@/lib/reading-progress";
 import { tagsForThread } from "@/lib/taxonomy";
+import { getBlockedIdSet } from "@/lib/block";
 import { getPollView } from "@/lib/poll";
 import PollCard from "@/components/PollCard";
 import { isBoardModerator } from "@/lib/moderators";
@@ -141,7 +142,13 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null, filter: stri
   const opOnly = isNovel ? filter !== "discussion" : filter === "op";
   const user = await getCurrentUser();
   const isStaffForPosts = user ? (user.role === "ADMIN" || await isBoardModerator(user.id, thread.board.id)) : false;
-  const { items, nextCursor } = await listPosts(thread.id, cursor, user?.id ?? null, isStaffForPosts, 50, opOnly ? thread.authorId : null);
+  const blockedIds = await getBlockedIdSet(user?.id);
+  const rawList = await listPosts(thread.id, cursor, user?.id ?? null, isStaffForPosts, 50, opOnly ? thread.authorId : null);
+  // 被屏蔽用户的内容直接不展示（分页会少几条，可接受）
+  const hiddenByBlock = blockedIds.size ? rawList.items.filter((p) => blockedIds.has(p.authorId)).length : 0;
+  const items = blockedIds.size ? rawList.items.filter((p) => !blockedIds.has(p.authorId)) : rawList.items;
+  const nextCursor = rawList.nextCursor;
+  const blockedThreadAuthor = blockedIds.has(thread.authorId);
   // 小说章节阅读：分页时算出本页第一章的全局章节序号，避免每页都从「第 1 章」重来
   let chapterOffset = 0;
   if (isNovel && opOnly && cursor) {
@@ -165,7 +172,7 @@ async function loadThreadPage(rawId: string, cursor: Cursor | null, filter: stri
     isNovel && opOnly
       ? items.map((p, i) => ({ id: p.id, index: chapterOffset + i + 1, title: novelChapterTitle(p.contentMd, chapterOffset + i + 1) }))
       : [];
-  return { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset };
+  return { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset, hiddenByBlock, blockedThreadAuthor };
 }
 
 export default async function ThreadPage({
@@ -184,7 +191,7 @@ export default async function ThreadPage({
     return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
   if (!loaded) notFound();
-  const { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset } = loaded;
+  const { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset, hiddenByBlock, blockedThreadAuthor } = loaded;
   /** 小说章节阅读：一章一屏左右翻页 */
   const paged = isNovel && opOnly && chapters.length > 0;
   const currentViews = (thread as unknown as { views: number }).views ?? 0;
@@ -303,6 +310,19 @@ export default async function ThreadPage({
         </span>
       </div>
 
+      {(blockedThreadAuthor || hiddenByBlock > 0) && (
+        <div className="card" style={{ padding: "11px 14px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", borderColor: "var(--line)", background: "var(--bg-soft)" }}>
+          <span className="topic-badge" style={{ background: "var(--panel)", border: "1px solid var(--line)", color: "var(--text-muted)", fontWeight: 700 }}>
+            已屏蔽
+          </span>
+          <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+            {hiddenByBlock > 0 ? `已隐藏 ${hiddenByBlock} 条来自被你屏蔽用户的内容。` : "本主题作者被你屏蔽，内容已折叠。"}
+          </span>
+          <Link href="/settings" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "var(--brand)" }}>
+            管理屏蔽 →
+          </Link>
+        </div>
+      )}
       {pollView && <PollCard poll={pollView} canVote={!!user && !trashed} />}
       <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}${isNovel ? " novel-thread-head" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
