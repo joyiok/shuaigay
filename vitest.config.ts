@@ -17,6 +17,10 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     testTimeout: 15_000,
     hookTimeout: 30_000,
+    // 集成测试共用同一个数据库 / Redis / writerSetting 单行配置，
+    // 并发跑会互相覆盖（曾导致「mock 模型指向别的用例的假服务器」偶发失败），
+    // 因此逐个文件串行执行；单元测试本身很快，串行代价可忽略。
+    fileParallelism: false,
   },
   resolve: {
     alias: {
