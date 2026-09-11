@@ -17,6 +17,7 @@ import FloatingNewThread from "@/components/FloatingNewThread";
 import UserAvatar from "@/components/UserAvatar";
 import NotificationBell from "@/components/NotificationBell";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
+import WebVitals from "@/components/WebVitals";
 import ForumNav from "@/components/ForumNav";
 
 const site = siteUrl();
@@ -76,11 +77,12 @@ export default async function RootLayout({
 
   // 流量统计：只记文档请求（RSC/预取不计），放到响应之后执行，失败不影响渲染
   const reqHeaders = await headers();
+  const docPath = reqHeaders.get("x-pathname") ?? "/";
   if (reqHeaders.get("x-doc") === "1") {
     const forwarded = reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
     after(() =>
       recordVisit({
-        path: reqHeaders.get("x-pathname") ?? "/",
+        path: docPath,
         country: reqHeaders.get("cf-ipcountry"),
         // CF 实际发的头是 CF-Region / CF-Region-Code（不是文档里的 CF-IPRegion），
         // 三个都读一遍，哪个先有值用哪个
@@ -432,6 +434,7 @@ export default async function RootLayout({
             <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
           </div>
         </footer>
+        {reqHeaders.get("x-doc") === "1" && <WebVitals path={docPath} />}
       </body>
     </html>
   );

@@ -7,6 +7,7 @@ import nodemailer from "nodemailer";
 import { db } from "./db";
 import { siteUrl } from "./site";
 import { logger } from "./logger";
+import { recordMailFailure } from "./observability";
 
 type MailOpts = {
   to: string;
@@ -53,6 +54,8 @@ export async function sendMail(opts: MailOpts): Promise<void> {
     logger.info("email.sent", { to: opts.to, subject: opts.subject });
   } catch (e) {
     logger.error("email.send_failed", { to: opts.to, subject: opts.subject, error: String(e) });
+    // 后台「数据统计」能看到最近失败，不用翻容器日志
+    void recordMailFailure(opts.to, opts.subject, String(e));
     throw e;
   }
 }

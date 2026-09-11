@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import ErrorBeacon from "@/components/ErrorBeacon";
 
 export default function GlobalError({
   error,
@@ -16,6 +17,7 @@ export default function GlobalError({
 
   return (
     <div className="error-shell">
+      <ErrorBeacon kind="500" />
       <div
         aria-hidden="true"
         style={{

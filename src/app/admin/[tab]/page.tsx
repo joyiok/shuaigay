@@ -13,6 +13,7 @@ import {
   addPointsAction,
   addSensitiveWordAction,
   adminDeletePostAction,
+  adminDeleteAttachmentAction,
   adminDeleteThreadAction,
   adminResetPasswordAction,
   adminToggleDigestAction,
@@ -65,6 +66,7 @@ import CopyButton from "@/components/CopyButton";
 import AdminUserSearch from "@/components/AdminUserSearch";
 import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTopRegions, getTrafficSummary, regionName } from "@/lib/visit-stats";
 import { formatBytes, getOpsMetrics } from "@/lib/ops-metrics";
+import { getBackupStatus, getErrorTotals, getMailFailures, getOnlineDetail, getTopErrors, getVitals } from "@/lib/observability";
 
 export const metadata = { title: "管理后台" };
 
@@ -80,6 +82,7 @@ const TABS = [
   { key: "medals", label: "勋章" },
   { key: "words", label: "敏感词" },
   { key: "audit", label: "审计日志" },
+  { key: "attachments", label: "附件管理" },
   { key: "stats", label: "数据统计" },
 ] as const;
 
@@ -108,6 +111,7 @@ const ACTION_LABELS: Record<string, string> = {
   toggle_pin: "置顶/取消置顶",
   toggle_lock: "锁定/解锁",
   delete_thread: "删除主题",
+  delete_attachment: "删除附件",
   delete_post: "删除帖子",
   set_role: "修改角色",
   add_points: "加积分",
@@ -223,6 +227,7 @@ export default async function AdminPage({
       {adminFlag && active === "medals" && <MedalsTab />}
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
+      {adminFlag && active === "attachments" && <AttachmentsTab />}
       {adminFlag && active === "stats" && <StatsTab />}
     </div>
   );
@@ -1334,8 +1339,81 @@ async function AuditTab() {
 
 /* ---------------- 数据统计 ---------------- */
 
+async function AttachmentsTab() {
+  const [rows, total] = await Promise.all([
+    db.attachment.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 100,
+      select: {
+        id: true,
+        fileName: true,
+        mimeType: true,
+        sizeBytes: true,
+        createdAt: true,
+        storedName: true,
+        uploader: { select: { username: true } },
+        post: { select: { id: true, thread: { select: { id: true, title: true } } } },
+      },
+    }),
+    db.attachment.aggregate({ _count: { _all: true }, _sum: { sizeBytes: true } }).catch(() => ({ _count: { _all: 0 }, _sum: { sizeBytes: 0 } } as any)),
+  ]);
+  const totalCount = (total as any)._count?._all ?? 0;
+  const totalBytes = (total as any)._sum?.sizeBytes ?? 0;
+
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <PaperCardHeader
+        title="附件管理"
+        count={`${totalCount} 个 · ${formatBytes(totalBytes)}`}
+        sub="最近 100 个 · 删除会同时移除文件与记录"
+      />
+      <ListCard>
+        {rows.map((a, i) => (
+          <Row
+            key={a.id}
+            last={i === rows.length - 1}
+            actions={
+              <ConfirmForm
+                action={adminDeleteAttachmentAction}
+                message={`删除附件「${a.fileName}」？\n• 会从磁盘/对象存储里删掉文件\n• 帖子里的下载链接会失效\n• 不可恢复，确定删？`}
+              >
+                <input type="hidden" name="attachmentId" value={a.id} />
+                <button type="submit" style={paperDangerBtn}>
+                  删除附件
+                </button>
+              </ConfirmForm>
+            }
+          >
+            <div className="admin-row-title">
+              <a
+                href={`/uploads/${a.storedName}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="admin-row-link"
+                title={a.fileName}
+              >
+                {a.fileName}
+              </a>
+              <span className="admin-row-chip">{a.mimeType.replace("image/", "").replace("application/", "")}</span>
+              <span className="admin-row-chip">{formatBytes(a.sizeBytes)}</span>
+            </div>
+            <div className="admin-row-meta">
+              <span>{a.uploader.username}</span>
+              <span>· {a.post.thread.title.slice(0, 24)}</span>
+              <span className="admin-row-date">· {formatDate(a.createdAt)}</span>
+            </div>
+          </Row>
+        ))}
+        {rows.length === 0 && (
+          <PaperEmpty badge="EMPTY" title="还没有附件" description="用户在帖子里上传图片或文件后，会在这里出现。" />
+        )}
+      </ListCard>
+    </div>
+  );
+}
+
 async function StatsTab() {
-  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit, topRegions, ops] = await Promise.all([
+  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit, topRegions, ops, topErrors, errorTotals, vitals, online, backup, mail] = await Promise.all([
     db.user.count(),
     db.post.count(),
     db.thread.count(),
@@ -1347,6 +1425,12 @@ async function StatsTab() {
     getDeviceSplit(7),
     getTopRegions(7, 12),
     getOpsMetrics(),
+    getTopErrors(7, 8),
+    getErrorTotals(7),
+    getVitals(7),
+    getOnlineDetail(),
+    getBackupStatus(),
+    getMailFailures(5),
   ]);
   const totalViews = (viewAgg as any)._sum?.views ?? 0;
   const visitRows = await db.visitDaily.count().catch(() => 0);
@@ -1511,6 +1595,134 @@ async function StatsTab() {
           </div>
         );
       })()}
+
+      {/* ——— 错误监控 + 真实速度 ——— */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 12px" }}>
+            错误监控 <span>近 7 天 · 404 {errorTotals.notFound} · 5xx {errorTotals.server}</span>
+          </div>
+          {topErrors.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>没有坏链和报错，干净。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 6 }}>
+              {topErrors.map((e) => (
+                <div key={`${e.kind}${e.path}`} style={{ padding: "6px 8px", background: "var(--bg-soft)", borderRadius: 8, display: "grid", gap: 2 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12 }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                      <span style={{ fontFamily: "var(--font-jet)", fontSize: 10, fontWeight: 800, color: e.kind === "500" ? "var(--danger)" : "var(--text-muted)", border: "1px solid var(--line)", borderRadius: 4, padding: "0 4px" }}>{e.kind}</span>
+                      <span style={{ fontFamily: "var(--font-jet)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.path}</span>
+                    </span>
+                    <span style={{ fontFamily: "var(--font-jet)", color: "var(--text-muted)", flexShrink: 0 }}>{e.count} 次</span>
+                  </div>
+                  {e.lastReferrer && (
+                    <div style={{ fontSize: 10, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      来路 {e.lastReferrer}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+            404/500 由页面埋点上报，爬虫与预取不计 · 保留 180 天
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 12px" }}>真实速度 <span>近 7 天 · Web Vitals</span></div>
+          {vitals.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无样本。用户访问后这里会显示 LCP/INP/CLS 的平均值与良好率。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {vitals.map((v) => {
+                const isCls = v.metric === "CLS";
+                const good = v.goodRate;
+                const tone = good >= 90 ? "var(--success)" : good >= 75 ? "#B45309" : "var(--danger)";
+                return (
+                  <div key={`${v.metric}${v.device}`} style={{ display: "grid", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {v.metric} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "var(--font-jet)" }}>{v.device === "mobile" ? "手机" : "桌面"} · {v.count} 样本</span>
+                      </span>
+                      <span style={{ fontFamily: "var(--font-jet)", fontSize: 11 }}>
+                        <span style={{ color: tone, fontWeight: 700 }}>良好 {good.toFixed(0)}%</span>
+                        <span style={{ color: "var(--text-muted)" }}> · 均 {isCls ? v.avg.toFixed(3) : `${Math.round(v.avg)}ms`}</span>
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
+                      <div style={{ width: `${Math.max(2, Math.round(good))}%`, height: "100%", background: tone, borderRadius: 999 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+            良好阈值：LCP≤2.5s · INP≤200ms · CLS≤0.1 · TTFB≤800ms
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 10px" }}>在线明细 <span>近 5 分钟</span></div>
+          {!online ? (
+            <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>Redis 不可用，暂时看不到在线明细。</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: online.users.length ? 10 : 0 }}>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-jet)", padding: "3px 9px", borderRadius: 999, background: "var(--brand-soft)", color: "var(--brand)", fontWeight: 700 }}>
+                  登录 {online.users.length}
+                </span>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-jet)", padding: "3px 9px", borderRadius: 999, background: "var(--bg-soft)", border: "1px solid var(--line)" }}>
+                  匿名 {online.anonymous}
+                </span>
+                <span style={{ fontSize: 11, fontFamily: "var(--font-jet)", color: "var(--text-subtle)" }}>合计 {online.total}</span>
+              </div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {online.users.map((u) => (
+                  <Link key={u.username} href={`/u/${u.username}`} style={{ fontSize: 11.5, fontFamily: "var(--font-jet)", padding: "3px 9px", borderRadius: 999, background: "var(--bg-soft)", border: "1px solid var(--line)", textDecoration: "none", color: "var(--text)" }}>
+                    {u.username}
+                    {u.role === "ADMIN" && <span style={{ color: "var(--brand)", marginLeft: 4 }}>管理员</span>}
+                  </Link>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 10px" }}>备份与邮件</div>
+          <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+              <span style={{ color: "var(--text-muted)" }}>上次备份</span>
+              <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700, color: backup?.ok === false ? "var(--danger)" : "var(--text)" }}>
+                {backup?.at ? new Date(backup.at).toLocaleString("zh-CN", { hour12: false }) : "无记录（备份容器未跑过）"}
+              </span>
+            </div>
+            {backup?.sizeBytes ? (
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>快照大小</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{formatBytes(backup.sizeBytes)}</span>
+              </div>
+            ) : null}
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-muted)" }}>SMTP</span>
+              <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{process.env.SMTP_URL ? "已配置" : "未配置（开发模式打印日志）"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "var(--text-muted)" }}>近 7 天邮件失败</span>
+              <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700, color: mail.total > 0 ? "var(--danger)" : "var(--text)" }}>{mail.total}</span>
+            </div>
+            {mail.rows.map((m, i) => (
+              <div key={i} style={{ fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={`${m.to} · ${m.subject} · ${m.error}`}>
+                {new Date(m.createdAt).toLocaleString("zh-CN", { hour12: false })} · {m.to} · {m.error.slice(0, 40)}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
         <div className="card" style={{ padding: 16 }}>

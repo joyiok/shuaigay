@@ -1,8 +1,10 @@
 import Link from "next/link";
+import ErrorBeacon from "@/components/ErrorBeacon";
 
 export default function NotFound() {
   return (
     <div className="error-shell">
+      <ErrorBeacon kind="404" />
       <div
         aria-hidden="true"
         style={{

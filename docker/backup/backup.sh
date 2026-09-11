@@ -14,6 +14,12 @@ restic forget --keep-daily 30 --keep-weekly 8 --prune
 
 rm -f "$DUMP"
 
+# 给后台看的备份状态（app 以只读方式挂载 ./backups）
+SIZE=$(restic snapshots --json --latest 1 2>/dev/null | tr -d '\n' | sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' | head -1)
+cat > /backups/last-backup.json <<JSON
+{"at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","ok":true,"sizeBytes":${SIZE:-null},"note":"restic + pg_dump"}
+JSON
+
 if [ -n "${HEALTHCHECK_URL:-}" ]; then
   curl -fsS -m 10 --retry 3 "$HEALTHCHECK_URL" > /dev/null || true
 fi

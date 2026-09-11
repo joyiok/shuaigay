@@ -65,6 +65,8 @@ services:
       AI_CRON_KEY: ${AI_CRON_KEY:-}
     volumes:
       - ./uploads:/srv/uploads
+      # 只读挂载备份目录，后台展示「上次备份时间/大小」
+      - ./backups:/srv/backups:ro
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-3000}:3000"
     depends_on:

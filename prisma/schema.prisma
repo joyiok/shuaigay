@@ -456,3 +456,44 @@ model VisitDaily {
   @@index([country, day])
   @@index([region, day])
 }
+
+/// 404 / 5xx 聚合：按「日 + 类型 + 路径」计次，另存最后一次的来路与 UA 便于定位
+model ErrorDaily {
+  id           String   @id @default(cuid())
+  day          DateTime @db.Date
+  kind         String // 404 | 500
+  path         String
+  count        Int      @default(0)
+  lastAt       DateTime @default(now())
+  lastReferrer String   @default("")
+  lastUa       String   @default("")
+
+  @@unique([day, kind, path])
+  @@index([day])
+}
+
+/// 真实用户体验指标（Web Vitals）：按「日 + 指标 + 设备」聚合，good 阈值见 lib/observability.ts
+model VitalDaily {
+  id        String   @id @default(cuid())
+  day       DateTime @db.Date
+  metric    String // LCP | INP | CLS | TTFB | FCP
+  device    String // mobile | desktop
+  count     Int      @default(0)
+  sumValue  Float    @default(0)
+  goodCount Int      @default(0)
+  worst     Float    @default(0)
+
+  @@unique([day, metric, device])
+  @@index([day])
+}
+
+/// 邮件发送失败留痕（SMTP 挂了后台能看到，不用翻容器日志）
+model MailFailure {
+  id        String   @id @default(cuid())
+  to        String
+  subject   String
+  error     String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

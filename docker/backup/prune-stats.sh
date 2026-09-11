@@ -12,4 +12,11 @@ psql -v ON_ERROR_STOP=1 -c "
   DELETE FROM \"AuditLog\" WHERE \"createdAt\" < now() - interval '180 days';
 " || true
 
+# 错误聚合 / Web Vitals 保留 180 天；邮件失败留痕保留 90 天
+psql -v ON_ERROR_STOP=1 -c "
+  DELETE FROM \"ErrorDaily\" WHERE day < current_date - interval '180 days';
+  DELETE FROM \"VitalDaily\" WHERE day < current_date - interval '180 days';
+  DELETE FROM \"MailFailure\" WHERE \"createdAt\" < now() - interval '90 days';
+" || true
+
 printf '[%s] prune-stats done\n' "$(date '+%F %T')"

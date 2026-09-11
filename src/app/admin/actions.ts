@@ -162,6 +162,28 @@ export async function adminDeletePostAction(formData: FormData): Promise<void> {
   redirect(ADMIN_TAB("posts"));
 }
 
+/* ---------------- 附件管理 ---------------- */
+
+export async function adminDeleteAttachmentAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const attachmentId = String(formData.get("attachmentId") ?? "");
+  const row = await db.attachment.findUnique({
+    where: { id: attachmentId },
+    select: { id: true, storedName: true, fileName: true, post: { select: { thread: { select: { boardId: true } } } } },
+  });
+  if (!row) redirect(ADMIN_TAB("attachments") + "&error=not_found");
+  if (staff.boardScope && !staff.boardScope.has(row.post.thread.boardId)) redirect(ADMIN_TAB("attachments") + "&error=forbidden");
+
+  await getStorage().remove(row.storedName).catch(() => {});
+  await db.attachment.delete({ where: { id: row.id } }).catch(() => {});
+  await db.auditLog
+    .create({ data: { actorId: staff.id, action: "delete_attachment", targetType: "attachment", targetId: row.id, detail: row.fileName } })
+    .catch(() => {});
+  logger.info("admin.delete_attachment", { actorId: staff.id, attachmentId: row.id, storedName: row.storedName });
+  revalidatePath("/admin/attachments");
+  redirect(ADMIN_TAB("attachments"));
+}
+
 /* ---------------- 用户管理 ---------------- */
 
 const roleSchema = z.enum(["USER", "ADMIN"]);
