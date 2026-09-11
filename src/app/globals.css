@@ -1009,3 +1009,61 @@ mark.search-mark, .search-mark {
 @media (max-width: 1020px) {
   body:has(.board-toolbar) .fab-new { display: none; }
 }
+
+/* 小说阅读器：继续阅读入口 */
+.novel-resume {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: 13.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.novel-resume:hover { filter: brightness(0.97); }
+.novel-resume-label { font-weight: 600; opacity: 0.85; }
+.novel-resume-chapter { font-family: var(--font-jet); }
+.novel-resume-arrow { margin-left: auto; }
+
+/* 书架/追更：进度与更新标记 */
+.novel-progress-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--font-jet);
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  color: var(--text-muted);
+}
+.novel-progress-chip.fresh {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* 标签胶囊 */
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  border: 1px solid var(--line-soft);
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: border-color 0.15s, color 0.15s;
+}
+.tag-chip:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}

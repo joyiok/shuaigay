@@ -341,6 +341,32 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   };
 }
 
+/**
+ * 小说跳章用：算出「从第 chapter 章所在那一页开始」需要的 cursor。
+ * 分页是升序 50 章/页，cursor 语义是「从该条之后继续」，所以取上一页最后一条。
+ * 第 1 页返回 null（直接默认地址）。
+ */
+export async function chapterPageCursor(
+  threadId: string,
+  authorId: string,
+  chapter: number,
+  pageSize = 50,
+): Promise<string | null> {
+  const index = Math.max(1, Math.floor(chapter));
+  const pageStart = Math.floor((index - 1) / pageSize);
+  if (pageStart === 0) return null;
+  const prev = await db.post.findMany({
+    where: { threadId, authorId, status: { not: "deleted" } },
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    skip: pageStart * pageSize - 1,
+    take: 1,
+    select: { id: true, createdAt: true },
+  });
+  const row = prev[0];
+  if (!row) return null;
+  return encodeCursor({ t: row.createdAt.toISOString(), id: row.id });
+}
+
 export async function listPosts(threadId: string, cursor: Cursor | null, viewerId: string | null = null, pageSizeOrStaff: number | boolean = 50, authorIdOrPageSize: string | number | null = null, maybeAuthorId: string | null = null) {
   // 兼容旧调用: listPosts(id, cursor, viewerId, 50, authorId) vs 新调用: listPosts(id, cursor, viewerId, isStaff, 50, authorId)
   let isStaff = false;

@@ -25,18 +25,30 @@ function prefersReducedMotion(): boolean {
  */
 export default function NovelReader({
   chapters,
+  threadId,
   hasPrevPage,
   hasNextPage,
   nextHref,
   threadHref,
+  resume,
 }: {
   chapters: NovelChapter[];
+  threadId: string;
   hasPrevPage: boolean;
   hasNextPage: boolean;
   nextHref: string | null;
   threadHref: string;
+  /** 上次读到第几章（跨设备），首屏给出「继续阅读」入口 */
+  resume?: { chapter: number; href: string } | null;
 }) {
-  const [currentId, setCurrentId] = useState(chapters[0]?.id ?? "");
+  const [currentId, setCurrentId] = useState(() => {
+    // 带 #post-xxx 打开时直接定位，避免先渲染第一章再跳
+    if (typeof window !== "undefined" && window.location.hash.startsWith("#post-")) {
+      const id = window.location.hash.slice(5);
+      if (chapters.some((c) => c.id === id)) return id;
+    }
+    return chapters[0]?.id ?? "";
+  });
   const [tocOpen, setTocOpen] = useState(false);
   const [edge, setEdge] = useState<"start" | "end" | null>(null);
   const indexRef = useRef(0);
@@ -121,6 +133,21 @@ export default function NovelReader({
     return () => window.removeEventListener("keydown", onKey);
   }, [chapters.length, goToIndex, hasNextPage, nextHref]);
 
+  /* 阅读进度上报：翻章后延迟写一次（跨设备可用） */
+  useEffect(() => {
+    const chapter = chapters.find((c) => c.id === currentId);
+    if (!chapter) return;
+    const timer = setTimeout(() => {
+      void fetch("/api/progress", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ threadId, postId: chapter.id, chapter: chapter.index }),
+        keepalive: true,
+      }).catch(() => {});
+    }, 1500);
+    return () => clearTimeout(timer);
+  }, [currentId, chapters, threadId]);
+
   const currentIndex = useMemo(() => Math.max(0, chapters.findIndex((c) => c.id === currentId)), [chapters, currentId]);
   const current = chapters[currentIndex];
   const prev = currentIndex > 0 ? chapters[currentIndex - 1] : null;
@@ -131,6 +158,13 @@ export default function NovelReader({
 
   return (
     <div className="novel-reader-tools">
+      {resume && resume.chapter > 1 && !chapters.some((c) => c.index === resume.chapter) ? (
+        <Link className="novel-resume" href={resume.href} prefetch={false}>
+          <span className="novel-resume-label">继续阅读</span>
+          <span className="novel-resume-chapter">第 {resume.chapter} 章</span>
+          <span className="novel-resume-arrow">→</span>
+        </Link>
+      ) : null}
       {/* 章节目录 */}
       <div className="card novel-toc" style={{ padding: 14 }}>
         <div className="novel-toc-head">

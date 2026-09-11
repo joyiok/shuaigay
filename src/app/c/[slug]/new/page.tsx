@@ -21,6 +21,7 @@ import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import Composer from "@/components/Composer";
 import TitleDraft from "@/components/TitleDraft";
 import SubmissionForm from "@/components/SubmissionForm";
+import TagAndPollFields from "@/components/TagAndPollFields";
 import { draftKey } from "@/lib/draft";
 import Turnstile from "@/components/Turnstile";
 import Link from "next/link";
@@ -131,6 +132,7 @@ export default async function NewThreadPage({
           draftKey={draftKey("new", board.slug, user.id)}
         />
         <TitleDraft storageKey={draftKey("newtitle", board.slug, user.id)} />
+        <TagAndPollFields allowPoll={!isNovel} />
         <Turnstile action="create_thread" resetSignal={error} />
         <div style={{ display: "flex", gap: 8 }}>
           <button

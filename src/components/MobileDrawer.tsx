@@ -264,6 +264,9 @@ export default function MobileDrawer({
                         </span>
                       )}
                     </Link>
+                    <Link href="/following" className="mobile-drawer-link" onClick={close}>
+                      关注与追更
+                    </Link>
                     <Link href="/invite" className="mobile-drawer-link" onClick={close}>
                       邀请
                     </Link>

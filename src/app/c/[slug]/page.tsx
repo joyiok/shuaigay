@@ -15,6 +15,7 @@ import type { Cursor } from "@/lib/cursor";
 import { getCurrentUser } from "@/lib/auth";
 import { isAdmin } from "@/lib/permissions";
 import { isBoardModerator, listBoardModerators } from "@/lib/moderators";
+import { getProgressMap } from "@/lib/reading-progress";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
@@ -75,6 +76,18 @@ export default async function BoardPage({
   }
   const { pinned, items, nextCursor } = loaded;
   const isNovel = board.slug === "novel";
+
+  // 书架：给登录用户标出「读至第几章」与「有 N 章更新」
+  const shelfIds = isNovel && viewer ? [...pinned, ...items].map((t) => t.id) : [];
+  const [progressMap, favMap] = shelfIds.length
+    ? await Promise.all([
+        getProgressMap(viewer!.id, shelfIds),
+        db.favorite
+          .findMany({ where: { userId: viewer!.id, threadId: { in: shelfIds } }, select: { threadId: true, lastSeenPosts: true } })
+          .then((rows) => new Map(rows.map((r) => [r.threadId, r.lastSeenPosts])))
+          .catch(() => new Map<string, number>()),
+      ])
+    : [new Map(), new Map()];
 
   const siteOrigin = (process.env.SITE_URL ?? "https://forum.example.com").replace(/\/$/, "");
   const breadcrumbJsonLd = {
@@ -162,8 +175,8 @@ export default async function BoardPage({
 
       {nextHref ? (
         <InfiniteList variant="thread" nextHref={nextHref} fetchUrl={fetchUrl} novel={isNovel}>
-          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} />))}
-          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} />))}
+          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} progress={progressMap.get(t.id)} following={favMap.get(t.id)} />))}
+          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} progress={progressMap.get(t.id)} following={favMap.get(t.id)} />))}
         </InfiniteList>
       ) : pinned.length === 0 && items.length === 0 ? (
         <EmptyState
@@ -175,8 +188,8 @@ export default async function BoardPage({
         />
       ) : (
         <ul className="post-list">
-          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} />))}
-          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} />))}
+          {pinned.map((t) => (<ThreadRow key={t.id} t={t} pinned novel={isNovel} progress={progressMap.get(t.id)} following={favMap.get(t.id)} />))}
+          {items.map((t) => (<ThreadRow key={t.id} t={t} novel={isNovel} progress={progressMap.get(t.id)} following={favMap.get(t.id)} />))}
         </ul>
       )}
 
@@ -189,9 +202,25 @@ export default async function BoardPage({
   );
 }
 
-function ThreadRow({ t, pinned, novel = false }: { t: ThreadListItem; pinned?: boolean; novel?: boolean }) {
+function ThreadRow({
+  t,
+  pinned,
+  novel = false,
+  progress,
+  following,
+}: {
+  t: ThreadListItem;
+  pinned?: boolean;
+  novel?: boolean;
+  progress?: { chapter: number } | undefined;
+  following?: number | undefined;
+}) {
   const isPending = (t as any).status === "pending";
   const isHot = t.replyCount > 8;
+  const totalChapters = t.replyCount + 1;
+  const readTo = progress?.chapter ?? 0;
+  // 追更更新数：本章节数 - 上次打开时的章节数
+  const fresh = following !== undefined ? Math.max(0, totalChapters - following) : 0;
   return (
     <li className={`post-item${novel ? " novel-book" : ""}`} style={{ opacity: isPending ? 0.72 : 1 }}>
       {novel ? (
@@ -212,6 +241,16 @@ function ThreadRow({ t, pinned, novel = false }: { t: ThreadListItem; pinned?: b
           <span style={{ fontWeight: 700, color: "var(--text-muted)", fontSize: 12 }}>{novel ? `作者 · ${t.authorName}` : t.authorName}</span>
           <span style={{ color: "var(--text-subtle)", fontSize: 12 }}>{formatDate(t.lastPostAt).split(" ")[0]}</span>
           {isHot && !novel && <span className="topic-badge hot">热门</span>}
+          {novel && readTo > 0 && (
+            <span className="novel-progress-chip" title={`已读到第 ${readTo} 章，共 ${totalChapters} 章`}>
+              读至 {readTo}/{totalChapters}
+            </span>
+          )}
+          {novel && fresh > 0 && (
+            <span className="novel-progress-chip fresh" title={`你追更后新增 ${fresh} 章`}>
+              +{fresh} 章更新
+            </span>
+          )}
         </div>
       </div>
       <div className="post-right">

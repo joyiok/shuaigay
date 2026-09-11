@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { attachTags, parseTagInput } from "@/lib/taxonomy";
+import { createPoll, readPollForm } from "@/lib/poll";
 import { softDeletePost, softDeleteThread } from "@/lib/moderation";
 import { getCurrentUser } from "@/lib/auth";
 import {
@@ -251,6 +253,12 @@ export async function createThreadAction(formData: FormData): Promise<string> {
           if (rows.length) await tx.notification.createMany({ data: rows });
         }
       }
+      // 标签与投票：属主内容的一部分，随事务一起写入
+      const tagNames = parseTagInput(formData.get("tags"));
+      if (tagNames.length) await attachTags(tx, t.id, tagNames);
+      const pollData = readPollForm(formData);
+      if (pollData) await createPoll(tx as unknown as typeof db, t.id, pollData);
+
       if (pending) {
         // 通知版主/管理员待审
         const mods = await tx.boardModerator.findMany({ where: { boardId: board.id }, select: { userId: true } });

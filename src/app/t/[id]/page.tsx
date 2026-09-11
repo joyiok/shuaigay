@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { listPosts } from "@/lib/queries";
+import { listPosts, chapterPageCursor } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import Lightbox from "@/components/Lightbox";
@@ -36,6 +36,10 @@ import { catToneClass, formatDate, formatBytes } from "@/lib/format";
 import { makeExcerpt } from "@/lib/excerpt";
 import { MAX_FILES_PER_POST, maxUploadBytes } from "@/lib/storage";
 import { parseThreadId, threadHref } from "@/lib/slug";
+import { getProgress } from "@/lib/reading-progress";
+import { tagsForThread } from "@/lib/taxonomy";
+import { getPollView } from "@/lib/poll";
+import PollCard from "@/components/PollCard";
 import { isBoardModerator } from "@/lib/moderators";
 import ReadTracker from "@/components/ReadTracker";
 import { draftKey } from "@/lib/draft";
@@ -207,6 +211,23 @@ export default async function ThreadPage({
         .catch(() => null))
     : false;
 
+  // 继续阅读：小说首屏给入口（进度来自服务端，跨设备）
+  let resumeReading: { chapter: number; href: string } | null = null;
+  if (paged && !rawCursor && user) {
+    const progress = await getProgress(user.id, thread.id).catch(() => null);
+    if (progress && progress.chapter > 1) {
+      const cursor = await chapterPageCursor(thread.id, thread.authorId, progress.chapter).catch(() => null);
+      const base = threadHref(thread.id, thread.title);
+      const url = cursor ? `${base}?cursor=${cursor}` : base;
+      resumeReading = { chapter: progress.chapter, href: progress.postId ? `${url}#post-${progress.postId}` : url };
+    }
+  }
+
+  const [threadTags, pollView] = await Promise.all([
+    tagsForThread(thread.id).catch(() => []),
+    getPollView(thread.id, user?.id ?? null).catch(() => null),
+  ]);
+
   const mentionCandidates = collectMentionCandidates(items.map((p) => p.contentMd));
   const mentionUsers = mentionCandidates.length
     ? await db.user.findMany({ where: { username: { in: mentionCandidates } }, select: { username: true } })
@@ -282,6 +303,7 @@ export default async function ThreadPage({
         </span>
       </div>
 
+      {pollView && <PollCard poll={pollView} canVote={!!user && !trashed} />}
       <div className={`card thread-head-card${thread.pinned ? " pinned" : ""}${threadCategory ? " cat" : ""}${isNovel ? " novel-thread-head" : ""}`} style={{ padding: 14 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
@@ -291,6 +313,11 @@ export default async function ThreadPage({
           {thread.digested && <span className="topic-badge digest">精华</span>}
           {thread.locked && <span className="topic-badge locked">已锁</span>}
           {threadCategory && <span className={`topic-badge ${catToneClass(threadCategory.name)}`}>{threadCategory.name}</span>}
+          {threadTags.map((tag) => (
+            <Link key={tag.slug} href={`/tag/${encodeURIComponent(tag.slug)}`} className="tag-chip" prefetch={false}>
+              #{tag.name}
+            </Link>
+          ))}
         </div>
         <div style={{ color: "var(--text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <Link href={`/c/${thread.board.slug}`} style={{ color: "var(--brand)" }}>{thread.board.name}</Link>
@@ -394,6 +421,8 @@ export default async function ThreadPage({
       {isNovel && opOnly && chapters.length > 0 && (
         <NovelReader
           chapters={chapters}
+          threadId={thread.id}
+          resume={resumeReading}
           hasPrevPage={!!rawCursor}
           hasNextPage={!!nextCursor}
           nextHref={nextCursor ? `${threadHref(thread.id, thread.title)}?cursor=${nextCursor}` : null}

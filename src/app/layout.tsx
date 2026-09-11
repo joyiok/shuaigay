@@ -365,7 +365,7 @@ export default async function RootLayout({
               {categoryCloud.length > 0 && (
                 <div className="card">
                   <div className="quick-wrap">
-                    <div className="quick-title">话题标签</div>
+                    <div className="quick-title">话题分类</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                       {categoryCloud.map((c: any) => {
                         const cnt = Math.max(0, c._count?.threads ?? 0);
