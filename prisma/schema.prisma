@@ -444,7 +444,7 @@ model VisitDaily {
   day      DateTime @db.Date
   path     String
   country  String   @default("XX")
-  /// 省/州（Cloudflare cf-ipregion，需在 CF 后台开启 Add visitor location headers）
+  /// 省/州（Cloudflare CF-Region，需在 CF 后台开启 Add visitor location headers）
   region   String   @default("")
   referrer String   @default("")
   device   String   @default("desktop") // desktop | mobile | bot

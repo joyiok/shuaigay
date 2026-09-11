@@ -82,7 +82,9 @@ export default async function RootLayout({
       recordVisit({
         path: reqHeaders.get("x-pathname") ?? "/",
         country: reqHeaders.get("cf-ipcountry"),
-        region: reqHeaders.get("cf-ipregion"),
+        // CF 实际发的头是 CF-Region / CF-Region-Code（不是文档里的 CF-IPRegion），
+        // 三个都读一遍，哪个先有值用哪个
+        region: reqHeaders.get("cf-region") ?? reqHeaders.get("cf-ipregion") ?? reqHeaders.get("cf-region-code"),
         city: reqHeaders.get("cf-ipcity"),
         referrer: reqHeaders.get("referer"),
         ua: reqHeaders.get("user-agent"),
