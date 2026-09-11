@@ -2,25 +2,42 @@
 
 import { useRef, useState } from "react";
 
+type ReasonField = {
+  name: string;
+  label: string;
+  placeholder?: string;
+  /** 常用原因，点一下就填进输入框 */
+  presets?: string[];
+};
+
 type ConfirmFormProps = {
   action: (formData: FormData) => void;
   message: string;
   children: React.ReactNode;
   style?: React.CSSProperties;
+  /** 需要填写理由时传入（如删除/驳回内容，理由会随通知发给作者） */
+  reasonField?: ReasonField;
 };
 
-export function ConfirmForm({ action, message, children, style }: ConfirmFormProps) {
+const DEFAULT_PRESETS = ["广告 / 引流", "人身攻击", "涉政敏感", "侵权内容", "刷屏灌水"];
+
+export function ConfirmForm({ action, message, children, style, reasonField }: ConfirmFormProps) {
   const formRef = useRef<HTMLFormElement>(null);
+  // 已确认一次的提交要放行：requestSubmit 会再次触发 onSubmit，不标记就会又被拦下
+  const confirmedRef = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [pending, setPending] = useState(false);
+  const [reason, setReason] = useState("");
 
   const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    if (confirmedRef.current) return; // 放行给 server action
     // 拦截原生提交，先弹二次确认
     e.preventDefault();
     setDialogOpen(true);
   };
 
   const confirm = () => {
+    confirmedRef.current = true;
     setDialogOpen(false);
     setPending(true);
     // 触发 server action：用 requestSubmit 保持 FormData 完整
@@ -31,6 +48,7 @@ export function ConfirmForm({ action, message, children, style }: ConfirmFormPro
     <>
       <form ref={formRef} action={action} onSubmit={onSubmit} style={style}>
         {children}
+        {reasonField ? <input type="hidden" name={reasonField.name} value={reason} readOnly /> : null}
       </form>
       {dialogOpen && (
         <div
@@ -67,6 +85,52 @@ export function ConfirmForm({ action, message, children, style }: ConfirmFormPro
             <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7, color: "var(--text-muted)", whiteSpace: "pre-wrap" }}>
               {message}
             </p>
+            {reasonField ? (
+              <div style={{ display: "grid", gap: 8 }}>
+                <label htmlFor="confirm-reason" style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>
+                  {reasonField.label}
+                  <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>（作者会收到这条说明）</span>
+                </label>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {(reasonField.presets ?? DEFAULT_PRESETS).map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setReason(preset)}
+                      style={{
+                        fontSize: 11.5,
+                        padding: "3px 9px",
+                        borderRadius: 999,
+                        border: `1px solid ${reason === preset ? "var(--brand)" : "var(--line)"}`,
+                        background: reason === preset ? "var(--brand-soft)" : "var(--panel)",
+                        color: reason === preset ? "var(--brand)" : "var(--text-muted)",
+                        cursor: "pointer",
+                        fontWeight: 600,
+                      }}
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  id="confirm-reason"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value.slice(0, 200))}
+                  rows={2}
+                  placeholder={reasonField.placeholder ?? "可留空，留空时按「违反社区规范」告知作者"}
+                  style={{
+                    width: "100%",
+                    padding: "8px 10px",
+                    borderRadius: 8,
+                    border: "1px solid var(--line)",
+                    background: "var(--bg-soft)",
+                    fontSize: 13,
+                    resize: "vertical",
+                    fontFamily: "inherit",
+                  }}
+                />
+              </div>
+            ) : null}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
               <button
                 type="button"
@@ -87,6 +151,7 @@ export function ConfirmForm({ action, message, children, style }: ConfirmFormPro
               <button
                 type="button"
                 onClick={confirm}
+                disabled={pending}
                 style={{
                   height: 32,
                   padding: "0 14px",

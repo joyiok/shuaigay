@@ -140,11 +140,15 @@ export async function listThreads(
   }
   const categoryFilter = categoryId ? { categoryId: String(categoryId) } : {};
   const statusFilter = isStaff
-    ? {}
+    ? { status: { not: "deleted" } }
     : viewerId
       ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }
       : { status: "approved" };
-  const statusCond = isStaff ? {} : viewerId ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } as any : { status: "approved" };
+  const statusCond = isStaff
+    ? { status: { not: "deleted" } }
+    : viewerId
+      ? ({ OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } as any)
+      : { status: "approved" };
   const cursorCond = cursor
     ? {
         OR: [
@@ -178,7 +182,7 @@ export async function listThreads(
   // 置顶区:版块置顶 + 全局置顶都收录(全局置顶是全站行为,自然也属于本版块)
   const pinOr = [{ pinned: true }, { globalPinned: true }];
   const pinnedWhere: any = isStaff
-    ? { boardId, ...categoryFilter, OR: pinOr }
+    ? { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { status: { not: "deleted" } }] }
     : viewerId
       ? { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
       : { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { status: "approved" }] };
@@ -350,7 +354,7 @@ export async function listPosts(threadId: string, cursor: Cursor | null, viewerI
     pageSize = pageSizeOrStaff;
     authorId = authorIdOrPageSize as string | null;
   }
-  const statusCondPost: any = isStaff ? {} : viewerId ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } : { status: "approved" };
+  const statusCondPost: any = isStaff ? { status: { not: "deleted" } } : viewerId ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] } : { status: "approved" };
   const authorCond = authorId ? { authorId } : {};
   const cursorCondPost: any = cursor ? { OR: [{ createdAt: { gt: new Date(cursor.t) } }, { createdAt: new Date(cursor.t), id: { gt: cursor.id } }] } : {};
   const baseCondPost: any = { threadId, ...authorCond, ...statusCondPost };

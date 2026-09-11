@@ -15,6 +15,8 @@ import {
   adminDeletePostAction,
   adminDeleteAttachmentAction,
   adminDeleteThreadAction,
+  adminPurgeTrashAction,
+  adminRestoreTrashAction,
   adminResetPasswordAction,
   adminToggleDigestAction,
   adminToggleLockAction,
@@ -67,6 +69,7 @@ import AdminUserSearch from "@/components/AdminUserSearch";
 import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTopRegions, getTrafficSummary, regionName } from "@/lib/visit-stats";
 import { formatBytes, getOpsMetrics } from "@/lib/ops-metrics";
 import { getBackupStatus, getErrorTotals, getMailFailures, getOnlineDetail, getTopErrors, getVitals } from "@/lib/observability";
+import { listTrash, purgeExpiredTrash, TRASH_RETENTION_DAYS } from "@/lib/moderation";
 
 export const metadata = { title: "管理后台" };
 
@@ -83,6 +86,7 @@ const TABS = [
   { key: "words", label: "敏感词" },
   { key: "audit", label: "审计日志" },
   { key: "attachments", label: "附件管理" },
+  { key: "trash", label: "回收站" },
   { key: "stats", label: "数据统计" },
 ] as const;
 
@@ -113,6 +117,10 @@ const ACTION_LABELS: Record<string, string> = {
   delete_thread: "删除主题",
   delete_attachment: "删除附件",
   delete_post: "删除帖子",
+  reject_thread: "驳回主题",
+  reject_post: "驳回帖子",
+  restore_trash: "恢复内容",
+  purge_trash: "彻底删除",
   set_role: "修改角色",
   add_points: "加积分",
   create_board: "创建版块",
@@ -228,6 +236,7 @@ export default async function AdminPage({
       {adminFlag && active === "words" && <WordsTab />}
       {adminFlag && active === "audit" && <AuditTab />}
       {adminFlag && active === "attachments" && <AttachmentsTab />}
+      {adminFlag && active === "trash" && <TrashTab />}
       {adminFlag && active === "stats" && <StatsTab />}
     </div>
   );
@@ -592,7 +601,7 @@ function Row({ children, last, actions }: { children: React.ReactNode; last?: bo
 
 async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
   const threads = await db.thread.findMany({
-    where: boardScope ? { boardId: { in: [...boardScope] } } : undefined,
+    where: { status: { not: "deleted" }, ...(boardScope ? { boardId: { in: [...boardScope] } } : {}) },
     orderBy: { lastPostAt: "desc" },
     take: 100,
     include: {
@@ -622,7 +631,8 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
               </form>
               <ConfirmForm
                 action={adminDeleteThreadAction}
-                message={`删除主题「${t.title}」？\n• 下面的回帖和附件会一起没了\n• 收藏和浏览也会失效\n• 不可恢复，确定删？`}
+                reasonField={{ name: "reason", label: "删除理由", placeholder: "例如：广告引流 / 与版块主题不符" }}
+                message={`删除主题「${t.title}」？\n• 主题从列表与搜索中消失，附件保留\n• 作者会收到通知（含你填的理由）\n• 30 天内可在「回收站」恢复，之后自动彻底删除`}
               >
                 <input type="hidden" name="threadId" value={t.id} />
                 <button type="submit" style={paperDangerBtn}>
@@ -658,7 +668,10 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
 
 async function PostsTab({ boardScope }: { boardScope: Set<string> | null }) {
   const posts = await db.post.findMany({
-    where: boardScope ? { thread: { boardId: { in: [...boardScope] } } } : undefined,
+    where: {
+      status: { not: "deleted" },
+      thread: { status: { not: "deleted" }, ...(boardScope ? { boardId: { in: [...boardScope] } } : {}) },
+    },
     orderBy: { createdAt: "desc" },
     take: 100,
     include: {
@@ -675,7 +688,8 @@ async function PostsTab({ boardScope }: { boardScope: Set<string> | null }) {
           <Row key={p.id} last={i === posts.length - 1} actions={
               <ConfirmForm
                 action={adminDeletePostAction}
-                message={`删除这条回帖？\n• 作者：${p.author.username} · 主题：${p.thread.title.slice(0, 40)}\n• 附件和相关举报会一起清掉\n• 不可恢复，确定删？`}
+                reasonField={{ name: "reason", label: "删除理由", placeholder: "例如：人身攻击 / 刷屏灌水" }}
+                message={`删除这条回帖？\n• 作者：${p.author.username} · 主题：${p.thread.title.slice(0, 40)}\n• 作者会收到通知（含你填的理由）\n• 30 天内可在「回收站」恢复`}
               >
                 <input type="hidden" name="postId" value={p.id} />
                 <button type="submit" style={paperDangerBtn}>
@@ -1204,7 +1218,7 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <form action={approveThreadAction}><input type="hidden" name="threadId" value={t.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
-                  <ConfirmForm action={rejectThreadAction} message={`驳回并删除主题「${t.title}」？\n• 主题 + 楼下所有回帖/附件都会被删\n• 作者会收到“被驳回”通知\n• 不可恢复，确定吗？`}><input type="hidden" name="threadId" value={t.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                  <ConfirmForm action={rejectThreadAction} reasonField={{ name: "reason", label: "驳回理由", placeholder: "例如：内容不完整 / 与版块不符", presets: ["内容不完整", "与版块主题不符", "疑似站外引流", "含敏感信息"] }} message={`驳回主题「${t.title}」？\n• 主题从待审队列移除并进回收站（30 天可恢复）\n• 作者会收到通知（含你填的理由）`}><input type="hidden" name="threadId" value={t.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
                 </div>
               </li>
             ))}
@@ -1218,7 +1232,7 @@ async function PendingTab({ boardScope }: { boardScope: Set<string> | null }) {
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
                   <form action={approvePostAction}><input type="hidden" name="postId" value={p.id} /><button style={{ height: 28, padding: "0 10px", background: "var(--text)", color: "var(--panel)", border: "1.5px solid var(--line)", borderRadius: 8, fontSize: 12, fontWeight: 700, boxShadow: "2px 2px 0 var(--line)", cursor: "pointer" }}>通过</button></form>
-                  <ConfirmForm action={rejectPostAction} message={`驳回这条回帖？\n• 回帖 + 附件会被删，楼主会收到通知\n• 不可恢复，确定吗？`}><input type="hidden" name="postId" value={p.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
+                  <ConfirmForm action={rejectPostAction} reasonField={{ name: "reason", label: "驳回理由", placeholder: "例如：与主题无关 / 疑似广告", presets: ["与主题无关", "疑似广告", "含敏感信息", "内容过短"] }} message={`驳回这条回帖？\n• 回帖进回收站（30 天可恢复），作者会收到通知\n• 附件会保留`}><input type="hidden" name="postId" value={p.id} /><button type="submit" style={{ height: 28, padding: "0 10px", background: "var(--danger-soft)", color: "var(--danger)", border: "1.5px solid #fecaca", borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>驳回</button></ConfirmForm>
                 </div>
               </li>
             ))}
@@ -1338,6 +1352,79 @@ async function AuditTab() {
 }
 
 /* ---------------- 数据统计 ---------------- */
+
+async function TrashTab() {
+  // 顺手清理超过保留期的内容（Redis 锁保证一天最多一次）
+  void purgeExpiredTrash().catch(() => {});
+  const items = await listTrash(60);
+
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <PaperCardHeader
+        title="回收站"
+        count={`${items.length} 条`}
+        sub={`删除的内容保留 ${TRASH_RETENTION_DAYS} 天后自动彻底清除 · 恢复后立即回到列表`}
+      />
+      <ListCard>
+        {items.map((it, i) => (
+          <Row
+            key={`${it.type}-${it.id}`}
+            last={i === items.length - 1}
+            actions={
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <ConfirmForm
+                  action={adminRestoreTrashAction}
+                  message={`恢复这条${it.type === "thread" ? "主题" : "回复"}？\n• 会立即重新出现在版块列表里\n• 附件与浏览数一起恢复`}
+                >
+                  <input type="hidden" name="targetType" value={it.type} />
+                  <input type="hidden" name="targetId" value={it.id} />
+                  <button type="submit" style={paperBtn}>
+                    恢复
+                  </button>
+                </ConfirmForm>
+                <ConfirmForm
+                  action={adminPurgeTrashAction}
+                  message={`彻底删除这条${it.type === "thread" ? "主题" : "回复"}？\n• 数据库记录与附件文件都会被删掉\n• 不可恢复，确定吗？`}
+                >
+                  <input type="hidden" name="targetType" value={it.type} />
+                  <input type="hidden" name="targetId" value={it.id} />
+                  <button type="submit" style={paperDangerBtn}>
+                    彻底删除
+                  </button>
+                </ConfirmForm>
+              </div>
+            }
+          >
+            <div className="admin-row-title">
+              <span className="admin-row-chip" style={{ background: "#FEF2F2", color: "#B91C1C" }}>
+                {it.type === "thread" ? "主题" : "回复"}
+              </span>
+              {it.type === "thread" ? (
+                <Link href={`/t/${it.id}`} className="admin-row-link" title={it.title}>
+                  {it.title}
+                </Link>
+              ) : (
+                <span style={{ color: "var(--text)" }} title={it.excerpt}>
+                  {it.threadTitle ? `回复于「${it.threadTitle.slice(0, 28)}」：` : "回复："}
+                  <span style={{ color: "var(--text-muted)" }}>{it.excerpt.slice(0, 48)}</span>
+                </span>
+              )}
+            </div>
+            <div className="admin-row-meta">
+              <span>{it.authorName}</span>
+              <span>· {it.deletedByName ? `${it.deletedByName} 删除` : "系统删除"}</span>
+              <span className="admin-row-date">· {it.deletedAt ? formatDate(it.deletedAt) : "-"}</span>
+              {it.reason && <span style={{ color: "var(--danger)" }}>· {it.reason}</span>}
+            </div>
+          </Row>
+        ))}
+        {items.length === 0 && (
+          <PaperEmpty badge="EMPTY" title="回收站是空的" description="删除主题或回复后会先进入这里，保留 30 天可随时恢复。" />
+        )}
+      </ListCard>
+    </div>
+  );
+}
 
 async function AttachmentsTab() {
   const [rows, total] = await Promise.all([

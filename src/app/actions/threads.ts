@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { softDeletePost, softDeleteThread } from "@/lib/moderation";
 import { getCurrentUser } from "@/lib/auth";
 import {
   canDeletePost,
@@ -574,14 +575,11 @@ export async function deletePostAction(formData: FormData): Promise<void> {
     redirect(`/t/${post.threadId}?error=forbidden`);
   }
 
-  const storage = getStorage();
   if (isFirstPost) {
-    const all = await db.attachment.findMany({
-      where: { post: { threadId: post.threadId } },
-      select: { storedName: true },
-    });
-    await db.thread.delete({ where: { id: post.threadId } });
-    await Promise.all(all.map((a) => storage.remove(a.storedName)));
+    // 作者自删整帖：软删除进回收站（30 天内可联系管理员恢复）
+    await softDeleteThread(post.threadId, { actorId: user.id, reason: "作者自行删除" });
+    // 自己删自己的内容不必再发通知
+    await db.notification.deleteMany({ where: { userId: user.id, type: "moderation" } }).catch(() => {});
     logger.info("thread.delete_by_author", { userId: user.id, threadId: post.threadId });
     revalidateTag("stats");
     revalidateTag("threads");
@@ -590,12 +588,9 @@ export async function deletePostAction(formData: FormData): Promise<void> {
     revalidatePath(`/c/${post.thread.board.slug}`);
     redirect(`/c/${post.thread.board.slug}`);
   } else {
-    const atts = await db.attachment.findMany({
-      where: { postId: post.id },
-      select: { storedName: true },
-    });
-    await db.post.delete({ where: { id: post.id } });
-    await Promise.all(atts.map((a) => storage.remove(a.storedName)));
+    // 自删回复：同样进回收站
+    await softDeletePost(post.id, { actorId: user.id, reason: "作者自行删除" });
+    await db.notification.deleteMany({ where: { userId: user.id, type: "moderation" } }).catch(() => {});
     logger.info("post.delete", { userId: user.id, postId });
     revalidateTag("stats");
     revalidateTag("threads");

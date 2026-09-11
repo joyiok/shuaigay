@@ -13,6 +13,8 @@ const mockThreadFindUniqueForReview = vi.hoisted(() => vi.fn());
 const mockPostFindUniqueForReview = vi.hoisted(() => vi.fn());
 const mockAttachmentFindMany = vi.hoisted(() => vi.fn());
 const mockThreadDelete = vi.hoisted(() => vi.fn());
+const mockThreadUpdate = vi.hoisted(() => vi.fn());
+const mockPostUpdate = vi.hoisted(() => vi.fn());
 const mockPostDelete = vi.hoisted(() => vi.fn());
 const mockNotificationCreate = vi.hoisted(() => vi.fn());
 const mockStorageRemove = vi.hoisted(() => vi.fn());
@@ -23,10 +25,12 @@ vi.mock("@/lib/db", () => ({
     thread: {
       findUnique: mockFindUniqueThread,
       delete: mockThreadDelete,
+      update: mockThreadUpdate,
     },
     post: {
       findUnique: mockFindUniquePost,
       delete: mockPostDelete,
+      update: mockPostUpdate,
     },
     report: {
       findFirst: mockReportFindFirst,
@@ -227,7 +231,7 @@ describe("reviewReport 审核", () => {
     // 需要让 moderation 内部的 findUnique (thread) 返回有值
     // 实际上 reviewReport 用 db.thread.findUnique / db.post.findUnique 直接查，这里我们 mock 的是同一个 mockFindUniqueThread
     // 所以让它返回存在
-    mockFindUniqueThread.mockResolvedValue({ id: "t1" });
+    mockFindUniqueThread.mockResolvedValue({ id: "t1", authorId: "u2", status: "approved", title: "帖子" });
     mockAttachmentFindMany.mockResolvedValue([]);
     mockThreadDelete.mockResolvedValue({});
     mockReportFindMany.mockResolvedValue([{ id: "r1", reporterId: "u1" }]);
@@ -238,12 +242,15 @@ describe("reviewReport 审核", () => {
     // 已经设好，接下来调用 deleteThread 会再次用 mockAttachmentFindMany 等
     const r = await reviewReport("r1", "delete_thread");
     expect(r.ok).toBe(true);
-    expect(mockThreadDelete).toHaveBeenCalledWith({ where: { id: "t1" } });
+    // 举报成立 → 软删除（进回收站可恢复），不再直接物理删除
+    expect(mockThreadUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "t1" }, data: expect.objectContaining({ status: "deleted" }) }),
+    );
   });
 
   it("delete_post 目标存在时删除", async () => {
     mockReportFindUnique.mockResolvedValue({ id: "r1", status: "pending", targetType: "post", targetId: "p1", reporterId: "u1" });
-    mockFindUniquePost.mockResolvedValue({ id: "p1" });
+    mockFindUniquePost.mockResolvedValue({ id: "p1", authorId: "u3", status: "approved", thread: { title: "主题" } });
     mockAttachmentFindMany.mockResolvedValue([{ storedName: "2025/abc.jpg" }]);
     mockPostDelete.mockResolvedValue({});
     mockReportFindMany.mockResolvedValue([{ id: "r1", reporterId: "u1" }]);
@@ -253,8 +260,11 @@ describe("reviewReport 审核", () => {
 
     const r = await reviewReport("r1", "delete_post");
     expect(r.ok).toBe(true);
-    expect(mockPostDelete).toHaveBeenCalledWith({ where: { id: "p1" } });
-    expect(mockStorageRemove).toHaveBeenCalledWith("2025/abc.jpg");
+    // 软删除：不动物理文件，附件保留以便恢复
+    expect(mockPostUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "p1" }, data: expect.objectContaining({ status: "deleted" }) }),
+    );
+    expect(mockPostDelete).not.toHaveBeenCalled();
   });
 
   it("delete_thread 目标已不存在时只结案并通知已不存在", async () => {
@@ -325,7 +335,10 @@ describe("settlePendingReports / notifyReporter / deleteThread helpers", () => {
     mockReportFindMany.mockResolvedValue([]);
     mockStorageRemove.mockResolvedValue(undefined);
     await deleteThread("t1");
-    expect(mockThreadDelete).toHaveBeenCalledWith({ where: { id: "t1" } });
+    // 举报成立 → 软删除（进回收站可恢复），不再直接物理删除
+    expect(mockThreadUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "t1" }, data: expect.objectContaining({ status: "deleted" }) }),
+    );
     expect(mockStorageRemove).toHaveBeenCalledTimes(2);
   });
 

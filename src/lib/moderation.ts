@@ -56,7 +56,96 @@ export async function settlePendingReports(
   }
 }
 
-/** 删主题:DB 行级联 + 磁盘附件清理 + 相关举报结案 */
+/* 删除分两层：
+ * - 软删除（softDelete*）：status=deleted + 记删除人/时间/原因，进回收站，附件保留可恢复
+ * - 彻底删除（deleteThread/deletePost）：DB 行级联 + 磁盘附件清理，只由回收站清理调用
+ */
+
+export const TRASH_RETENTION_DAYS = 30;
+
+/** 删除原因最长长度（会随通知发给作者） */
+export const DELETE_REASON_MAX = 200;
+
+/** 通知作者内容被删除；reason 为空时给一句通用说明 */
+async function notifyAuthorRemoved(opts: {
+  authorId: string;
+  targetType: "thread" | "post";
+  title: string;
+  reason: string;
+  canRestore: boolean;
+}): Promise<void> {
+  const label = opts.targetType === "thread" ? "主题" : "回复";
+  const title = `你的${label}已被删除`;
+  const lines = [
+    opts.title ? `《${opts.title.slice(0, 40)}》` : "",
+    opts.reason ? `原因：${opts.reason}` : "原因：违反社区规范",
+    opts.canRestore ? `如有疑问可在 ${TRASH_RETENTION_DAYS} 天内联系管理员申诉，内容暂存于回收站。` : "",
+  ].filter(Boolean);
+  await db
+    .notification.create({
+      data: { userId: opts.authorId, type: "moderation", title, body: lines.join("\n"), link: "/notifications" },
+    })
+    .catch(() => {});
+}
+
+/** 软删除主题:进回收站，可恢复；作者收到通知 */
+export async function softDeleteThread(
+  threadId: string,
+  opts: { actorId: string; reason?: string; byModerator?: boolean } = { actorId: "system" },
+): Promise<void> {
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { authorId: true, title: true, status: true },
+  });
+  if (!thread || thread.status === "deleted") return;
+  const reason = (opts.reason ?? "").trim().slice(0, DELETE_REASON_MAX);
+  await db.thread.update({
+    where: { id: threadId },
+    data: { status: "deleted", deletedAt: new Date(), deletedBy: opts.actorId, deleteReason: reason },
+  });
+  await settlePendingReports("thread", threadId, true);
+  await notifyAuthorRemoved({
+    authorId: thread.authorId,
+    targetType: "thread",
+    title: thread.title,
+    reason,
+    canRestore: true,
+  });
+}
+
+/** 软删除回复:进回收站，可恢复；作者收到通知 */
+export async function softDeletePost(
+  postId: string,
+  opts: { actorId: string; reason?: string } = { actorId: "system" },
+): Promise<void> {
+  const post = await db.post.findUnique({
+    where: { id: postId },
+    select: { authorId: true, status: true, thread: { select: { title: true } } },
+  });
+  if (!post || post.status === "deleted") return;
+  const reason = (opts.reason ?? "").trim().slice(0, DELETE_REASON_MAX);
+  await db.post.update({
+    where: { id: postId },
+    data: { status: "deleted", deletedAt: new Date(), deletedBy: opts.actorId, deleteReason: reason },
+  });
+  await settlePendingReports("post", postId, true);
+  await notifyAuthorRemoved({
+    authorId: post.authorId,
+    targetType: "post",
+    title: post.thread?.title ?? "",
+    reason,
+    canRestore: true,
+  });
+}
+
+/** 从回收站恢复（主题/回复），并把原因/删除人清空 */
+export async function restoreFromTrash(targetType: "thread" | "post", targetId: string): Promise<void> {
+  const data = { status: "approved", deletedAt: null, deletedBy: null, deleteReason: null };
+  if (targetType === "thread") await db.thread.update({ where: { id: targetId }, data });
+  else await db.post.update({ where: { id: targetId }, data });
+}
+
+/** 彻底删除主题:DB 行级联 + 磁盘附件清理（回收站清理用） */
 export async function deleteThread(threadId: string): Promise<void> {
   const atts = await db.attachment.findMany({
     where: { post: { threadId } },
@@ -67,7 +156,7 @@ export async function deleteThread(threadId: string): Promise<void> {
   await settlePendingReports("thread", threadId, true);
 }
 
-/** 删帖子:DB 行级联 + 磁盘附件清理 + 相关举报结案 */
+/** 彻底删除帖子:DB 行级联 + 磁盘附件清理（回收站清理用） */
 export async function deletePost(postId: string): Promise<void> {
   const atts = await db.attachment.findMany({
     where: { postId },
@@ -76,6 +165,108 @@ export async function deletePost(postId: string): Promise<void> {
   await db.post.delete({ where: { id: postId } });
   await deleteStored(atts.map((a) => a.storedName));
   await settlePendingReports("post", postId, true);
+}
+
+/**
+ * 清理回收站：把超过保留期的已删内容彻底删除（含附件）。
+ * 由后台回收站页触发，Redis 锁保证一天最多跑一次。
+ */
+export async function purgeExpiredTrash(): Promise<{ threads: number; posts: number }> {
+  const { getRedis } = await import("./redis");
+  const redis = getRedis();
+  const lockKey = "trash:purge:lock";
+  if (redis) {
+    const got = await redis.set(lockKey, "1", "EX", 6 * 3600, "NX").catch(() => null);
+    if (!got) return { threads: 0, posts: 0 };
+  }
+  const cutoff = new Date(Date.now() - TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000);
+  const [threads, posts] = await Promise.all([
+    db.thread.findMany({ where: { status: "deleted", deletedAt: { lt: cutoff } }, select: { id: true }, take: 200 }),
+    db.post.findMany({ where: { status: "deleted", deletedAt: { lt: cutoff } }, select: { id: true }, take: 500 }),
+  ]);
+  for (const t of threads) await deleteThread(t.id).catch(() => {});
+  for (const p of posts) await deletePost(p.id).catch(() => {});
+  if (threads.length || posts.length) {
+    logger.info("trash.purged", { threads: threads.length, posts: posts.length, retentionDays: TRASH_RETENTION_DAYS });
+  }
+  return { threads: threads.length, posts: posts.length };
+}
+
+/** 回收站条目：主题与回复合并成一条时间线 */
+export interface TrashItem {
+  type: "thread" | "post";
+  id: string;
+  title: string;
+  excerpt: string;
+  authorName: string;
+  threadId: string | null;
+  threadTitle: string | null;
+  deletedAt: Date | null;
+  deletedBy: string | null;
+  deletedByName: string | null;
+  reason: string;
+}
+
+export async function listTrash(limit = 60): Promise<TrashItem[]> {
+  const [threads, posts] = await Promise.all([
+    db.thread.findMany({
+      where: { status: "deleted" },
+      orderBy: { deletedAt: "desc" },
+      take: limit,
+      select: { id: true, title: true, authorId: true, deletedAt: true, deletedBy: true, deleteReason: true },
+    }),
+    db.post.findMany({
+      where: { status: "deleted" },
+      orderBy: { deletedAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        contentMd: true,
+        authorId: true,
+        deletedAt: true,
+        deletedBy: true,
+        deleteReason: true,
+        thread: { select: { id: true, title: true } },
+      },
+    }),
+  ]);
+  const userIds = [
+    ...new Set([...threads.map((t) => t.authorId), ...threads.map((t) => t.deletedBy), ...posts.map((p) => p.authorId), ...posts.map((p) => p.deletedBy)].filter(Boolean) as string[]),
+  ];
+  const users = userIds.length
+    ? await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, username: true } })
+    : [];
+  const nameOf = new Map(users.map((u) => [u.id, u.username]));
+
+  const items: TrashItem[] = [
+    ...threads.map((t) => ({
+      type: "thread" as const,
+      id: t.id,
+      title: t.title,
+      excerpt: "",
+      authorName: nameOf.get(t.authorId) ?? "已注销",
+      threadId: t.id,
+      threadTitle: t.title,
+      deletedAt: t.deletedAt,
+      deletedBy: t.deletedBy,
+      deletedByName: t.deletedBy ? nameOf.get(t.deletedBy) ?? "系统" : null,
+      reason: t.deleteReason ?? "",
+    })),
+    ...posts.map((p) => ({
+      type: "post" as const,
+      id: p.id,
+      title: "",
+      excerpt: p.contentMd.replace(/\s+/g, " ").slice(0, 120),
+      authorName: nameOf.get(p.authorId) ?? "已注销",
+      threadId: p.thread?.id ?? null,
+      threadTitle: p.thread?.title ?? null,
+      deletedAt: p.deletedAt,
+      deletedBy: p.deletedBy,
+      deletedByName: p.deletedBy ? nameOf.get(p.deletedBy) ?? "系统" : null,
+      reason: p.deleteReason ?? "",
+    })),
+  ];
+  return items.sort((a, b) => (b.deletedAt?.getTime() ?? 0) - (a.deletedAt?.getTime() ?? 0)).slice(0, limit);
 }
 
 async function deleteStored(names: string[]): Promise<void> {
@@ -235,9 +426,9 @@ export async function reviewReport(
       ? await db.thread.findUnique({ where: { id: report.targetId } })
       : await db.post.findUnique({ where: { id: report.targetId } });
     if (target) {
-      // 删除目标;同目标的所有 pending 举报(含本条)一并结案并通知
-      if (isThread) await deleteThread(report.targetId);
-      else await deletePost(report.targetId);
+      // 软删除目标（进回收站可恢复）;同目标的所有 pending 举报(含本条)一并结案并通知
+      if (isThread) await softDeleteThread(report.targetId, { actorId: "moderation", reason: "举报成立" });
+      else await softDeletePost(report.targetId, { actorId: "moderation", reason: "举报成立" });
     } else {
       await db.report.update({
         where: { id: report.id },

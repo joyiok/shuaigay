@@ -12,6 +12,11 @@ import {
   reviewReport,
   settlePendingReports,
   type ReviewAction,
+  softDeletePost,
+  softDeleteThread,
+  restoreFromTrash,
+  listTrash,
+  purgeExpiredTrash,
 } from "@/lib/moderation";
 import { extensionForMime, getStorage, MAX_LOGO_BYTES } from "@/lib/storage";
 import { sniffMime } from "@/lib/filetype";
@@ -124,6 +129,7 @@ export async function adminToggleLockAction(formData: FormData): Promise<void> {
 export async function adminDeleteThreadAction(formData: FormData): Promise<void> {
   const staff = await requireStaff();
   const threadId = String(formData.get("threadId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 200);
   const thread = await db.thread.findUnique({
     where: { id: threadId },
     select: { id: true, boardId: true },
@@ -131,9 +137,10 @@ export async function adminDeleteThreadAction(formData: FormData): Promise<void>
   if (!thread) redirect(ADMIN_TAB("threads") + "&error=not_found");
   if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("threads") + "&error=forbidden");
   const actorId = staff.id;
-  await deleteThread(threadId);
-  await db.auditLog.create({ data: { actorId, action: "delete_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
-  logger.info("admin.delete_thread", { actorId, threadId });
+  // 软删除：进回收站 30 天可恢复，同时通知作者（带删除原因）
+  await softDeleteThread(threadId, { actorId, reason });
+  await db.auditLog.create({ data: { actorId, action: "delete_thread", targetType: "thread", targetId: threadId, detail: reason || null } }).catch(() => {});
+  logger.info("admin.delete_thread", { actorId, threadId, reason });
   revalidateTag("stats");
   revalidateTag("threads");
   revalidateTag("boards");
@@ -146,6 +153,7 @@ export async function adminDeleteThreadAction(formData: FormData): Promise<void>
 export async function adminDeletePostAction(formData: FormData): Promise<void> {
   const staff = await requireStaff();
   const postId = String(formData.get("postId") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 200);
   const post = await db.post.findUnique({
     where: { id: postId },
     select: { id: true, thread: { select: { boardId: true } } },
@@ -153,13 +161,54 @@ export async function adminDeletePostAction(formData: FormData): Promise<void> {
   if (!post) redirect(ADMIN_TAB("posts") + "&error=not_found");
   if (staff.boardScope && !staff.boardScope.has(post.thread.boardId)) redirect(ADMIN_TAB("posts") + "&error=forbidden");
   const actorId = staff.id;
-  await deletePost(postId);
-  await db.auditLog.create({ data: { actorId, action: "delete_post", targetType: "post", targetId: postId } }).catch(() => {});
-  logger.info("admin.delete_post", { actorId, postId });
+  await softDeletePost(postId, { actorId, reason });
+  await db.auditLog.create({ data: { actorId, action: "delete_post", targetType: "post", targetId: postId, detail: reason || null } }).catch(() => {});
+  logger.info("admin.delete_post", { actorId, postId, reason });
   revalidateTag("stats");
   revalidateTag("threads");
   revalidatePath("/");
   redirect(ADMIN_TAB("posts"));
+}
+
+/* ---------------- 回收站 ---------------- */
+
+export async function adminRestoreTrashAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const id = String(formData.get("targetId") ?? "");
+  const type = String(formData.get("targetType") ?? "") === "post" ? "post" : "thread";
+  if (!id) redirect(ADMIN_TAB("trash") + "&error=not_found");
+
+  if (type === "thread") {
+    const t = await db.thread.findUnique({ where: { id }, select: { boardId: true, status: true, title: true } });
+    if (!t || t.status !== "deleted") redirect(ADMIN_TAB("trash") + "&error=not_found");
+    if (staff.boardScope && !staff.boardScope.has(t.boardId)) redirect(ADMIN_TAB("trash") + "&error=forbidden");
+  } else {
+    const p = await db.post.findUnique({ where: { id }, select: { status: true, thread: { select: { boardId: true } } } });
+    if (!p || p.status !== "deleted") redirect(ADMIN_TAB("trash") + "&error=not_found");
+    if (staff.boardScope && !staff.boardScope.has(p.thread.boardId)) redirect(ADMIN_TAB("trash") + "&error=forbidden");
+  }
+
+  await restoreFromTrash(type, id);
+  await db.auditLog.create({ data: { actorId: staff.id, action: "restore_trash", targetType: type, targetId: id } }).catch(() => {});
+  logger.info("admin.restore_trash", { actorId: staff.id, type, id });
+  revalidateTag("threads");
+  revalidateTag("stats");
+  revalidatePath("/");
+  redirect(ADMIN_TAB("trash"));
+}
+
+export async function adminPurgeTrashAction(formData: FormData): Promise<void> {
+  const staff = await requireStaff();
+  const id = String(formData.get("targetId") ?? "");
+  const type = String(formData.get("targetType") ?? "") === "post" ? "post" : "thread";
+  if (!id) redirect(ADMIN_TAB("trash") + "&error=not_found");
+  if (staff.boardScope && staff.boardScope.size > 0) redirect(ADMIN_TAB("trash") + "&error=forbidden"); // 彻底删除仅全站管理员
+
+  if (type === "thread") await deleteThread(id);
+  else await deletePost(id);
+  await db.auditLog.create({ data: { actorId: staff.id, action: "purge_trash", targetType: type, targetId: id } }).catch(() => {});
+  logger.info("admin.purge_trash", { actorId: staff.id, type, id });
+  redirect(ADMIN_TAB("trash"));
 }
 
 /* ---------------- 附件管理 ---------------- */
@@ -703,11 +752,9 @@ export async function rejectThreadAction(formData: FormData): Promise<void> {
   if (!thread) redirect(ADMIN_TAB("pending") + "&error=not_found");
   if (staff.boardScope && !staff.boardScope.has(thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
   if (thread.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
-  const atts = await db.attachment.findMany({ where: { post: { threadId } }, select: { storedName: true } });
-  await db.thread.delete({ where: { id: threadId } });
-  const storage = getStorage();
-  await Promise.all(atts.map((a) => storage.remove(a.storedName)));
-  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 200) || "审核未通过";
+  await softDeleteThread(threadId, { actorId: staff.id, reason });
+  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_thread", targetType: "thread", targetId: threadId, detail: reason } }).catch(() => {});
   logger.info("admin.reject_thread", { actorId: staff.id, threadId });
   revalidateTag("threads");
   revalidateTag("pending");
@@ -747,11 +794,9 @@ export async function rejectPostAction(formData: FormData): Promise<void> {
   if (!post) redirect(ADMIN_TAB("pending") + "&error=not_found");
   if (staff.boardScope && !staff.boardScope.has(post.thread.boardId)) redirect(ADMIN_TAB("pending") + "&error=not_found");
   if (post.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
-  const atts = await db.attachment.findMany({ where: { postId }, select: { storedName: true } });
-  await db.post.delete({ where: { id: postId } });
-  const storage = getStorage();
-  await Promise.all(atts.map((a) => storage.remove(a.storedName)));
-  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_post", targetType: "post", targetId: postId } }).catch(() => {});
+  const reason = String(formData.get("reason") ?? "").trim().slice(0, 200) || "审核未通过";
+  await softDeletePost(postId, { actorId: staff.id, reason });
+  await db.auditLog.create({ data: { actorId: staff.id, action: "reject_post", targetType: "post", targetId: postId, detail: reason } }).catch(() => {});
   logger.info("admin.reject_post", { actorId: staff.id, postId });
   revalidateTag("threads");
   revalidateTag("pending");

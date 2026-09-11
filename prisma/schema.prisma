@@ -15,6 +15,7 @@ enum Role {
 enum VerificationTokenType {
   VERIFY_EMAIL
   RESET_PASSWORD
+  CHANGE_EMAIL
 }
 
 model User {
@@ -30,6 +31,8 @@ model User {
   // 通知偏好:按分组控制站内通知;待审/举报/系统等运营类通知不受开关影响(始终送达)
   notifyReply    Boolean @default(true)
   notifyFollow   Boolean @default(true)
+  // 邮件提醒：关闭时一切走站内（默认关闭，避免打扰；回复/@/私信合并为一档）
+  emailNotify    Boolean @default(false)
   // 头像 storage 相对路径(storedName);未设置时全站回退到首字母占位
   avatarUrl    String?
   registrationIp String?
@@ -58,6 +61,11 @@ model User {
   bans              Ban[]
   auditLogs          AuditLog[]         @relation("AuditActor")
   medals            UserMedal[]
+  following_feed    ReadingProgress[]
+  blocksMade        Block[]            @relation("BlockMaker")
+  blocksReceived    Block[]            @relation("BlockTarget")
+  checkIns          CheckIn[]
+  pollVotes         PollVote[]
   ipLogs            UserIpLog[]
 }
 
@@ -67,6 +75,8 @@ model VerificationToken {
   userId    String
   tokenHash String                 @unique
   type      VerificationTokenType
+  // CHANGE_EMAIL 时记录待绑定邮箱
+  email     String?
   expiresAt DateTime
   createdAt DateTime               @default(now())
 
@@ -139,6 +149,10 @@ model Session {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+  // 登录设备信息（设置页展示、可远程下线）
+  ip         String?
+  ua         String?
+  lastSeenAt DateTime @default(now())
 
   @@index([userId])
 }
@@ -211,6 +225,8 @@ model Favorite {
   userId    String
   threadId  String
   createdAt DateTime @default(now())
+  // 追更用：上次查看时该作品的章节数，用于算「有 N 章更新」
+  lastSeenPosts Int  @default(0)
 
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
@@ -251,10 +267,15 @@ model Thread {
   // 外部迁移幂等键:同一来源记录重试时不重复创建主题
   importKey  String?  @unique
   views      Int      @default(0)
+  // approved | pending | deleted（deleted 为软删除，进回收站，30 天后彻底清除）
   status     String   @default("approved")
   createdAt  DateTime @default(now())
   // 列表按此字段游标分页,回复时更新
   lastPostAt DateTime @default(now())
+
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
 
   board     Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
   author    User             @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -262,6 +283,9 @@ model Thread {
   categoryId String?
   posts     Post[]
   favorites Favorite[]
+  progress  ReadingProgress[]
+  tags      ThreadTag[]
+  poll      Poll?
 
   @@index([boardId, lastPostAt])
   @@index([boardId, categoryId, lastPostAt])
@@ -276,8 +300,12 @@ model Post {
   authorId  String
   // 只存 Markdown 原文,渲染在读取时做(写时渲染会把脏数据固化进库)
   contentMd String
+  // approved | pending | deleted（软删除进回收站）
   status    String   @default("approved")
   createdAt DateTime @default(now())
+  deletedAt    DateTime?
+  deletedBy    String?
+  deleteReason String?
 
   thread      Thread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
   author      User         @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
@@ -496,4 +524,117 @@ model MailFailure {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+/// 阅读进度：小说记到第几章、普通主题记到最后读的楼层（跨设备）
+model ReadingProgress {
+  id        String   @id @default(cuid())
+  userId    String
+  threadId  String
+  postId    String?
+  /// 小说章节序号（1 起）；普通主题为 0
+  chapter   Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, threadId])
+  @@index([userId, updatedAt])
+  @@index([threadId])
+}
+
+/// 拉黑/屏蔽：屏蔽后互不可见回帖、私信，也不产生通知
+model Block {
+  id        String   @id @default(cuid())
+  userId    String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  user   User @relation("BlockMaker", fields: [userId], references: [id], onDelete: Cascade)
+  target User @relation("BlockTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetId])
+  @@index([targetId])
+}
+
+/// 每日签到
+model CheckIn {
+  id        String   @id @default(cuid())
+  userId    String
+  day       DateTime @db.Date
+  points    Int      @default(0)
+  streak    Int      @default(1)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, day])
+  @@index([day])
+}
+
+/// 主题标签
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  threads ThreadTag[]
+
+  @@index([count])
+}
+
+model ThreadTag {
+  threadId String
+  tagId    String
+
+  thread Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, tagId])
+  @@index([tagId])
+}
+
+/// 投票帖
+model Poll {
+  id        String    @id @default(cuid())
+  threadId  String    @unique
+  question  String
+  multiple  Boolean   @default(false)
+  closesAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  thread  Thread       @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  options PollOption[]
+  votes   PollVote[]
+}
+
+model PollOption {
+  id     String @id @default(cuid())
+  pollId String
+  label  String
+  order  Int    @default(0)
+
+  poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes PollVote[]
+
+  @@index([pollId, order])
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  optionId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  poll   Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  option PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId, optionId])
+  @@index([pollId])
+  @@index([userId])
 }

@@ -15,7 +15,7 @@ import { db } from "./db";
 import { logger } from "./logger";
 import { hashPassword } from "./auth";
 import { isStrongPassword, passwordSchema } from "./password";
-import { deleteThread, deletePost, settlePendingReports } from "./moderation";
+import { deleteThread, deletePost, settlePendingReports, softDeletePost, softDeleteThread } from "./moderation";
 import { banUser, unbanUser, isUserBanned } from "./ban";
 import { addSensitiveWord, removeSensitiveWord } from "./sensitive";
 import { buildAnnouncementRows, chunkIds } from "./notify";
@@ -334,8 +334,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
     case "delete_thread": {
       const thread = await db.thread.findUnique({ where: { id: action.threadId }, select: { id: true, title: true } });
       if (!thread) return skipped("主题不存在");
-      if (dryRun) return planned(`将删除主题「${thread.title}」`);
-      await deleteThread(thread.id);
+      if (dryRun) return planned(`将删除主题「${thread.title}」（进回收站，${30} 天可恢复）`);
+      await softDeleteThread(thread.id, { actorId: actor, reason: "AI/批量运营删除" });
       await audit(actor, "delete_thread", "thread", thread.id, thread.title.slice(0, 60));
       return applied(`已删除主题「${thread.title}」`);
     }
@@ -421,8 +421,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       const thread = await db.thread.findUnique({ where: { id: action.threadId }, select: { id: true, title: true, status: true } });
       if (!thread) return skipped("主题不存在");
       if (thread.status !== "pending") return skipped("只拒绝待审主题，已发布内容请用 delete_thread");
-      if (dryRun) return planned(`将拒绝并删除待审主题「${thread.title}」`);
-      await deleteThread(thread.id);
+      if (dryRun) return planned(`将拒绝待审主题「${thread.title}」（进回收站，30 天可恢复）`);
+      await softDeleteThread(thread.id, { actorId: actor, reason: "审核未通过" });
       await audit(actor, "reject_thread", "thread", thread.id, thread.title.slice(0, 60));
       return applied(`已拒绝并删除「${thread.title}」`);
     }
@@ -440,8 +440,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
     case "delete_post": {
       const post = await db.post.findUnique({ where: { id: action.postId }, select: { id: true, threadId: true, contentMd: true } });
       if (!post) return skipped("帖子不存在");
-      if (dryRun) return planned(`将删除帖子 ${post.id}（${post.contentMd.slice(0, 30)}）`);
-      await deletePost(post.id);
+      if (dryRun) return planned(`将删除帖子 ${post.id}（${post.contentMd.slice(0, 30)}），进回收站 30 天可恢复`);
+      await softDeletePost(post.id, { actorId: actor, reason: "AI/批量运营删除" });
       await audit(actor, "delete_post", "post", post.id);
       return applied(`已删除帖子 ${post.id}`);
     }
@@ -461,8 +461,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       const post = await db.post.findUnique({ where: { id: action.postId }, select: { id: true, status: true } });
       if (!post) return skipped("帖子不存在");
       if (post.status !== "pending") return skipped("只拒绝待审帖子，已发布内容请用 delete_post");
-      if (dryRun) return planned(`将拒绝并删除待审帖子 ${post.id}`);
-      await deletePost(post.id);
+      if (dryRun) return planned(`将拒绝待审帖子 ${post.id}，进回收站 30 天可恢复`);
+      await softDeletePost(post.id, { actorId: actor, reason: "审核未通过" });
       await audit(actor, "reject_post", "post", post.id);
       return applied(`已拒绝并删除帖子 ${post.id}`);
     }

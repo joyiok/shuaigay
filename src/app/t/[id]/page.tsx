@@ -191,6 +191,9 @@ export default async function ThreadPage({
   const isBoardStaff = admin || (user ? await isBoardModerator(user.id, (thread as unknown as { board: { id: string } }).board.id) : false);
   if ((thread as unknown as { board: { isHidden: boolean } }).board.isHidden && !isBoardStaff) notFound();
   if ((thread as unknown as { status: string }).status === "pending" && user?.id !== thread.authorId && !isBoardStaff) notFound();
+  // 回收站里的主题：只有版主/管理员能看（用于判断是否恢复），普通访客一律 404
+  const trashed = (thread as unknown as { status: string }).status === "deleted";
+  if (trashed && !isBoardStaff) notFound();
   const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
   const authorIds = [...new Set(items.map((p) => p.authorId))];
   const medalsByUser = authorIds.length ? await db.userMedal.findMany({ where: { userId: { in: authorIds } }, include: { medal: true } }).then((rows: any[]) => {
@@ -247,6 +250,24 @@ export default async function ThreadPage({
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <link rel="canonical" href={canonical} />
+      {trashed && (
+        <div
+          className="card"
+          style={{ padding: "12px 14px", borderColor: "#fecaca", background: "#FEF2F2", display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}
+        >
+          <span className="topic-badge" style={{ background: "#fff", border: "1px solid #fecaca", color: "#B91C1C", fontWeight: 800 }}>
+            回收站
+          </span>
+          <span style={{ fontSize: 13, color: "#7F1D1D" }}>
+            该主题已被删除
+            {(thread as any).deleteReason ? `（理由：${(thread as any).deleteReason}）` : ""}
+            ，仅有版主可见。可在后台「回收站」恢复。
+          </span>
+          <Link href="/admin/trash" style={{ marginLeft: "auto", fontSize: 12.5, fontWeight: 700, color: "#B91C1C" }}>
+            去回收站 →
+          </Link>
+        </div>
+      )}
       <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
         <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
           <Link itemProp="item" href="/"><span itemProp="name">首页</span></Link><meta itemProp="position" content="1" />
