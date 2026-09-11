@@ -16,6 +16,8 @@ permissions:
   contents: read
   # docker 构建缓存 type=gha 需要读写 Actions 缓存
   actions: write
+  # 推送 app 镜像到 GHCR
+  packages: write
 
 env:
   NEXT_TELEMETRY_DISABLED: "1"
@@ -162,25 +164,48 @@ jobs:
           retention-days: 7
 
   docker:
-    name: docker · build check
+    name: docker · build & push
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
-      - name: Build app image (不推送，仅验证 Dockerfile + standalone)
+
+      - name: Log in to GHCR
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # main 上构建并推送（sha 定版 + latest）；PR 只验证能否构建
+      - name: Build app image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile
-          push: false
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           load: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          tags: shuaigay:test
+          tags: |
+            ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}:latest
 
       - name: Validate compose config
         run: docker compose config >/dev/null && echo "compose.yml OK"
+
+      # 服务器按公开地址拉镜像（镜像里无任何密钥，仓库本身也是公开的）
+      - name: Make package public
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        continue-on-error: true
+        run: |
+          curl -sS -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user/packages/container/shuaigay" \
+            -d '{"visibility":"public"}' | head -c 300 || true
 
   deploy:
     name: deploy · production
@@ -199,17 +224,23 @@ jobs:
       - name: Backup and deploy
         env:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          APP_REPO: ${{ github.repository }}
         run: |
-          ssh -o BatchMode=yes root@"$DEPLOY_HOST" 'bash -s' -- "${{ github.sha }}" <<'REMOTE'
+          ssh -o BatchMode=yes root@"$DEPLOY_HOST" 'bash -s' -- "${{ github.sha }}" "$APP_REPO" <<'REMOTE'
           set -eu
           expected_sha=$1
+          app_repo=$2
           cd /opt/shuaigay
           test -z "$(git status --porcelain)"
           docker compose exec -T backup sh /scripts/pre-dump.sh </dev/null
           git pull --ff-only
           test "$(git rev-parse HEAD)" = "$expected_sha"
-          # BuildKit：Dockerfile 里 .next/cache 走 cache mount，重复构建复用 Next 编译缓存
-          DOCKER_BUILDKIT=1 docker compose up -d --build
+          # 拉 CI 预构建的镜像（按 commit 定版），只重建 app 容器：不再在服务器上编译，
+          # 停机从 1~2 分钟降到秒级；回滚只需把 APP_IMAGE 指回旧 sha
+          export APP_IMAGE="ghcr.io/${app_repo}:sha-${expected_sha}"
+          docker compose pull app
+          docker compose up -d --wait --wait-timeout 120 app
+          docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
           curl --fail --silent --show-error http://127.0.0.1:3000/api/health
           REMOTE
 

@@ -32,6 +32,8 @@ services:
     restart: unless-stopped
 
   app:
+    # 生产走 GHCR 预构建镜像（CI 构建并推送），本地开发仍可 docker compose up --build
+    image: ${APP_IMAGE:-ghcr.io/joyiok/shuaigay:latest}
     build:
       context: .
       args:
