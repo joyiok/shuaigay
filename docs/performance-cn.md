@@ -72,7 +72,22 @@ curl -s -o /dev/null -D - -H 'RSC: 1' -H 'Accept: text/x-component' 'https://shu
 
 RSC 载荷每次渲染的 chunk ID 不同，已验证「给客户端喂旧载荷」不会崩（客户端跳转正常、无 JS 报错），故可安全缓存。
 
-## 已知问题：发布即短暂 521
+## 部署方式：GHCR 预构建镜像（停机 ~1s）
 
-CI 的 deploy 步骤在服务器上 `docker compose up -d --build`，本地无构建缓存，重建期间约 **1–2 分钟**站点不可用（CF 521）。
-建议改为：CI 构建镜像并推 GHCR → 服务器 `docker compose pull && up -d`，把停机压到秒级。
+~~CI 的 deploy 步骤在服务器上 `docker compose up -d --build`，本地无构建缓存，重建期间约 **1–2 分钟**站点不可用（CF 521）。~~
+
+**已修复（2026-09-11）**：改为 CI 构建镜像推 GHCR，服务器只拉镜像。
+
+- `docker` job 在 main 上构建并推送 `ghcr.io/joyiok/shuaigay:sha-<commit>` 与 `:latest`（gha 构建缓存）
+- `compose.yml` 的 app 支持 `APP_IMAGE` 覆盖（默认 `:latest`），本地开发仍可 `--build`
+- deploy 改为 `docker compose pull app` + `up -d --wait app`，只重建 app 容器，并清掉 7 天前的旧镜像
+- 镜像按 commit 定版，回滚 = 把 `APP_IMAGE` 指回旧 sha 再 `up -d`
+
+实测（Docker 事件 + 外部每 2s 探测）：
+
+| | 之前 | 现在 |
+|---|---|---|
+| 容器停机 | 1–2 分钟（构建期） | **约 1 秒**（stop 1789102907 → start 1789102908） |
+| deploy job 耗时 | 2m20s | **1m06s** |
+
+GHCR 包为 public（服务器无 docker 凭据、匿名拉取），镜像内不含任何密钥。
