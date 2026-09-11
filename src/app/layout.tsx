@@ -82,6 +82,7 @@ export default async function RootLayout({
       recordVisit({
         path: reqHeaders.get("x-pathname") ?? "/",
         country: reqHeaders.get("cf-ipcountry"),
+        region: reqHeaders.get("cf-ipregion"),
         city: reqHeaders.get("cf-ipcity"),
         referrer: reqHeaders.get("referer"),
         ua: reqHeaders.get("user-agent"),

@@ -63,7 +63,7 @@ import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import CopyButton from "@/components/CopyButton";
 import AdminUserSearch from "@/components/AdminUserSearch";
-import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTrafficSummary } from "@/lib/visit-stats";
+import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTopRegions, getTrafficSummary, regionName } from "@/lib/visit-stats";
 
 export const metadata = { title: "管理后台" };
 
@@ -1334,7 +1334,7 @@ async function AuditTab() {
 /* ---------------- 数据统计 ---------------- */
 
 async function StatsTab() {
-  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit] = await Promise.all([
+  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit, topRegions] = await Promise.all([
     db.user.count(),
     db.post.count(),
     db.thread.count(),
@@ -1344,6 +1344,7 @@ async function StatsTab() {
     getTopReferrers(7, 8),
     getTopPaths(7, 10),
     getDeviceSplit(7),
+    getTopRegions(7, 12),
   ]);
   const totalViews = (viewAgg as any)._sum?.views ?? 0;
 
@@ -1509,9 +1510,39 @@ async function StatsTab() {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
         <div className="card" style={{ padding: 16 }}>
-          <div className="quick-title" style={{ margin: "0 0 12px" }}>访问地区 <span>近 7 天 · Top {topCountries.length}</span></div>
+          <div className="quick-title" style={{ margin: "0 0 12px" }}>
+            访问地区 <span>近 7 天 · 国家/地区 Top {topCountries.length}{topRegions.length ? ` · 省份 Top ${topRegions.length}` : ""}</span>
+          </div>
+          {topRegions.length > 0 && (
+            <div style={{ display: "grid", gap: 7, marginBottom: 14, paddingBottom: 12, borderBottom: "1.5px dashed var(--line)" }}>
+              <div style={{ fontSize: 11, fontFamily: "var(--font-jet)", color: "var(--text-subtle)" }}>省份 / 州</div>
+              {(() => {
+                const total = Math.max(1, topRegions.reduce((s, c) => s + c.pv, 0));
+                const max = Math.max(1, ...topRegions.map((c) => c.pv));
+                return topRegions.map((c) => (
+                  <div key={c.region} style={{ display: "grid", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {regionName(c.region)} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "var(--font-jet)" }}>{c.region}</span>
+                      </span>
+                      <span style={{ fontFamily: "var(--font-jet)", fontSize: 11 }}>
+                        {c.pv} PV · {Math.round((c.pv / total) * 100)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
+                      <div style={{ width: `${Math.round((c.pv / max) * 100)}%`, height: "100%", background: "#FF3B30", borderRadius: 999 }} />
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
           {topCountries.length === 0 ? (
-            <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无数据。流量记录开始后（且经 Cloudflare 访问）这里会显示地区分布。</div>
+            <div style={{ fontSize: 12, color: "var(--text-subtle)", lineHeight: 1.7 }}>
+              暂无数据。流量记录开始后（且经 Cloudflare 访问）这里会显示国家/地区。
+              <br />
+              想看省份：Cloudflare 后台 Rules → Settings → Managed Transforms 打开「Add visitor location headers」。
+            </div>
           ) : (
             <div style={{ display: "grid", gap: 8 }}>
               {(() => {

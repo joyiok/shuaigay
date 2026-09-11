@@ -80,6 +80,7 @@ export function dayFromDb(d: Date): string {
 export interface VisitInput {
   path: string;
   country?: string | null;
+  region?: string | null;
   city?: string | null;
   referrer?: string | null;
   ua?: string | null;
@@ -92,13 +93,14 @@ export async function recordVisit(input: VisitInput): Promise<void> {
   const day = dayForDb(now);
   const device = detectDevice(input.ua);
   const country = (input.country ?? "").trim().toUpperCase().slice(0, 2) || "XX";
+  const region = (input.region ?? "").trim().slice(0, 40);
   const path = normalizePath(input.path);
   const referrer = referrerHost(input.referrer);
 
   try {
     await db.visitDaily.upsert({
-      where: { day_path_country_referrer_device: { day, path, country, referrer, device } },
-      create: { day, path, country, referrer, device, pv: 1 },
+      where: { day_path_country_region_referrer_device: { day, path, country, region, referrer, device } },
+      create: { day, path, country, region, referrer, device, pv: 1 },
       update: { pv: { increment: 1 } },
     });
   } catch (error) {
@@ -207,6 +209,21 @@ export async function getTopCountries(days = 7, limit = 12) {
   return rows.map((r) => ({ country: r.country, pv: r._sum.pv ?? 0 }));
 }
 
+/** 近 N 天的省/州分布（需 CF 开启 Add visitor location headers） */
+export async function getTopRegions(days = 7, limit = 12) {
+  const since = dayForDb(new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000));
+  const rows = await db.visitDaily
+    .groupBy({
+      by: ["region"],
+      where: { day: { gte: since }, NOT: { region: "" } },
+      _sum: { pv: true },
+      orderBy: { _sum: { pv: "desc" } },
+      take: limit,
+    })
+    .catch(() => [] as { region: string; _sum: { pv: number | null } }[]);
+  return rows.map((r) => ({ region: r.region, pv: r._sum.pv ?? 0 }));
+}
+
 /** 近 N 天来源域名 */
 export async function getTopReferrers(days = 7, limit = 8) {
   const since = dayForDb(new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000));
@@ -256,4 +273,20 @@ const COUNTRY_NAMES: Record<string, string> = {
 
 export function countryName(code: string): string {
   return COUNTRY_NAMES[code] ?? code;
+}
+
+/** Cloudflare cf-ipregion 给的英文省/州名 → 中文（国内站点主要看这些） */
+const REGION_NAMES: Record<string, string> = {
+  Beijing: "北京", Shanghai: "上海", Tianjin: "天津", Chongqing: "重庆",
+  Guangdong: "广东", Zhejiang: "浙江", Jiangsu: "江苏", Shandong: "山东",
+  Henan: "河南", Hebei: "河北", Hubei: "湖北", Hunan: "湖南", Sichuan: "四川",
+  Fujian: "福建", Anhui: "安徽", Jiangxi: "江西", Liaoning: "辽宁", Jilin: "吉林",
+  Heilongjiang: "黑龙江", Shanxi: "山西", Shaanxi: "陕西", Gansu: "甘肃",
+  Yunnan: "云南", Guizhou: "贵州", Guangxi: "广西", Hainan: "海南",
+  "Inner Mongolia": "内蒙古", Ningxia: "宁夏", Qinghai: "青海",
+  Xinjiang: "新疆", Tibet: "西藏", "Hong Kong": "香港", Macau: "澳门", Taiwan: "台湾",
+};
+
+export function regionName(raw: string): string {
+  return REGION_NAMES[raw] ?? raw;
 }

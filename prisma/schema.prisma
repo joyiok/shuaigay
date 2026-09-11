@@ -444,12 +444,15 @@ model VisitDaily {
   day      DateTime @db.Date
   path     String
   country  String   @default("XX")
+  /// 省/州（Cloudflare cf-ipregion，需在 CF 后台开启 Add visitor location headers）
+  region   String   @default("")
   referrer String   @default("")
   device   String   @default("desktop") // desktop | mobile | bot
   pv       Int      @default(0)
   updatedAt DateTime @updatedAt
 
-  @@unique([day, path, country, referrer, device])
+  @@unique([day, path, country, region, referrer, device])
   @@index([day])
   @@index([country, day])
+  @@index([region, day])
 }
