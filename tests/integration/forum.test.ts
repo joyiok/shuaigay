@@ -98,7 +98,8 @@ describe.skipIf(!shouldRun)("论坛数据层(需要数据库)", () => {
       expect(await consumeVerificationToken(retryToken, "RESET_PASSWORD", tx)).not.toBeNull();
       throw new Error("rollback");
     })).rejects.toThrow("rollback");
-    expect(await consumeVerificationToken(retryToken, "RESET_PASSWORD")).toEqual({ userId: user.id });
+    // 返回值现在带 email 字段（换绑邮箱用），非换绑令牌为 null
+    expect(await consumeVerificationToken(retryToken, "RESET_PASSWORD")).toMatchObject({ userId: user.id, email: null });
     const expired = await createVerificationToken(user.id, "RESET_PASSWORD", -1);
     expect(await consumeVerificationToken(expired, "RESET_PASSWORD")).toBeNull();
   });
