@@ -10,7 +10,9 @@ export const dynamic = "force-dynamic";
  * 公开端点，按 IP 限流；只接受固定形状的小载荷，写入按天聚合表。
  */
 export async function POST(req: Request): Promise<Response> {
-  const ip = req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  // 与 lib/ratelimit:clientIp 一致取 XFF 末段：Caddy 已把真实 IP 改写为单值，首段不可信
+  const xff = req.headers.get("x-forwarded-for")?.split(",").map((s) => s.trim()).filter(Boolean) ?? [];
+  const ip = req.headers.get("cf-connecting-ip")?.trim() || (xff.length ? xff[xff.length - 1]! : "unknown");
   if (!(await checkRateLimit(`collect:${ip}`, 60, 60))) {
     return new NextResponse(null, { status: 429, headers: { "Cache-Control": "no-store" } });
   }

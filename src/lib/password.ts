@@ -23,15 +23,17 @@ const COMMON = new Set(
 );
 
 /**
- * 密码强度：12 位以上直接过；8-11 位要求 4 类字符占 3 类，
- * 且不在常见弱密码名单里（顺手拦掉 aaaaaaaa 这类全同字符）。
+ * 密码强度：8-72 位，且：
+ * - 不在常见弱密码名单里（大小写归一后比对，覆盖 password123456 这类长弱密码）
+ * - 非全同字符（如 aaaaaaaa / aaaaaaaaaaaa）
+ * - 12 位以上直接过；8-11 位要求 4 类字符占 3 类
  */
 export function isStrongPassword(pw: string): boolean {
   if (typeof pw !== "string") return false;
   if (pw.length < 8 || pw.length > 72) return false;
-  if (pw.length >= 12) return true;
   if (COMMON.has(pw.toLowerCase())) return false;
   if (/^(.)\1+$/.test(pw)) return false;
+  if (pw.length >= 12) return true;
   let classes = 0;
   if (/[a-z]/.test(pw)) classes++;
   if (/[A-Z]/.test(pw)) classes++;

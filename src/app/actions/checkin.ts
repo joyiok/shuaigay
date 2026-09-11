@@ -3,12 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
+import { assertNotBanned } from "@/lib/ban";
 import { doCheckIn } from "@/lib/checkin";
 import { logger } from "@/lib/logger";
 
 export async function checkInAction(): Promise<void> {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/");
+  await assertNotBanned(user.id);
   const result = await doCheckIn(user.id);
   if (result.ok) logger.info("checkin.done", { userId: user.id, points: result.points, streak: result.streak });
   revalidatePath("/");

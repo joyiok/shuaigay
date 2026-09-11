@@ -287,6 +287,15 @@ export async function createReport(
   targetId: string,
   reason: string,
 ): Promise<ReportResult> {
+  // 被封禁用户不可发起新的举报（存量举报不受影响）；库不可用时放行，避免误伤主流程
+  try {
+    const { isUserBanned } = await import("./ban");
+    if ((await isUserBanned(reporterId)).banned) {
+      return { ok: false, error: "账号已被封禁，无法举报", status: 403 };
+    }
+  } catch {
+    /* fail-open：ban 表不可用时不阻断举报 */
+  }
   const trimmed = reason.trim();
   if (
     trimmed.length < REPORT_REASON_MIN ||

@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { listPosts, chapterPageCursor } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
+import { jsonLdHtml } from "@/lib/jsonld";
 import Lightbox from "@/components/Lightbox";
 import Composer from "@/components/Composer";
 import SubmissionForm from "@/components/SubmissionForm";
@@ -275,8 +276,8 @@ export default async function ThreadPage({
 
   return (
     <div className={isNovel ? "novel-reader" : undefined} style={{ display: "grid", gap: 12 }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
       <link rel="canonical" href={canonical} />
       {trashed && (
         <div

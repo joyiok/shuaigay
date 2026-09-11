@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { getCachedCategoryCloud, getCachedHotRanking, getCachedBoards } from "@/lib/cached";
 import { formatDate } from "@/lib/format";
 import { threadHref } from "@/lib/slug";
+import { jsonLdHtml } from "@/lib/jsonld";
 import UserAvatar from "@/components/UserAvatar";
 
 export const metadata: Metadata = {
@@ -43,7 +44,7 @@ export default async function HotPage({
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemListJsonLd) }} />
       <div className="breadcrumb">
         <Link href="/">首页</Link>
         <span>/</span>

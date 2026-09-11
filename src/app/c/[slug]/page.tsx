@@ -13,6 +13,7 @@ import ErrorState from "@/components/ErrorState";
 import type { ThreadListItem } from "@/lib/queries";
 import type { Cursor } from "@/lib/cursor";
 import { getCurrentUser } from "@/lib/auth";
+import { jsonLdHtml } from "@/lib/jsonld";
 import { isAdmin } from "@/lib/permissions";
 import { isBoardModerator, listBoardModerators } from "@/lib/moderators";
 import { getProgressMap } from "@/lib/reading-progress";
@@ -113,8 +114,8 @@ export default async function BoardPage({
 
   return (
     <div className={isNovel ? "novel-library" : undefined} style={{ display: "grid", gap: 12 }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(collectionJsonLd) }} />
       <div className="breadcrumb" itemScope itemType="https://schema.org/BreadcrumbList">
         <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
           <Link itemProp="item" href="/"><span itemProp="name">首页</span></Link><meta itemProp="position" content="1" />

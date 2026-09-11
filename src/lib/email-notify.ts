@@ -17,6 +17,10 @@ function siteOrigin(): string {
   return (process.env.SITE_URL ?? "https://shuai.gay").replace(/\/$/, "");
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 interface EmailNotifyInput {
   userId: string;
   subject: string;
@@ -53,7 +57,7 @@ export async function maybeEmailNotify(input: EmailNotifyInput): Promise<boolean
       to: user.email,
       subject: input.subject,
       text: `${input.body}\n\n查看：${link}\n\n（不想收邮件提醒可在 ${origin}/settings 关闭）`,
-      html: `<p>${input.body.replace(/</g, "&lt;")}</p><p><a href="${link}">点此查看</a></p><hr /><p style="font-size:12px;color:#888">不想收邮件提醒？到 <a href="${origin}/settings">账号设置</a> 关闭即可。</p>`,
+      html: `<p>${escapeHtml(input.body)}</p><p><a href="${link}">点此查看</a></p><hr /><p style="font-size:12px;color:#888">不想收邮件提醒？到 <a href="${origin}/settings">账号设置</a> 关闭即可。</p>`,
     });
     logger.info("email.notify_sent", { userId: input.userId, subject: input.subject });
     return true;

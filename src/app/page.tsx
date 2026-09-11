@@ -5,6 +5,7 @@ import { getCachedBoards } from "@/lib/cached";
 import { boardToneClass, formatDate } from "@/lib/format";
 import UserAvatar from "@/components/UserAvatar";
 import { threadHref } from "@/lib/slug";
+import { jsonLdHtml } from "@/lib/jsonld";
 
 export default async function HomePage({
   searchParams,
@@ -49,8 +50,8 @@ export default async function HomePage({
 
   return (
     <div className="home-feed">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(itemListJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(itemListJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(collectionJsonLd) }} />
       {/* 欢迎区 */}
       <div className="banner">
         <img className="banner-art" src="/art/rainbow-hero.webp" alt="" width={1717} height={916} fetchPriority="high" aria-hidden="true" />

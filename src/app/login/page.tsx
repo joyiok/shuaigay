@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { loginAction } from "@/app/actions/auth";
 import Turnstile from "@/components/Turnstile";
+import AuthCardHeader from "@/components/AuthCardHeader";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import { getCachedSiteSettings } from "@/lib/cached";
 
@@ -32,13 +33,7 @@ export default async function LoginPage({
   return (
     <div style={{ maxWidth: 460, margin: "32px auto", padding: "0 8px" }}>
       <div className="card" style={{ padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-          {settings.logoUrl ? <img src={settings.logoUrl} alt="" className="brand-logo" /> : <span className="brand-mark">{brandMark}</span>}
-          <div>
-            <h1 style={{ fontSize: 22, fontWeight: 600, margin: 0, letterSpacing: "-0.02em", lineHeight: 1.5 }}>登录 — 回来坐坐</h1>
-            <p style={{ fontSize: 12, color: "var(--text-subtle)", margin: "2px 0 0", }}>别让帖子等太久</p>
-          </div>
-        </div>
+        <AuthCardHeader logoUrl={settings.logoUrl} brandMark={brandMark} title="登录 — 回来坐坐" subtitle="别让帖子等太久" />
 
         {error && ERRORS[error] && (
           <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>

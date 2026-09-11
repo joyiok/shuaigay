@@ -11,6 +11,7 @@ import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
 import { formatDate } from "@/lib/format";
 import { DEFAULT_SITE_SETTINGS, siteUrl } from "@/lib/site";
+import { jsonLdHtml } from "@/lib/jsonld";
 import { getCachedActiveUsers, getCachedAnnouncement, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedSiteSettings, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
 import FloatingNewThread from "@/components/FloatingNewThread";
@@ -162,9 +163,9 @@ export default async function RootLayout({
   return (
     <html lang="zh-CN">
       <head>
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} />
-        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(websiteJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(organizationJsonLd) }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
       </head>
       <body>
         <a href="#main-content" className="skip-link">

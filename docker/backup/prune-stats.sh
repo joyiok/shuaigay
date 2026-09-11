@@ -19,4 +19,9 @@ psql -v ON_ERROR_STOP=1 -c "
   DELETE FROM \"MailFailure\" WHERE \"createdAt\" < now() - interval '90 days';
 " || true
 
+# 登录 IP 留痕保留 180 天（隐私最小化：IP 不无限期留存）
+psql -v ON_ERROR_STOP=1 -c "
+  DELETE FROM \"UserIpLog\" WHERE \"createdAt\" < now() - interval '180 days';
+" || true
+
 printf '[%s] prune-stats done\n' "$(date '+%F %T')"

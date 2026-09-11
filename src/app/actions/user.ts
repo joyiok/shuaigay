@@ -18,10 +18,11 @@ import {
 
 const bioSchema = z.string().trim().max(200);
 
-/** 编辑自己的 bio(限本人,最多 200 字) */
+/** 编辑自己的 bio(限本人,最多 200 字；被封禁不可改资料) */
 export async function updateBioAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
+  await assertNotBanned(user.id);
 
   const bio = bioSchema.safeParse(formData.get("bio"));
   if (!bio.success) return;

@@ -11,7 +11,7 @@ import { checkRateLimit } from "@/lib/ratelimit";
 export async function votePollAction(formData: FormData): Promise<void> {
   const user = await getCurrentUser();
   if (!user) return;
-  await assertNotBanned(user.id).catch(() => {});
+  await assertNotBanned(user.id);
 
   const pollId = String(formData.get("pollId") ?? "");
   const optionIds = formData.getAll("optionId").map(String).filter(Boolean);

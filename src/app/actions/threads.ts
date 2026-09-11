@@ -68,6 +68,9 @@ async function prepareFiles(
     .getAll("files")
     .filter((f): f is File => f instanceof File && f.size > 0);
   if (files.length > MAX_FILES_PER_POST) return { files: [], error: "too_many_files" };
+  // 先按声明大小做总量守卫，避免 5 个大文件全读进内存才发现超限（serverActions 上限 25mb 兜底）
+  const declaredTotal = files.reduce((sum, f) => sum + (f.size || 0), 0);
+  if (declaredTotal > max * MAX_FILES_PER_POST) return { files: [], error: "file_too_large" };
 
   const prepared: PreparedFile[] = [];
   for (const file of files) {

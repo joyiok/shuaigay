@@ -72,7 +72,7 @@ export const adminActionSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("set_user_role"), username: usernameSchema, role: z.enum(["USER", "ADMIN"]) }),
   z.object({ type: z.literal("ban_user"), username: usernameSchema, reason: textSchema(200), days: z.number().int().min(1).max(3650).optional() }),
   z.object({ type: z.literal("unban_user"), username: usernameSchema }),
-  z.object({ type: z.literal("add_points"), username: usernameSchema, points: z.number().int().min(-100000).max(100000), note: z.string().trim().max(100).optional() }),
+  z.object({ type: z.literal("add_points"), username: usernameSchema, points: z.number().int().min(-1000).max(1000), note: z.string().trim().max(100).optional() }),
   z.object({ type: z.literal("reset_user_password"), username: usernameSchema, newPassword: z.string().min(8).max(72) }),
   z.object({ type: z.literal("award_medal"), username: usernameSchema, medalName: textSchema(30), reason: z.string().trim().max(100).optional() }),
   z.object({ type: z.literal("revoke_medal"), username: usernameSchema, medalName: textSchema(30) }),
@@ -161,8 +161,10 @@ async function actorId(): Promise<string> {
 }
 
 async function audit(actor: string, action: string, targetType: string, targetId: string, detail?: string): Promise<void> {
+  // MCP/外部管理指令与后台人工操作区分归因：统一加 mcp_ 前缀，避免审计时误认成人管点击
+  const tagged = action.startsWith("mcp_") || action.startsWith("ai_") ? action : `mcp_${action}`;
   await db.auditLog
-    .create({ data: { actorId: actor, action, targetType, targetId, detail: detail ?? null } })
+    .create({ data: { actorId: actor, action: tagged, targetType, targetId, detail: detail ?? null } })
     .catch(() => {});
 }
 
@@ -539,7 +541,7 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
     case "reset_user_password": {
       const user = await findUser(action.username);
       if (!user) return skipped("用户不存在");
-      if (!isStrongPassword(action.newPassword)) return skipped("新密码强度不足（12 位以上，或 8 位含 3 类字符）");
+      if (!isStrongPassword(action.newPassword)) return skipped("新密码强度不足（8-72 位，非弱密码/全同字符；12 位以下需 4 类占 3 类）");
       if (dryRun) return planned(`将重置 ${user.username} 的密码并踢下线`);
       await db.user.update({ where: { id: user.id }, data: { passwordHash: await hashPassword(action.newPassword) } });
       await db.session.deleteMany({ where: { userId: user.id } }).catch(() => {});

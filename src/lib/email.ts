@@ -64,7 +64,7 @@ function hashToken(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
-/** 创建一次性令牌并落库,返回明文 raw(仅用于邮件链接) */
+/** 创建一次性令牌并落库,返回明文 raw(仅用于邮件链接)；同用户同类型旧令牌先作废，避免多 token 并存 */
 export type VerificationKind = "VERIFY_EMAIL" | "RESET_PASSWORD" | "CHANGE_EMAIL";
 
 export async function createVerificationToken(
@@ -77,6 +77,8 @@ export async function createVerificationToken(
   const raw = randomBytes(32).toString("base64url");
   const tokenHash = hashToken(raw);
   const expiresAt = new Date(Date.now() + ttlHours * 3_600_000);
+  // 先作废同类型旧令牌，再创建新令牌（换绑/重置场景避免新旧并存）
+  await db.verificationToken.deleteMany({ where: { userId, type } }).catch(() => {});
   await db.verificationToken.create({
     data: { userId, tokenHash, type, expiresAt, ...(email ? { email } : {}) },
   });

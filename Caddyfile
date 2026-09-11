@@ -29,12 +29,14 @@ header {
 }
 
 # 附件:Caddy 直接读盘伺服,不经过 Node
-# handle_path 会剥掉 /uploads 前缀,映射到 /srv/uploads/<date>/<文件>,
-# 与 UPLOAD_DIR 落盘位置一致(之前用 handle 会多一层 /uploads 导致全 404)
+# 注意：此路径不经过 Next 的附件可见性检查（隐藏/待审/已删主题的附件 URL 仍可直链）。
+# 附件 storedName 为 128bit 随机不可枚举，请将其视为 bearer token；需强鉴权时改为反代到 Next。
+# 已删附件在回收站 purge（30 天）时随主题彻底删除，之前仍可通过直链访问（恢复需要）。
 handle_path /uploads/* {
 	root * /srv/uploads
 	file_server
 	header Cache-Control "public, max-age=31536000, immutable"
+	header X-Content-Type-Options "nosniff"
 }
 
 # 匿名读者的文档请求：交给 Cloudflare 边缘缓存 60s（国内用户直接命中香港/圣何塞节点，

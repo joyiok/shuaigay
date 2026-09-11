@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { db } from "./db";
 import { logger } from "./logger";
+import { containsSensitive } from "./sensitive";
 import { novelChapterTitle } from "./novel";
 import { threadHref } from "./slug";
 
@@ -126,6 +127,15 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
   }
   const input = parsed.data;
   const actor = await adminActorId();
+  // MCP 导入直写 approved，命中敏感词时强制进待审，避免密钥泄露/恶意调用瞬间全站发布
+  const haystack = [input.title ?? "", ...input.chapters.map((c) => `${c.title ?? ""}\n${c.contentMd}`)].join("\n");
+  let sensitiveHit = false;
+  try {
+    sensitiveHit = await containsSensitive(haystack);
+  } catch {
+    sensitiveHit = false;
+  }
+  const importStatus = sensitiveHit ? "pending" : "approved";
 
   /* ---------- 追加模式 ---------- */
   if (input.threadId) {
@@ -141,7 +151,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
       threadId: thread.id,
       authorId: thread.authorId,
       contentMd: withChapterTitle(chapter),
-      status: "approved",
+      status: importStatus,
       createdAt: new Date(base + i),
     }));
     await db.$transaction([
@@ -150,7 +160,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
     ]);
     if (actor) {
       await db.auditLog
-        .create({ data: { actorId: actor, action: "import_novel", targetType: "thread", targetId: thread.id, detail: `追加 ${rows.length} 章` } })
+        .create({ data: { actorId: actor, action: "import_novel", targetType: "thread", targetId: thread.id, detail: `追加 ${rows.length} 章${sensitiveHit ? "（命中敏感词，已送审）" : ""}` } })
         .catch(() => {});
     }
     logger.info("mcp.import_novel_append", { threadId: thread.id, created: rows.length, total: existing + rows.length });
@@ -216,7 +226,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
         authorId: author.id,
         title: input.title!,
         categoryId,
-        status: "approved",
+        status: importStatus,
         autoContinue: input.autoContinue ?? false,
         importKey: input.importKey,
         createdAt: new Date(base),
@@ -229,7 +239,7 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
         threadId: created.id,
         authorId: author.id,
         contentMd: i === 0 ? firstContent : withChapterTitle(chapter),
-        status: "approved",
+        status: importStatus,
         createdAt: new Date(base + i),
       })),
     });
@@ -238,10 +248,10 @@ export async function importNovel(raw: unknown): Promise<ImportNovelResult> {
 
   if (actor) {
     await db.auditLog
-      .create({ data: { actorId: actor, action: "import_novel", targetType: "thread", targetId: thread.id, detail: `${input.chapters.length} 章` } })
+      .create({ data: { actorId: actor, action: "import_novel", targetType: "thread", targetId: thread.id, detail: `${input.chapters.length} 章${sensitiveHit ? "（命中敏感词，已送审）" : ""}` } })
       .catch(() => {});
   }
-  logger.info("mcp.import_novel_create", { threadId: thread.id, board: board.slug, created: input.chapters.length, author: author.username });
+  logger.info("mcp.import_novel_create", { threadId: thread.id, board: board.slug, created: input.chapters.length, author: author.username, status: importStatus });
 
   return {
     ok: true,

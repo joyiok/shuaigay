@@ -11,6 +11,7 @@ import { isAdmin } from "@/lib/permissions";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
 import { blockUserAction, unblockUserAction } from "@/app/actions/block";
 import { getBlockedIdSet } from "@/lib/block";
+import { jsonLdHtml } from "@/lib/jsonld";
 import { ConfirmForm } from "@/app/admin/ConfirmForms";
 import ActionToggle from "@/components/ActionToggle";
 import UserAvatar from "@/components/UserAvatar";
@@ -191,8 +192,8 @@ export default async function UserPage({
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(profileJsonLd) }} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(profileJsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
       <div className="breadcrumb">
         <Link href="/">首页</Link>
         <span>/</span>
