@@ -193,6 +193,20 @@ jobs:
             ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
             ghcr.io/${{ github.repository }}:latest
 
+      # 备份/定时任务小镜像（含 prune 脚本），改动同样需要随部署生效
+      - name: Build backup image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./docker/backup
+          file: ./docker/backup/Dockerfile
+          push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
+          load: false
+          cache-from: type=gha,scope=backup
+          cache-to: type=gha,mode=max,scope=backup
+          tags: |
+            ghcr.io/${{ github.repository }}-backup:sha-${{ github.sha }}
+            ghcr.io/${{ github.repository }}-backup:latest
+
       - name: Validate compose config
         run: docker compose config >/dev/null && echo "compose.yml OK"
 
@@ -238,8 +252,10 @@ jobs:
           # 拉 CI 预构建的镜像（按 commit 定版），只重建 app 容器：不再在服务器上编译，
           # 停机从 1~2 分钟降到秒级；回滚只需把 APP_IMAGE 指回旧 sha
           export APP_IMAGE="ghcr.io/${app_repo}:sha-${expected_sha}"
-          docker compose pull app
-          docker compose up -d --wait --wait-timeout 120 app
+          export BACKUP_IMAGE="ghcr.io/${app_repo}-backup:sha-${expected_sha}"
+          docker compose pull app backup
+          # 传全部服务：只重建有变化的（app 换镜像、backup 换脚本），postgres/redis/caddy 不动
+          docker compose up -d --wait --wait-timeout 180
           docker image prune -f --filter "until=168h" >/dev/null 2>&1 || true
           curl --fail --silent --show-error http://127.0.0.1:3000/api/health
           REMOTE
