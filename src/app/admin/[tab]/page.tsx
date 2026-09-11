@@ -64,6 +64,7 @@ import HumanizedFeedback from "@/components/HumanizedFeedback";
 import CopyButton from "@/components/CopyButton";
 import AdminUserSearch from "@/components/AdminUserSearch";
 import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTopRegions, getTrafficSummary, regionName } from "@/lib/visit-stats";
+import { formatBytes, getOpsMetrics } from "@/lib/ops-metrics";
 
 export const metadata = { title: "管理后台" };
 
@@ -1334,7 +1335,7 @@ async function AuditTab() {
 /* ---------------- 数据统计 ---------------- */
 
 async function StatsTab() {
-  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit, topRegions] = await Promise.all([
+  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit, topRegions, ops] = await Promise.all([
     db.user.count(),
     db.post.count(),
     db.thread.count(),
@@ -1345,8 +1346,10 @@ async function StatsTab() {
     getTopPaths(7, 10),
     getDeviceSplit(7),
     getTopRegions(7, 12),
+    getOpsMetrics(),
   ]);
   const totalViews = (viewAgg as any)._sum?.views ?? 0;
+  const visitRows = await db.visitDaily.count().catch(() => 0);
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -1447,11 +1450,12 @@ async function StatsTab() {
       {/* ——— 流量（PV/UV）——— */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(122px, 1fr))", gap: 12 }}>
         {statCard("实时访客", traffic.realtime ?? "—", "近 5 分钟", "⚡", "#E0F2FE")}
-        {statCard("今日 PV", traffic.todayPv, `${traffic.days.at(-1)?.day ?? ""}`, "📈", "#EDE9FE")}
+        {statCard("今日 PV", traffic.todayPv, `${traffic.days.at(-1)?.day ?? ""} · 不含爬虫`, "📈", "#EDE9FE")}
         {statCard("今日 UV", traffic.todayUv ?? "—", "独立访客（HLL 估算）", "🧍", "#FCE7F3")}
-        {statCard("昨日 PV", traffic.yesterdayPv, "前一日全天", "📉", "#FEF3C7")}
-        {statCard("近 7 日 PV", traffic.weekPv, "含今日", "7", "#DCFCE7")}
-        {statCard("近 30 日 PV", traffic.monthPv, "含今日", "30", "#E5E7EB")}
+        {statCard("昨日 PV", traffic.yesterdayPv, `UV ${traffic.yesterdayUv ?? "—"}`, "📉", "#FEF3C7")}
+        {statCard("近 7 日 PV", traffic.weekPv, `UV ${traffic.weekUv ?? "—"}`, "7", "#DCFCE7")}
+        {statCard("近 30 日 PV", traffic.monthPv, `UV ${traffic.monthUv ?? "—"}`, "30", "#E5E7EB")}
+        {statCard("今日爬虫", traffic.todayBotPv, "已从 PV/UV 剔除", "🤖", "#F3F4F6")}
       </div>
 
       {(() => {
@@ -1583,6 +1587,33 @@ async function StatsTab() {
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: "0 0 10px" }}>运行状态 <span>5 分钟缓存</span></div>
+            <div style={{ display: "grid", gap: 6, fontSize: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>数据库大小</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{formatBytes(ops.dbBytes)}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>附件占用</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>
+                  {ops.uploads ? `${formatBytes(ops.uploads.bytes)} · ${ops.uploads.files} 个文件${ops.uploads.truncated ? "+" : ""}` : "读取失败"}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>Redis 内存</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{ops.redisMemory ?? "—"}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span style={{ color: "var(--text-muted)" }}>访问记录行数</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{visitRows.toLocaleString("zh-CN")}</span>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+                统计保留 180 天，每日 04:15 自动清理 · 采集于 {new Date(ops.generatedAt).toLocaleTimeString("zh-CN", { hour12: false })}
+              </div>
+            </div>
           </div>
 
           <div className="card" style={{ padding: 16 }}>

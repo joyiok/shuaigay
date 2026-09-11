@@ -108,7 +108,7 @@ export async function recordVisit(input: VisitInput): Promise<void> {
   }
 
   const redis = getRedis();
-  if (redis) {
+  if (redis && device !== "bot") {
     try {
       const dayStr = dayKey(now);
       const key = `visit:uv:${dayStr}`;
@@ -134,6 +134,21 @@ export async function getDailyUv(day: string): Promise<number | null> {
   }
 }
 
+/** 多天合并去重后的 UV（Redis PFCOUNT 支持多 key 归并） */
+export async function getRangeUv(days: number): Promise<number | null> {
+  const redis = getRedis();
+  if (!redis) return null;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < days; i += 1) {
+      keys.push(`visit:uv:${dayKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000))}`);
+    }
+    return await redis.pfcount(...keys);
+  } catch {
+    return null;
+  }
+}
+
 /** 近 5 分钟活跃访客数 */
 export async function getRealtimeVisitors(): Promise<number | null> {
   const redis = getRedis();
@@ -152,11 +167,16 @@ export interface TrafficDay {
 }
 
 export interface TrafficSummary {
+  /** 以下 PV 均不含爬虫（爬虫单独看 botPv / 设备分布） */
   todayPv: number;
   todayUv: number | null;
+  todayBotPv: number;
   yesterdayPv: number;
+  yesterdayUv: number | null;
   weekPv: number;
+  weekUv: number | null;
   monthPv: number;
+  monthUv: number | null;
   realtime: number | null;
   days: TrafficDay[];
 }
@@ -166,7 +186,7 @@ export async function getTrafficSummary(chartDays = 14): Promise<TrafficSummary>
   const now = new Date();
   const since = dayForDb(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
   const rows = await db.visitDaily
-    .groupBy({ by: ["day"], where: { day: { gte: since } }, _sum: { pv: true } })
+    .groupBy({ by: ["day"], where: { day: { gte: since }, device: { not: "bot" } }, _sum: { pv: true } })
     .catch(() => [] as { day: Date; _sum: { pv: number | null } }[]);
 
   const byDay = new Map<string, number>();
@@ -189,13 +209,29 @@ export async function getTrafficSummary(chartDays = 14): Promise<TrafficSummary>
     days.push({ day: key, pv: pvOf(key), uv: await getDailyUv(key) });
   }
 
+  const [todayUv, yesterdayUv, weekUv, monthUv, realtime, todayBotPv] = await Promise.all([
+    getDailyUv(todayKey),
+    getDailyUv(keyOf(1)),
+    getRangeUv(7),
+    getRangeUv(30),
+    getRealtimeVisitors(),
+    db.visitDaily
+      .aggregate({ where: { day: dayForDb(now), device: "bot" }, _sum: { pv: true } })
+      .then((r) => r._sum.pv ?? 0)
+      .catch(() => 0),
+  ]);
+
   return {
     todayPv: pvOf(todayKey),
-    todayUv: await getDailyUv(todayKey),
+    todayUv,
+    todayBotPv,
     yesterdayPv: pvOf(keyOf(1)),
+    yesterdayUv,
     weekPv,
+    weekUv,
     monthPv,
-    realtime: await getRealtimeVisitors(),
+    monthUv,
+    realtime,
     days,
   };
 }
