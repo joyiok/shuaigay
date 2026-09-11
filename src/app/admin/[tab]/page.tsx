@@ -63,6 +63,7 @@ import UserAvatar from "@/components/UserAvatar";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import CopyButton from "@/components/CopyButton";
 import AdminUserSearch from "@/components/AdminUserSearch";
+import { countryName, getDeviceSplit, getTopCountries, getTopPaths, getTopReferrers, getTrafficSummary } from "@/lib/visit-stats";
 
 export const metadata = { title: "管理后台" };
 
@@ -1333,11 +1334,16 @@ async function AuditTab() {
 /* ---------------- 数据统计 ---------------- */
 
 async function StatsTab() {
-  const [userCount, threadCount, postCount, viewAgg] = await Promise.all([
+  const [userCount, threadCount, postCount, viewAgg, traffic, topCountries, topReferrers, topPaths, deviceSplit] = await Promise.all([
     db.user.count(),
-    db.thread.count(),
     db.post.count(),
+    db.thread.count(),
     db.thread.aggregate({ _sum: { views: true } }).catch(() => ({ _sum: { views: 0 } } as any)),
+    getTrafficSummary(14),
+    getTopCountries(7, 12),
+    getTopReferrers(7, 8),
+    getTopPaths(7, 10),
+    getDeviceSplit(7),
   ]);
   const totalViews = (viewAgg as any)._sum?.views ?? 0;
 
@@ -1434,7 +1440,138 @@ async function StatsTab() {
         {statCard("总用户", userCount, `今日 +${todayUsers}`, "👥", "#FFF7A8")}
         {statCard("主题", threadCount, `今日 +${todayThreads}`, "📄", "#EDE9FE")}
         {statCard("回帖", postCount, `今日 +${todayPosts}`, "💬", "#FFE4E6")}
-        {statCard("总浏览", totalViews, "全站累计", "👁", "#DCFCE7")}
+        {statCard("总浏览", totalViews, "全站累计（主题视图）", "👁", "#DCFCE7")}
+      </div>
+
+      {/* ——— 流量（PV/UV）——— */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(122px, 1fr))", gap: 12 }}>
+        {statCard("实时访客", traffic.realtime ?? "—", "近 5 分钟", "⚡", "#E0F2FE")}
+        {statCard("今日 PV", traffic.todayPv, `${traffic.days.at(-1)?.day ?? ""}`, "📈", "#EDE9FE")}
+        {statCard("今日 UV", traffic.todayUv ?? "—", "独立访客（HLL 估算）", "🧍", "#FCE7F3")}
+        {statCard("昨日 PV", traffic.yesterdayPv, "前一日全天", "📉", "#FEF3C7")}
+        {statCard("近 7 日 PV", traffic.weekPv, "含今日", "7", "#DCFCE7")}
+        {statCard("近 30 日 PV", traffic.monthPv, "含今日", "30", "#E5E7EB")}
+      </div>
+
+      {(() => {
+        const maxPv = Math.max(1, ...traffic.days.map((d) => d.pv));
+        const maxUv = Math.max(1, ...traffic.days.map((d) => d.uv ?? 0));
+        const w = 100;
+        const h = 64;
+        const step = traffic.days.length > 1 ? w / (traffic.days.length - 1) : w;
+        const uvPoints = traffic.days
+          .map((d, i) => `${(i * step).toFixed(2)},${(h - ((d.uv ?? 0) / maxUv) * (h - 6)).toFixed(2)}`)
+          .join(" ");
+        return (
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: "0 0 10px", fontFamily: "var(--font-grotesk)" }}>
+              近 14 日流量 <span>柱=PV · 线=UV</span>
+            </div>
+            <div style={{ position: "relative" }}>
+              <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" style={{ width: "100%", height: 90, display: "block" }} role="img" aria-label="近 14 日 PV/UV 趋势">
+                {traffic.days.map((d, i) => {
+                  const barW = Math.max(1.4, (w / traffic.days.length) * 0.52);
+                  const barH = (d.pv / maxPv) * (h - 6);
+                  return (
+                    <rect
+                      key={d.day}
+                      x={i * (w / traffic.days.length) + (w / traffic.days.length - barW) / 2}
+                      y={h - barH}
+                      width={barW}
+                      height={Math.max(barH, d.pv > 0 ? 1.2 : 0)}
+                      rx="0.8"
+                      fill="var(--brand)"
+                      opacity={i === traffic.days.length - 1 ? 1 : 0.7}
+                    />
+                  );
+                })}
+                <polyline points={uvPoints} fill="none" stroke="#FF3B30" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />
+              </svg>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", fontSize: 10, fontFamily: "var(--font-jet)", color: "var(--text-subtle)", marginTop: -2 }}>
+              <span>{traffic.days[0]?.day ?? ""}</span>
+              <span style={{ textAlign: "right" }}>{traffic.days.at(-1)?.day ?? ""}</span>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(34px, 1fr))", gap: 4, marginTop: 8, fontFamily: "var(--font-jet)", fontSize: 10, color: "var(--text-subtle)" }}>
+              {traffic.days.map((d) => (
+                <div key={d.day} style={{ textAlign: "center" }} title={`${d.day} · PV ${d.pv} · UV ${d.uv ?? "—"}`}>
+                  <div style={{ fontWeight: 700, color: d.pv ? "var(--text)" : "var(--text-subtle)" }}>{d.pv}</div>
+                  <div style={{ opacity: 0.8 }}>{d.uv ?? "-"}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
+              数据源：文档请求（不含 RSC/预取/爬虫另计）· 地区取自 CF-IPCountry · UV 为 HyperLogLog 估算
+            </div>
+          </div>
+        );
+      })()}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 12 }}>
+        <div className="card" style={{ padding: 16 }}>
+          <div className="quick-title" style={{ margin: "0 0 12px" }}>访问地区 <span>近 7 天 · Top {topCountries.length}</span></div>
+          {topCountries.length === 0 ? (
+            <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无数据。流量记录开始后（且经 Cloudflare 访问）这里会显示地区分布。</div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {(() => {
+                const total = Math.max(1, topCountries.reduce((s, c) => s + c.pv, 0));
+                const max = Math.max(1, ...topCountries.map((c) => c.pv));
+                return topCountries.map((c) => (
+                  <div key={c.country} style={{ display: "grid", gap: 4 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+                      <span style={{ fontWeight: 600 }}>
+                        {countryName(c.country)} <span style={{ color: "var(--text-subtle)", fontWeight: 400, fontFamily: "var(--font-jet)" }}>{c.country}</span>
+                      </span>
+                      <span style={{ fontFamily: "var(--font-jet)", fontSize: 11 }}>
+                        {c.pv} PV · {Math.round((c.pv / total) * 100)}%
+                      </span>
+                    </div>
+                    <div style={{ height: 6, background: "var(--bg-soft)", borderRadius: 999, overflow: "hidden", border: "1px solid var(--line-soft)" }}>
+                      <div style={{ width: `${Math.round((c.pv / max) * 100)}%`, height: "100%", background: "var(--brand)", borderRadius: 999 }} />
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: "0 0 10px" }}>热门页面 <span>近 7 天</span></div>
+            {topPaths.length === 0 ? (
+              <div style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无数据</div>
+            ) : (
+              <div style={{ display: "grid", gap: 6 }}>
+                {topPaths.map((p) => (
+                  <div key={p.path} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "5px 8px", background: "var(--bg-soft)", borderRadius: 8 }}>
+                    <span style={{ fontFamily: "var(--font-jet)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</span>
+                    <span style={{ fontFamily: "var(--font-jet)", color: "var(--text-muted)", flexShrink: 0 }}>{p.pv}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="card" style={{ padding: 16 }}>
+            <div className="quick-title" style={{ margin: "0 0 10px" }}>来源与设备 <span>近 7 天</span></div>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: topReferrers.length ? 10 : 0 }}>
+              {deviceSplit.length === 0 && <span style={{ fontSize: 12, color: "var(--text-subtle)" }}>暂无数据</span>}
+              {deviceSplit.map((d) => (
+                <span key={d.device} style={{ fontSize: 11, fontFamily: "var(--font-jet)", padding: "3px 9px", borderRadius: 999, background: "var(--bg-soft)", border: "1px solid var(--line)" }}>
+                  {{ desktop: "桌面", mobile: "手机", bot: "爬虫" }[d.device] ?? d.device} {d.pv}
+                </span>
+              ))}
+            </div>
+            {topReferrers.map((r) => (
+              <div key={r.referrer} style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, padding: "5px 8px", background: "var(--bg-soft)", borderRadius: 8, marginBottom: 4 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.referrer}</span>
+                <span style={{ fontFamily: "var(--font-jet)", color: "var(--text-muted)", flexShrink: 0 }}>{r.pv}</span>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="card" style={{ padding: 16 }}>

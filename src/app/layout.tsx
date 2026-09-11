@@ -1,8 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { after } from "next/server";
 import "./globals.css";
 import { getCurrentUser } from "@/lib/auth";
 import { trackAndCountOnline } from "@/lib/online";
+import { recordVisit } from "@/lib/visit-stats";
 import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
@@ -70,6 +73,22 @@ export default async function RootLayout({
 }) {
   const user = await getCurrentUser();
   const online = await trackAndCountOnline(user?.id);
+
+  // 流量统计：只记文档请求（RSC/预取不计），放到响应之后执行，失败不影响渲染
+  const reqHeaders = await headers();
+  if (reqHeaders.get("x-doc") === "1") {
+    const forwarded = reqHeaders.get("x-forwarded-for")?.split(",")[0]?.trim();
+    after(() =>
+      recordVisit({
+        path: reqHeaders.get("x-pathname") ?? "/",
+        country: reqHeaders.get("cf-ipcountry"),
+        city: reqHeaders.get("cf-ipcity"),
+        referrer: reqHeaders.get("referer"),
+        ua: reqHeaders.get("user-agent"),
+        ip: reqHeaders.get("cf-connecting-ip") ?? forwarded ?? null,
+      }),
+    );
+  }
 
   // —— 性能：板块/统计/热帖/活跃用户走 60s 缓存，避免每请求 5 次 DB（A+B）——
   const [boards, stats, hotTopics, activeUsers, categoryCloud, settings, announcement] = await Promise.all([

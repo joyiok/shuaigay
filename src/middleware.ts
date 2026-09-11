@@ -15,6 +15,14 @@ export function middleware(req: NextRequest) {
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set("x-request-id", requestId);
+  // 供服务端统计使用：路径 + 是否文档请求（RSC/预取不计入 PV）
+  requestHeaders.set("x-pathname", req.nextUrl.pathname + req.nextUrl.search);
+  const isDoc =
+    req.method === "GET" &&
+    !req.headers.get("rsc") &&
+    !req.headers.get("next-router-prefetch") &&
+    (req.headers.get("accept") ?? "").includes("text/html");
+  if (isDoc) requestHeaders.set("x-doc", "1");
 
   const res = NextResponse.next({
     request: { headers: requestHeaders },

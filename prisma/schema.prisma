@@ -435,3 +435,21 @@ model AuditLog {
   @@index([createdAt])
   @@index([targetType, targetId])
 }
+
+/// 站点流量日聚合：按「日期 + 归一化路径 + 国家 + 来源 + 设备」聚合 PV。
+/// 地区取自 Cloudflare 的 CF-IPCountry（无需 GeoIP 库）；直连源站时为 XX。
+/// UV 走 Redis HyperLogLog（见 src/lib/visit-stats.ts），不落库。
+model VisitDaily {
+  id       String   @id @default(cuid())
+  day      DateTime @db.Date
+  path     String
+  country  String   @default("XX")
+  referrer String   @default("")
+  device   String   @default("desktop") // desktop | mobile | bot
+  pv       Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@unique([day, path, country, referrer, device])
+  @@index([day])
+  @@index([country, day])
+}
