@@ -89,29 +89,3 @@ export async function sendMessageAction(formData: FormData): Promise<string> {
 
   return `/messages/${encodeURIComponent(receiverUsername)}`;
 }
-
-export async function markReadAction(formData: FormData): Promise<void> {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-  const fromUsername = String(formData.get("fromUsername") ?? "").trim();
-  if (!fromUsername) redirect("/messages");
-  const sender = await db.user.findUnique({
-    where: { username: fromUsername },
-    select: { id: true },
-  });
-  if (!sender) {
-    logger.warn("message.mark_read_sender_not_found", { userId: user.id, fromUsername });
-    redirect("/messages");
-  }
-  try {
-    await db.directMessage.updateMany({
-      where: { senderId: sender.id, receiverId: user.id, read: false },
-      data: { read: true },
-    });
-    logger.info("message.mark_read", { userId: user.id, fromUsername, senderId: sender.id });
-  } catch (e) {
-    logger.error("message.mark_read_failed", { userId: user.id, fromUsername, error: String(e) });
-    throw e;
-  }
-  redirect(`/messages/${encodeURIComponent(fromUsername)}`);
-}
