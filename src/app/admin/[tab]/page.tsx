@@ -1703,8 +1703,12 @@ async function StatsTab() {
             </div>
             {backup?.sizeBytes ? (
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span style={{ color: "var(--text-muted)" }}>快照大小</span>
-                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>{formatBytes(backup.sizeBytes)}</span>
+                <span style={{ color: "var(--text-muted)" }}>备份仓库</span>
+                <span style={{ fontFamily: "var(--font-jet)", fontWeight: 700 }}>
+                  {formatBytes(backup.sizeBytes)}
+                  {backup.fileCount ? ` · ${backup.fileCount} 文件` : ""}
+                  {backup.snapshots ? ` · ${backup.snapshots} 快照` : ""}
+                </span>
               </div>
             ) : null}
             <div style={{ display: "flex", justifyContent: "space-between" }}>

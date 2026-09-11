@@ -214,6 +214,8 @@ export interface BackupStatus {
   at: string;
   ok: boolean;
   sizeBytes: number | null;
+  fileCount: number | null;
+  snapshots: number | null;
   note: string;
 }
 
@@ -229,6 +231,8 @@ export async function getBackupStatus(): Promise<BackupStatus | null> {
       at: parsed.at ?? info?.mtime.toISOString() ?? "",
       ok: parsed.ok ?? true,
       sizeBytes: parsed.sizeBytes ?? null,
+      fileCount: parsed.fileCount ?? null,
+      snapshots: parsed.snapshots ?? null,
       note: parsed.note ?? "",
     };
   } catch {

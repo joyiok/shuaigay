@@ -15,9 +15,13 @@ restic forget --keep-daily 30 --keep-weekly 8 --prune
 rm -f "$DUMP"
 
 # 给后台看的备份状态（app 以只读方式挂载 ./backups）
-SIZE=$(restic snapshots --json --latest 1 2>/dev/null | tr -d '\n' | sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' | head -1)
+# restic snapshots 不含仓库体积，用 restic stats 取 total_size
+STATS=$(restic stats --json 2>/dev/null | tr -d '\n')
+SIZE=$(printf '%s' "$STATS" | sed -n 's/.*"total_size":\([0-9]*\).*/\1/p' | head -1)
+FILES=$(printf '%s' "$STATS" | sed -n 's/.*"total_file_count":\([0-9]*\).*/\1/p' | head -1)
+SNAPS=$(printf '%s' "$STATS" | sed -n 's/.*"snapshots_count":\([0-9]*\).*/\1/p' | head -1)
 cat > /backups/last-backup.json <<JSON
-{"at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","ok":true,"sizeBytes":${SIZE:-null},"note":"restic + pg_dump"}
+{"at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","ok":true,"sizeBytes":${SIZE:-null},"fileCount":${FILES:-null},"snapshots":${SNAPS:-null},"note":"restic + pg_dump"}
 JSON
 
 if [ -n "${HEALTHCHECK_URL:-}" ]; then
