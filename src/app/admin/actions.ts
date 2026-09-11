@@ -733,9 +733,10 @@ export async function approveThreadAction(formData: FormData): Promise<void> {
   if (thread.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
   await db.thread.update({ where: { id: threadId }, data: { status: "approved" } });
   await db.post.updateMany({ where: { threadId, authorId: thread.authorId }, data: { status: "approved" } });
-  // 补发积分
-  const { THREAD_POINTS } = await import("@/lib/levels");
-  await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: THREAD_POINTS } } }).catch(() => {});
+  // 补发积分（分值走后台积分规则）
+  const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("@/lib/points-config");
+  const threadPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
+  await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: threadPoints } } }).catch(() => {});
   await db.notification.create({ data: { userId: thread.authorId, type: "system", title: "主题已过审", body: `你的主题「${thread.title.slice(0, 20)}」已通过审核`, link: `/t/${threadId}` } }).catch(() => {});
   await db.auditLog.create({ data: { actorId: staff.id, action: "approve_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.approve_thread", { actorId: staff.id, threadId });
@@ -770,8 +771,9 @@ export async function approvePostAction(formData: FormData): Promise<void> {
   if (post.status !== "pending") redirect(ADMIN_TAB("pending") + "&error=not_found");
   await db.post.update({ where: { id: postId }, data: { status: "approved" } });
   await db.thread.update({ where: { id: post.threadId }, data: { lastPostAt: new Date() } });
-  const { REPLY_POINTS } = await import("@/lib/levels");
-  await db.user.update({ where: { id: post.authorId }, data: { points: { increment: REPLY_POINTS } } }).catch(() => {});
+  const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("@/lib/points-config");
+  const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
+  await db.user.update({ where: { id: post.authorId }, data: { points: { increment: replyPoints } } }).catch(() => {});
   // 通知被提及和收藏者（与正常回帖一致，简化：仅通知楼主）
   const thread = await db.thread.findUnique({ where: { id: post.threadId }, select: { authorId: true } });
   if (thread && thread.authorId !== post.authorId) {
@@ -921,6 +923,16 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     logoUrl: formData.get("logoUrl") ?? "",
   });
   if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+  const { clearPointsConfigCache, pointsSettingsSchema } = await import("@/lib/points-config");
+  const pointsParsed = pointsSettingsSchema.safeParse({
+    pointsThread: formData.get("pointsThread"),
+    pointsReply: formData.get("pointsReply"),
+    pointsInvite: formData.get("pointsInvite"),
+    pointsCheckinBase: formData.get("pointsCheckinBase"),
+    pointsCheckinStreak: formData.get("pointsCheckinStreak"),
+    pointsMemberThreshold: formData.get("pointsMemberThreshold"),
+  });
+  if (!pointsParsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
 
   if (logoEntry !== null && !(logoEntry instanceof File)) redirect(ADMIN_TAB("settings") + "&error=invalid");
   const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
@@ -947,8 +959,8 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   try {
     await db.siteSetting.upsert({
       where: { id: "site" },
-      update: { ...parsed.data, logoUrl },
-      create: { id: "site", ...parsed.data, logoUrl },
+      update: { ...parsed.data, ...pointsParsed.data, logoUrl },
+      create: { id: "site", ...parsed.data, ...pointsParsed.data, logoUrl },
     });
   } catch {
     if (newStoredName) await getStorage().remove(newStoredName).catch(() => {});
@@ -957,7 +969,8 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   const oldStoredName = storedNameFromSiteLogoUrl(previous?.logoUrl);
   if (oldStoredName && previous?.logoUrl !== logoUrl) await getStorage().remove(oldStoredName).catch(() => {});
   await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
-  logger.info("admin.update_site_settings", { actorId });
+  logger.info("admin.update_site_settings", { actorId, points: pointsParsed.data });
+  clearPointsConfigCache();
   revalidateTag("site-settings");
   revalidatePath("/");
   redirect(ADMIN_TAB("settings"));

@@ -1,0 +1,7 @@
+-- AlterTable
+ALTER TABLE "SiteSetting" ADD COLUMN     "pointsThread" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "pointsReply" INTEGER NOT NULL DEFAULT 3,
+ADD COLUMN     "pointsInvite" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "pointsCheckinBase" INTEGER NOT NULL DEFAULT 5,
+ADD COLUMN     "pointsCheckinStreak" INTEGER NOT NULL DEFAULT 10,
+ADD COLUMN     "pointsMemberThreshold" INTEGER NOT NULL DEFAULT 30;

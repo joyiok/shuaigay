@@ -138,6 +138,14 @@ model SiteSetting {
   aiAutoConfidence Float  @default(0.9)
   aiAdminApiKeyEncrypted    String?
   aiProviderApiKeyEncrypted String?
+  // 积分规则（管理后台「站点设置」可改，读库缓存 60s，见 lib/points-config.ts）
+  pointsThread          Int @default(10)
+  pointsReply           Int @default(3)
+  pointsInvite          Int @default(10)
+  pointsCheckinBase     Int @default(5)
+  pointsCheckinStreak   Int @default(10)
+  // 正式会员功能线：发外链 / 免新人待审 / 20MB 附件（等级展示 ladder 见 lib/levels.ts）
+  pointsMemberThreshold Int @default(30)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

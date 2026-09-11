@@ -247,6 +247,10 @@ export default async function AdminPage({
 async function SettingsTab() {
   const settings = await getCachedSiteSettings();
   const aiSettings = await getAiSettingsPanel();
+  const { getPointsConfig } = await import("@/lib/points-config");
+  const points = await getPointsConfig().catch(() => ({
+    thread: 10, reply: 3, invite: 10, checkinBase: 5, checkinStreak: 10, memberThreshold: 30,
+  }));
   const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
   const mcpEndpoint = `${(process.env.SITE_URL ?? "https://www.shuai.gay").replace(/\/$/, "")}/api/mcp`;
   const mcpConfig = JSON.stringify({
@@ -292,6 +296,36 @@ async function SettingsTab() {
           <input name="logo" type="file" accept="image/jpeg,image/png,image/gif,image/webp" aria-describedby="logo-upload-help" style={{ ...paperInput, width: "100%", height: 36, padding: 6 }} />
           <span id="logo-upload-help" style={{ color: "var(--text-subtle)", fontSize: 11 }}>支持 JPG、PNG、GIF、WEBP，最大 2MB；选中文件后会覆盖 Logo 地址。</span>
         </label>
+        <div style={{ display: "grid", gap: 5, padding: 12, borderRadius: 10, background: "var(--brand-soft)" }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>积分规则 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>保存后 1 分钟内全站生效</span></span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>发主题加分</span>
+              <input name="pointsThread" type="number" required min={0} max={1000} step={1} defaultValue={points.thread} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>回帖加分</span>
+              <input name="pointsReply" type="number" required min={0} max={1000} step={1} defaultValue={points.reply} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>邀请注册加分</span>
+              <input name="pointsInvite" type="number" required min={0} max={1000} step={1} defaultValue={points.invite} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>签到基础分</span>
+              <input name="pointsCheckinBase" type="number" required min={0} max={1000} step={1} defaultValue={points.checkinBase} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>连签 7 天奖励</span>
+              <input name="pointsCheckinStreak" type="number" required min={0} max={1000} step={1} defaultValue={points.checkinStreak} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>正式会员线</span>
+              <input name="pointsMemberThreshold" type="number" required min={0} max={10000} step={1} defaultValue={points.memberThreshold} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+          </div>
+          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>正式会员线：达到后可发外链、免新人待审、附件 20MB；设为 0 等于关闭门槛。等级展示 ladder 不受影响。</span>
+        </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>
             {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" className="site-logo" style={{ maxWidth: 180, borderRadius: 10, border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}

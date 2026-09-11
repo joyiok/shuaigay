@@ -411,8 +411,9 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       if (dryRun) return planned(`将通过主题「${thread.title}」`);
       await db.thread.update({ where: { id: thread.id }, data: { status: "approved" } });
       await db.post.updateMany({ where: { threadId: thread.id, authorId: thread.authorId }, data: { status: "approved" } });
-      const { THREAD_POINTS } = await import("./levels");
-      await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: THREAD_POINTS } } }).catch(() => {});
+      const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+      const threadPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
+      await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: threadPoints } } }).catch(() => {});
       await db.notification
         .create({ data: { userId: thread.authorId, type: "system", title: "主题已过审", body: `你的主题「${thread.title.slice(0, 20)}」已通过审核`, link: `/t/${thread.id}` } })
         .catch(() => {});
@@ -454,8 +455,9 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       if (dryRun) return planned(`将通过帖子 ${post.id}`);
       await db.post.update({ where: { id: post.id }, data: { status: "approved" } });
       await db.thread.update({ where: { id: post.threadId }, data: { lastPostAt: new Date() } });
-      const { REPLY_POINTS } = await import("./levels");
-      await db.user.update({ where: { id: post.authorId }, data: { points: { increment: REPLY_POINTS } } }).catch(() => {});
+      const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+      const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
+      await db.user.update({ where: { id: post.authorId }, data: { points: { increment: replyPoints } } }).catch(() => {});
       await audit(actor, "approve_post", "post", post.id);
       return applied(`已通过帖子 ${post.id}`);
     }

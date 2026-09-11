@@ -17,7 +17,7 @@ import {
   canReply,
   isAdmin,
 } from "@/lib/permissions";
-import { REPLY_POINTS, THREAD_POINTS } from "@/lib/levels";
+import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "@/lib/points-config";
 import { isBoardModerator } from "@/lib/moderators";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { verifyTurnstile } from "@/lib/turnstile";
@@ -212,6 +212,8 @@ export async function createThreadAction(formData: FormData): Promise<string> {
   const mentionedUsers = await findMentionedUsers(content.data, user.id);
   const storage = getStorage();
   const attachmentRows = await persistFiles(storage, prepared, user.id);
+  // 发帖分值走后台配置（60s 缓存，事务外先读好）
+  const threadPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
   let threadId: string;
   try {
     const thread = await db.$transaction(async (tx) => {
@@ -237,7 +239,7 @@ export async function createThreadAction(formData: FormData): Promise<string> {
       if (!pending) {
         await tx.user.update({
           where: { id: user.id },
-          data: { points: { increment: THREAD_POINTS } },
+          data: { points: { increment: threadPoints } },
         });
       }
       if (!pending && mentionedUsers.length) {
@@ -390,6 +392,8 @@ export async function replyAction(formData: FormData): Promise<string> {
 
   const storage = getStorage();
   const attachmentRows = await persistFiles(storage, prepared, user.id);
+  // 回帖分值走后台配置（60s 缓存，事务外先读好）
+  const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
   try {
     await db.$transaction(async (tx) => {
       await tx.post.create({
@@ -410,7 +414,7 @@ export async function replyAction(formData: FormData): Promise<string> {
         });
         await tx.user.update({
           where: { id: user.id },
-          data: { points: { increment: REPLY_POINTS } },
+          data: { points: { increment: replyPoints } },
         });
       }
       if (!pendingReply && visiblePlan.length) {

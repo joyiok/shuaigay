@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { containsSensitive } from "./sensitive";
+import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "./points-config";
 
 export interface ApprovalUser {
   id: string;
@@ -14,7 +15,7 @@ export interface ApprovalBoard {
 
 /**
  * 判断是否需要进入待审（A/B/C 全量）
- * A: 新人见习 — 积分 <30 或 注册 24h 内
+ * A: 新人见习 — 积分 < 正式会员线（后台可配，默认 30）或 注册 24h 内
  * B: 版块开关 — board.requireApproval
  * C: 敏感词 — 命中则待审（不再直接拦截）
  */
@@ -28,10 +29,11 @@ export async function needsApproval(
   // 版主/管理员在自己可管的版块发帖回帖免审（调用方已限定 boardScope）
   if (isStaff) return { pending: false, reason: null };
   if (!isStaff && board.requireApproval) return { pending: true, reason: "版块开启审核" };
+  const threshold = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).memberThreshold;
   // 等级不足发外链需审核
   const { hasLink } = await import("./levels");
-  if (!isStaff && hasLink(title + " " + content) && user.points < 30) return { pending: true, reason: "等级不足，发外链需正式会员" };
-  if (user.points < 30) return { pending: true, reason: "新人见习" };
+  if (!isStaff && hasLink(title + " " + content) && user.points < threshold) return { pending: true, reason: "等级不足，发外链需正式会员" };
+  if (user.points < threshold) return { pending: true, reason: "新人见习" };
   const ageMs = Date.now() - new Date(user.createdAt).getTime();
   if (ageMs < 24 * 60 * 60 * 1000) return { pending: true, reason: "注册24h内" };
   if ((await containsSensitive(title)) || (await containsSensitive(content))) {

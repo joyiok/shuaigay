@@ -24,6 +24,7 @@ import { isUserBanned } from "@/lib/ban";
 // 用户不存在时也做一次同价哈希比较,防止时序侧信道探测邮箱是否已注册
 // 成本与 hashPassword 一致（BCRYPT_ROUNDS），否则比较耗时不同就露馅了
 import { BCRYPT_ROUNDS } from "@/lib/auth";
+import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "@/lib/points-config";
 const DUMMY_HASH = bcrypt.hashSync("timing-equalizer", BCRYPT_ROUNDS);
 
 const registerSchema = z.object({
@@ -33,7 +34,7 @@ const registerSchema = z.object({
   invite: z.string().trim().regex(/^[a-zA-Z0-9]{4,32}$/).optional(),
 });
 
-const INVITE_BONUS_POINTS = 10;
+// 邀请奖励分改走后台「站点设置 → 积分规则」(lib/points-config.ts)，此处不再硬编码
 
 // 限流阈值:生产用默认值(注册 5/时,登录 20/10分);本地调试或 e2e 反复跑可经 .env 调大
 const REGISTER_RATE_LIMIT = Number(process.env.RATE_LIMIT_REGISTER) || 5;
@@ -77,6 +78,8 @@ export async function registerAction(formData: FormData): Promise<void> {
   }
 
   const passwordHash = await hashPassword(password);
+  // 邀请奖励分走后台配置（事务外先读好）
+  const inviteBonus = inviteCode ? (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).invite : 0;
   let user: { id: string };
   try {
     user = await db.$transaction(async (tx) => {
@@ -93,7 +96,7 @@ export async function registerAction(formData: FormData): Promise<void> {
         }
         await tx.user.update({
           where: { id: inviterId },
-          data: { points: { increment: INVITE_BONUS_POINTS } },
+          data: { points: { increment: inviteBonus } },
         });
       }
       return u;

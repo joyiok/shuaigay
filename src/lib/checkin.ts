@@ -4,15 +4,16 @@
  */
 import { db } from "./db";
 import { dayForDb } from "./visit-stats";
+import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "./points-config";
 
 export const CHECKIN_BASE_POINTS = 5;
 /** 每连续 7 天额外奖励 */
 export const CHECKIN_STREAK_BONUS = 10;
 
-/** 连续第 N 天可得积分（纯函数，便于测试） */
-export function checkinPoints(streak: number): number {
+/** 连续第 N 天可得积分（纯函数，便于测试；base/bonus 缺省用默认配置） */
+export function checkinPoints(streak: number, base = CHECKIN_BASE_POINTS, bonus = CHECKIN_STREAK_BONUS): number {
   const s = Math.max(1, Math.floor(streak));
-  return CHECKIN_BASE_POINTS + Math.floor((s - 1) / 7) * CHECKIN_STREAK_BONUS;
+  return base + Math.floor((s - 1) / 7) * bonus;
 }
 
 export interface CheckInState {
@@ -52,12 +53,13 @@ export async function getCheckInState(userId: string): Promise<CheckInState> {
     if (gap > 1) streak = 0;
   }
   const nextStreak = todayRow ? streak : streak + 1;
+  const pc = await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG);
   return {
     doneToday: !!todayRow,
     streak,
     monthCount,
     recent,
-    nextPoints: checkinPoints(nextStreak),
+    nextPoints: checkinPoints(nextStreak, pc.checkinBase, pc.checkinStreak),
   };
 }
 
@@ -72,7 +74,8 @@ export async function doCheckIn(userId: string): Promise<{ ok: boolean; points?:
   if (exists) return { ok: false, error: "今天已经签过了" };
 
   const streak = (prev?.streak ?? 0) + 1;
-  const points = checkinPoints(streak);
+  const pc = await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG);
+  const points = checkinPoints(streak, pc.checkinBase, pc.checkinStreak);
   try {
     await db.$transaction([
       db.checkIn.create({ data: { userId, day: today, points, streak } }),

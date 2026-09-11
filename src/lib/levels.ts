@@ -1,6 +1,7 @@
 /**
  * 积分等级体系(纯函数,派生自 points,无需存库):
- * 发主题 +10 / 回复 +3 / 邀请注册 +10 / 管理员手工加减。
+ * 发主题 / 回复 / 邀请 / 签到 / 会员线的具体分值走后台「站点设置 → 积分规则」
+ * (lib/points-config.ts)；THREAD_POINTS / REPLY_POINTS 仅作回退默认值保留。
  */
 export const THREAD_POINTS = 10;
 export const REPLY_POINTS = 3;
