@@ -569,20 +569,14 @@ function ListCard({ children }: { children: React.ReactNode }) {
   return <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{children}</ul>;
 }
 
-function Row({ children, last }: { children: React.ReactNode; last?: boolean }) {
+function Row({ children, last, actions }: { children: React.ReactNode; last?: boolean; actions?: React.ReactNode }) {
   return (
     <li
-      style={{
-        padding: "10px 14px",
-        borderBottom: last ? "0" : "1.5px solid var(--line)",
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        background: "var(--panel)",
-      }}
+      className={actions ? "admin-row has-actions" : "admin-row"}
+      style={{ borderBottom: last ? "0" : "1.5px solid var(--line)" }}
     >
-      {children}
+      <div className="admin-row-main">{children}</div>
+      {actions ? <div className="admin-row-actions">{actions}</div> : null}
     </li>
   );
 }
@@ -606,20 +600,7 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
       <PaperCardHeader title="主题管理" count={`最近 ${threads.length} 条`} sub={boardScope ? "仅自己版块 · 删除需二次确认" : "删除需二次确认"} />
       <ListCard>
         {threads.map((t, i) => (
-          <Row key={t.id} last={i === threads.length - 1}>
-            {t.pinned && <span className="topic-badge pinned">置顶</span>}
-            {(t as any).digested && <span className="topic-badge" style={{ background: "#FFE58F", border: "1.5px solid var(--line)", color: "var(--text)", fontWeight: 700 }}>精华</span>}
-            {t.locked && <span className="topic-badge" style={{ background: "var(--bg-soft)", color: "var(--text-muted)", border: "1px solid var(--line)" }}>已锁</span>}
-            <Link href={threadHref(t.id, t.title)} style={{ fontWeight: 700, fontSize: 13, fontFamily: GROTESK, color: "var(--text)", maxWidth: 360, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: "none" }}>
-              {t.title}
-            </Link>
-            <span style={{ fontSize: 11, fontFamily: MONO, color: "var(--text-muted)", background: "var(--bg-soft)", border: "1px solid var(--line)", padding: "1px 7px", borderRadius: 999 }}>{t.board.name}</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 12 }}>
-              <UserAvatar username={t.author.username} avatarUrl={t.author.avatarUrl ?? null} size={22} radius={999} />
-              <span style={{ fontFamily: MONO }}>{t.author.username} · {t._count.posts} 帖</span>
-            </span>
-            <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(t.lastPostAt)}</span>
-            <span style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <Row key={t.id} last={i === threads.length - 1} actions={<>
               <form action={adminTogglePinAction}>
                 <input type="hidden" name="threadId" value={t.id} />
                 <button style={paperBtn}>{t.pinned ? "取消置顶" : "置顶"}</button>
@@ -641,7 +622,21 @@ async function ThreadsTab({ boardScope }: { boardScope: Set<string> | null }) {
                   删除主题
                 </button>
               </ConfirmForm>
-            </span>
+            </>}>
+            <div className="admin-row-title">
+              {t.pinned && <span className="topic-badge pinned">置顶</span>}
+              {(t as any).digested && <span className="topic-badge digest">精华</span>}
+              {t.locked && <span className="topic-badge locked">已锁</span>}
+              <Link href={threadHref(t.id, t.title)} className="admin-row-link" title={t.title}>
+                {t.title}
+              </Link>
+              <span className="admin-row-chip">{t.board.name}</span>
+            </div>
+            <div className="admin-row-meta">
+              <UserAvatar username={t.author.username} avatarUrl={t.author.avatarUrl ?? null} size={20} radius={999} />
+              <span>{t.author.username} · {t._count.posts} 帖</span>
+              <span className="admin-row-date">· {formatDate(t.lastPostAt)}</span>
+            </div>
           </Row>
         ))}
         {threads.length === 0 && (
@@ -670,7 +665,17 @@ async function PostsTab({ boardScope }: { boardScope: Set<string> | null }) {
       <PaperCardHeader title="帖子管理" count={`最近 ${posts.length} 条`} sub={boardScope ? "仅自己版块 · 删除需二次确认" : "删除需二次确认"} />
       <ListCard>
         {posts.map((p, i) => (
-          <Row key={p.id} last={i === posts.length - 1}>
+          <Row key={p.id} last={i === posts.length - 1} actions={
+              <ConfirmForm
+                action={adminDeletePostAction}
+                message={`删除这条回帖？\n• 作者：${p.author.username} · 主题：${p.thread.title.slice(0, 40)}\n• 附件和相关举报会一起清掉\n• 不可恢复，确定删？`}
+              >
+                <input type="hidden" name="postId" value={p.id} />
+                <button type="submit" style={paperDangerBtn}>
+                  删除帖子
+                </button>
+              </ConfirmForm>
+          }>
             <UserAvatar username={p.author.username} avatarUrl={p.author.avatarUrl ?? null} size={28} radius={8} />
             <div style={{ minWidth: 0, flex: 1 }}>
               <Link href={threadHref(p.thread.id, p.thread.title)} style={{ fontSize: 13, fontWeight: 700, fontFamily: GROTESK, color: "var(--brand)", textDecoration: "none" }}>
@@ -682,15 +687,6 @@ async function PostsTab({ boardScope }: { boardScope: Set<string> | null }) {
             </div>
             <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{p.author.username}</span>
             <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(p.createdAt)}</span>
-            <ConfirmForm
-              action={adminDeletePostAction}
-              message={`删除这条回帖？\n• 作者：${p.author.username} · 主题：${p.thread.title.slice(0, 40)}\n• 附件和相关举报会一起清掉\n• 不可恢复，确定删？`}
-            >
-              <input type="hidden" name="postId" value={p.id} />
-              <button type="submit" style={paperDangerBtn}>
-                删除帖子
-              </button>
-            </ConfirmForm>
           </Row>
         ))}
         {posts.length === 0 && (
@@ -1107,27 +1103,7 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
           const isThread = r.targetType === "thread";
           const targetTitle = isThread ? threadMap.get(r.targetId) : threadTitleMap.get(postMap.get(r.targetId) ?? "");
           return (
-            <Row key={r.id} last={i === reports.length - 1}>
-              <span className="topic-badge" style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontFamily: MONO, boxShadow: "1px 1px 0 var(--line)" }}>
-                {isThread ? "主题" : "帖子"}
-              </span>
-              <div style={{ minWidth: 0, maxWidth: 360 }}>
-                <Link
-                  href={threadHref(isThread ? r.targetId : postMap.get(r.targetId) ?? "", targetTitle ?? "")}
-                  style={{ fontSize: 13, fontWeight: 700, fontFamily: GROTESK, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}
-                >
-                  {targetTitle ?? "（内容已不存在）"}
-                </Link>
-                <div style={{ color: "var(--text-muted)", fontSize: 12, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>
-                  {r.reason}
-                </div>
-              </div>
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 12 }}>
-                <UserAvatar username={r.reporter.username} avatarUrl={r.reporter.avatarUrl ?? null} size={20} radius={999} />
-                <span>举报：<span style={{ fontFamily: MONO }}>{r.reporter.username}</span></span>
-              </span>
-              <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(r.createdAt)}</span>
-              <span style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+            <Row key={r.id} last={i === reports.length - 1} actions={<>
                 <ConfirmForm
                   action={reviewReportAction}
                   message={`删除被举报的${isThread ? "主题" : "帖子"}并结案？\n• 目标内容会直接删掉，举报人会收到“已处理”通知\n• 删了就回不来了，确定吗？`}
@@ -1148,7 +1124,26 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
                   <input type="hidden" name="action" value="reject" />
                   <button style={paperBtn}>驳回</button>
                 </form>
+            </>}>
+              <span className="topic-badge" style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontFamily: MONO, boxShadow: "1px 1px 0 var(--line)" }}>
+                {isThread ? "主题" : "帖子"}
               </span>
+              <div style={{ minWidth: 0, maxWidth: 360 }}>
+                <Link
+                  href={threadHref(isThread ? r.targetId : postMap.get(r.targetId) ?? "", targetTitle ?? "")}
+                  style={{ fontSize: 13, fontWeight: 700, fontFamily: GROTESK, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}
+                >
+                  {targetTitle ?? "（内容已不存在）"}
+                </Link>
+                <div style={{ color: "var(--text-muted)", fontSize: 12, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>
+                  {r.reason}
+                </div>
+              </div>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: "var(--text-subtle)", fontSize: 12 }}>
+                <UserAvatar username={r.reporter.username} avatarUrl={r.reporter.avatarUrl ?? null} size={20} radius={999} />
+                <span>举报：<span style={{ fontFamily: MONO }}>{r.reporter.username}</span></span>
+              </span>
+              <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(r.createdAt)}</span>
             </Row>
           );
         })}
@@ -1552,17 +1547,16 @@ async function WordsTab() {
       </form>
       <ListCard>
         {words.map((w, i) => (
-          <Row key={w.id} last={i === words.length - 1}>
-            <span style={{ background: "var(--brand-soft)", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 800, fontFamily: MONO, boxShadow: "1px 1px 0 var(--line)" }}>
-              {w.word}
-            </span>
-            <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(w.createdAt)}</span>
-            <span style={{ marginLeft: "auto" }}>
+          <Row key={w.id} last={i === words.length - 1} actions={
               <NativeConfirmForm action={removeSensitiveWordAction} message={`移除敏感词「${w.word}」？\n• 移除后含该词的内容将不再被拦/待审\n• 确定移除？`}>
                 <input type="hidden" name="id" value={w.id} />
                 <button type="submit" style={paperDangerBtn}>移除</button>
               </NativeConfirmForm>
+          }>
+            <span style={{ background: "var(--brand-soft)", color: "var(--text)", border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 10px", fontSize: 12, fontWeight: 800, fontFamily: MONO, boxShadow: "1px 1px 0 var(--line)" }}>
+              {w.word}
             </span>
+            <span style={{ color: "var(--text-subtle)", fontSize: 12, fontFamily: MONO }}>{formatDate(w.createdAt)}</span>
           </Row>
         ))}
         {words.length === 0 && (

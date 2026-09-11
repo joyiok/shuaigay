@@ -529,6 +529,101 @@ mark.search-mark, .search-mark {
 .chip-success { color: var(--success); background: var(--success-soft); border: 1px solid #cfe9dc; }
 .chip-warn { color: var(--amber); background: var(--amber-soft); border: 1px solid #f0e1bd; }
 
+/* ——— 管理后台列表行 ———
+   信息区与操作区分列：操作永远右对齐、不跳行；窄屏整块堆到下一行 */
+.admin-row {
+  display: flex;
+  align-items: center;
+  gap: 8px 10px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--panel);
+}
+.admin-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 行本身不换行：信息区让位收缩（标题截断），操作区永远留在右侧 */
+.admin-row.has-actions { flex-wrap: nowrap; }
+.admin-row.has-actions .admin-row-main { flex-wrap: nowrap; overflow: hidden; }
+.admin-row.has-actions .admin-row-actions { margin-left: auto; }
+.admin-row-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+.admin-row-title {
+  flex: 1 1 160px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.admin-row-link {
+  min-width: 0;
+  font-family: var(--font-grotesk);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.admin-row-link:hover { color: var(--brand); }
+.admin-row-chip {
+  flex: 0 0 auto;
+  font-family: var(--font-jet);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg-soft);
+  border: 1px solid var(--line);
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+.admin-row-meta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-subtle);
+  font-size: 11.5px;
+  font-family: var(--font-jet);
+}
+.admin-row-meta {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-subtle);
+  font-size: 11.5px;
+  font-family: var(--font-jet);
+  overflow: hidden;
+  white-space: nowrap;
+}
+.admin-row-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* 窄一点时先舍日期，保证标题和操作栏不换行 */
+@media (max-width: 1360px) {
+  .admin-row-meta .admin-row-date { display: none; }
+}
+@media (max-width: 900px) {
+  .admin-row.has-actions { flex-wrap: wrap; }
+  .admin-row.has-actions .admin-row-main { flex-basis: 100%; flex-wrap: wrap; overflow: visible; }
+  .admin-row.has-actions .admin-row-actions {
+    flex-basis: 100%;
+    margin-left: 0;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}
+
 /* 错误 / 404 页 */
 .error-shell { display: grid; gap: 16px; justify-items: center; padding: 56px 16px 40px; text-align: center; }
 .error-title { margin: 0; font-size: 21px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
