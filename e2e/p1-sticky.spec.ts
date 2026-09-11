@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -68,7 +68,7 @@ test("P1: 注册用户关注 admin — 计数与按钮态", async ({ page }) => 
     const button = page.getByRole("button", { name: expectName, exact: true });
     await expect(button).toBeVisible();
     const posted = page.waitForResponse(
-      (r) => r.request().method() === "POST" && r.url().includes("/u/admin"),
+      (r) => isActionPostResponse(r) && r.url().includes("/u/admin"),
       { timeout: 20000 },
     );
     await button.click();

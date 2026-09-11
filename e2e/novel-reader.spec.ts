@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
@@ -16,7 +16,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await posted;
   await expect(page.locator("header")).toContainText(nameInHeader, { timeout: 30000 });

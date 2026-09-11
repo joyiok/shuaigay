@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -16,7 +16,7 @@ async function registerAs(page: import("@playwright/test").Page, username: strin
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "ForumTest123!");
   await waitTurnstile(page);
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await posted;
   // 等注册跳转完成再断言，避免 SSR 还没到就检查 header
@@ -29,7 +29,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await waitTurnstile(page);
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await posted;
   await expect.poll(() => page.url(), { timeout: 30000 }).not.toContain("/login");
@@ -41,7 +41,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
  * 等跳转落地并确认正文已渲染（回归：曾因 action 内同路径 redirect 变空白）。
  */
 async function submitSettings(page: import("@playwright/test").Page, button: import("@playwright/test").Locator) {
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await button.click();
   await posted;
   await page.waitForURL(/ok=/, { timeout: 30000 });
@@ -53,7 +53,7 @@ async function submitSettings(page: import("@playwright/test").Page, button: imp
 async function toggleFollow(page: import("@playwright/test").Page, name: string, expected: string) {
   const button = page.getByRole("button", { name, exact: true });
   await expect(button).toBeVisible({ timeout: 20000 });
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await button.click();
   await posted;
   await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });

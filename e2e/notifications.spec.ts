@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -50,7 +50,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
 }
 
 async function submitAndSync(page: import("@playwright/test").Page, button: import("@playwright/test").Locator) {
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await button.click();
   await posted;
   await page.reload({ waitUntil: "domcontentloaded", timeout: 20000 });

@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -8,7 +8,7 @@ async function registerAs(page: import("@playwright/test").Page, username: strin
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "ForumTest123!");
   await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await posted;
   await expect.poll(() => page.url(), { timeout: 30000 }).not.toContain("/register");
@@ -68,7 +68,7 @@ test("关注按钮点击后立即变状态，无需刷新", async ({ page }) => 
   await page.fill('input[name="email"]', `${userA}@test.dev`);
   await page.fill('input[name="password"]', "ForumTest123!");
   await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
-  const loginPosted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const loginPosted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await loginPosted;
   await expect(page.locator("header")).toContainText(userA, { timeout: 30000 });

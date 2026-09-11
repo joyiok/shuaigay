@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -8,7 +8,7 @@ async function registerAs(page: import("@playwright/test").Page, username: strin
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "ForumTest123!");
   await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
-  const posted = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await posted;
   await expect.poll(() => page.url(), { timeout: 30000 }).not.toContain("/register");
@@ -63,7 +63,7 @@ test("草稿箱：空态与登录门槛", async ({ page }) => {
   await expect(page.getByRole("link", { name: "写新主题" })).toBeVisible();
 
   // 退出后要求登录（退出 action 会 redirect 到首页：必须等它落地再 goto，否则两次导航打架）
-  const loggedOut = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const loggedOut = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "退出" }).first().click();
   await loggedOut;
   const loginLink = page.locator("header").getByRole("link", { name: "登录" });

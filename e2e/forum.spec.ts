@@ -1,4 +1,4 @@
-import { expect, test } from "./fixtures";
+import { expect, test, isActionPostResponse } from "./fixtures";
 
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
@@ -10,7 +10,7 @@ function submitButton(page: import("@playwright/test").Page, name: string) {
 }
 
 async function logout(page: import("@playwright/test").Page) {
-  const loggedOut = page.waitForResponse((response) => response.request().method() === "POST", { timeout: 20000 });
+  const loggedOut = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await submitButton(page, "退出").first().click();
   await loggedOut;
   // 退出后客户端可能来不及重渲染 header（同 URL 动作的缓存问题）：先等，超时整页刷新兜底
@@ -36,7 +36,7 @@ async function approvePendingThread(page: import("@playwright/test").Page, title
   const href = await row.locator("a").first().getAttribute("href");
   // 等审核 POST 落袋再 reload：已在同 URL 时 waitForURL 会瞬间返回，
   // 直接 reload 会取消在途请求导致审核丢失（和关注按钮同类竞态）
-  const approved = page.waitForResponse((r) => r.request().method() === "POST", { timeout: 20000 });
+  const approved = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await row.getByRole("button", { name: "通过" }).click();
   await approved;
   await page.reload();
