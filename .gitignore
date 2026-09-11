@@ -27,3 +27,6 @@ playwright/.cache/
 .opencode/
 .omo/
 .codegraph/
+
+# Python 采集脚本缓存
+__pycache__/
