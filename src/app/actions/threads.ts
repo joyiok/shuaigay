@@ -238,10 +238,8 @@ export async function createThreadAction(formData: FormData): Promise<string> {
         },
       });
       if (!pending) {
-        await tx.user.update({
-          where: { id: user.id },
-          data: { points: { increment: threadPoints } },
-        });
+        const { applyPoints } = await import("@/lib/points");
+        await applyPoints(tx, user.id, threadPoints, "thread_create", { refType: "thread", refId: t.id });
       }
       if (!pending && mentionedUsers.length) {
         const notifyIds = planMentionNotifications({
@@ -398,7 +396,7 @@ export async function replyAction(formData: FormData): Promise<string> {
   const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
   try {
     await db.$transaction(async (tx) => {
-      await tx.post.create({
+      const p = await tx.post.create({
         data: {
           threadId: thread.id,
           authorId: user.id,
@@ -414,10 +412,8 @@ export async function replyAction(formData: FormData): Promise<string> {
           where: { id: thread.id },
           data: { lastPostAt: new Date() },
         });
-        await tx.user.update({
-          where: { id: user.id },
-          data: { points: { increment: replyPoints } },
-        });
+        const { applyPoints } = await import("@/lib/points");
+        await applyPoints(tx, user.id, replyPoints, "reply_create", { refType: "post", refId: p.id });
       }
       if (!pendingReply && visiblePlan.length) {
         const rows = await filterRowsByPreferences(

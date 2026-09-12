@@ -94,10 +94,8 @@ export async function registerAction(formData: FormData): Promise<void> {
             code: "INVITE_USED_UP",
           });
         }
-        await tx.user.update({
-          where: { id: inviterId },
-          data: { points: { increment: inviteBonus } },
-        });
+        const { applyPoints } = await import("@/lib/points");
+        await applyPoints(tx, inviterId, inviteBonus, "invite_bonus", { refType: "user", refId: u.id });
       }
       return u;
     });

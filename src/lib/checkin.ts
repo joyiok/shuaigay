@@ -77,10 +77,11 @@ export async function doCheckIn(userId: string): Promise<{ ok: boolean; points?:
   const pc = await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG);
   const points = checkinPoints(streak, pc.checkinBase, pc.checkinStreak);
   try {
-    await db.$transaction([
-      db.checkIn.create({ data: { userId, day: today, points, streak } }),
-      db.user.update({ where: { id: userId }, data: { points: { increment: points } } }),
-    ]);
+    const { applyPoints } = await import("./points");
+    await db.$transaction(async (tx) => {
+      const row = await tx.checkIn.create({ data: { userId, day: today, points, streak } });
+      await applyPoints(tx, userId, points, "checkin", { refType: "checkin", refId: row.id });
+    });
   } catch {
     // 并发下的唯一键冲突：当作已签到
     return { ok: false, error: "今天已经签过了" };

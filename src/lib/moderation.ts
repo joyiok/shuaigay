@@ -104,6 +104,13 @@ export async function softDeleteThread(
     data: { status: "deleted", deletedAt: new Date(), deletedBy: opts.actorId, deleteReason: reason },
   });
   await settlePendingReports("thread", threadId, true);
+  // 删帖扣回：approved 才加过分，台账比对后扣（pending/导入未加分的不动）
+  if (thread.status === "approved") {
+    const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+    const { clawbackIfAwarded } = await import("./points");
+    const amount = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
+    await clawbackIfAwarded(thread.authorId, "thread", threadId, amount);
+  }
   await notifyAuthorRemoved({
     authorId: thread.authorId,
     targetType: "thread",
@@ -129,6 +136,12 @@ export async function softDeletePost(
     data: { status: "deleted", deletedAt: new Date(), deletedBy: opts.actorId, deleteReason: reason },
   });
   await settlePendingReports("post", postId, true);
+  if (post.status === "approved") {
+    const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+    const { clawbackIfAwarded } = await import("./points");
+    const amount = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
+    await clawbackIfAwarded(post.authorId, "post", postId, amount);
+  }
   await notifyAuthorRemoved({
     authorId: post.authorId,
     targetType: "post",
@@ -138,11 +151,28 @@ export async function softDeletePost(
   });
 }
 
-/** 从回收站恢复（主题/回复），并把原因/删除人清空 */
+/** 从回收站恢复（主题/回复），并把原因/删除人清空；undo 最近一次有效扣回 */
 export async function restoreFromTrash(targetType: "thread" | "post", targetId: string): Promise<void> {
   const data = { status: "approved", deletedAt: null, deletedBy: null, deleteReason: null };
-  if (targetType === "thread") await db.thread.update({ where: { id: targetId }, data });
-  else await db.post.update({ where: { id: targetId }, data });
+  if (targetType === "thread") {
+    const t = await db.thread.findUnique({ where: { id: targetId }, select: { authorId: true } });
+    await db.thread.update({ where: { id: targetId }, data });
+    if (t) {
+      const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+      const { regrantIfClawed } = await import("./points");
+      const amount = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
+      await regrantIfClawed(t.authorId, "thread", targetId, amount);
+    }
+  } else {
+    const p = await db.post.findUnique({ where: { id: targetId }, select: { authorId: true } });
+    await db.post.update({ where: { id: targetId }, data });
+    if (p) {
+      const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+      const { regrantIfClawed } = await import("./points");
+      const amount = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
+      await regrantIfClawed(p.authorId, "post", targetId, amount);
+    }
+  }
 }
 
 /** 彻底删除主题:DB 行级联 + 磁盘附件清理（回收站清理用） */

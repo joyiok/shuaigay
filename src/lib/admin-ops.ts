@@ -413,7 +413,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       await db.post.updateMany({ where: { threadId: thread.id, authorId: thread.authorId }, data: { status: "approved" } });
       const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
       const threadPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
-      await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: threadPoints } } }).catch(() => {});
+      const { addPoints } = await import("./points");
+      await addPoints(thread.authorId, threadPoints, "thread_approve", { refType: "thread", refId: thread.id }).catch(() => {});
       await db.notification
         .create({ data: { userId: thread.authorId, type: "system", title: "主题已过审", body: `你的主题「${thread.title.slice(0, 20)}」已通过审核`, link: `/t/${thread.id}` } })
         .catch(() => {});
@@ -457,7 +458,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       await db.thread.update({ where: { id: post.threadId }, data: { lastPostAt: new Date() } });
       const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
       const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
-      await db.user.update({ where: { id: post.authorId }, data: { points: { increment: replyPoints } } }).catch(() => {});
+      const { addPoints } = await import("./points");
+      await addPoints(post.authorId, replyPoints, "reply_approve", { refType: "post", refId: post.id }).catch(() => {});
       await audit(actor, "approve_post", "post", post.id);
       return applied(`已通过帖子 ${post.id}`);
     }
@@ -536,7 +538,8 @@ async function runOne(action: AdminAction, actor: string, dryRun: boolean): Prom
       const user = await findUser(action.username);
       if (!user) return skipped("用户不存在");
       if (dryRun) return planned(`将给 ${user.username} ${action.points >= 0 ? "+" : ""}${action.points} 积分`);
-      await db.user.update({ where: { id: user.id }, data: { points: { increment: action.points } } });
+      const { addPoints } = await import("./points");
+      await addPoints(user.id, action.points, "manual");
       await audit(actor, "add_points", "user", user.id, `${action.points}${action.note ? ` ${action.note}` : ""}`);
       return applied(`已给 ${user.username} ${action.points >= 0 ? "+" : ""}${action.points} 积分`);
     }

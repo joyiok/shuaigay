@@ -37,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
   };
 }
 
-type Tab = "topics" | "replies" | "favs";
+type Tab = "topics" | "replies" | "favs" | "points";
 
 function excerpt(raw: string): string {
   return raw.replace(/[#*_`>[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 100);
@@ -57,10 +57,15 @@ export default async function UserPage({
 }) {
   const { username } = await params;
   const { tab: rawTab } = await searchParams;
-  const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : "topics";
-  // 收藏仅本人可见
+  const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : rawTab === "points" ? "points" : "topics";
+  // 收藏仅本人可见；积分明细仅本人与管理员可见
   const meEarly = await getCurrentUser();
-  const tab: Tab = _tab === "favs" && meEarly?.id !== (await db.user.findUnique({ where: { username }, select: { id: true } }).then((u) => u?.id)) ? "topics" : (_tab as Tab);
+  const targetIdEarly = (await db.user.findUnique({ where: { username }, select: { id: true } }).then((u) => u?.id));
+  const canSeePointsEarly = !!meEarly && (meEarly.id === targetIdEarly || isAdmin(meEarly));
+  const tab: Tab =
+    (_tab === "favs" && meEarly?.id !== targetIdEarly) || (_tab === "points" && !canSeePointsEarly)
+      ? "topics"
+      : (_tab as Tab);
 
   const user = await db.user.findUnique({
     where: { username },
@@ -71,6 +76,15 @@ export default async function UserPage({
   const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
   const me = meEarly;
   const isSelf = me?.id === user.id;
+  const canSeePoints = isSelf || (me ? isAdmin(me) : false);
+  // 积分明细（本人/管理员可见，最近 50 笔）
+  const { POINT_REASON_LABEL } = await import("@/lib/points");
+  const pointTx =
+    tab === "points" && canSeePoints
+      ? await db.pointTransaction
+          .findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 })
+          .catch(() => [])
+      : [];
   // 等级 ladder 走后台配置（IIFE 展示闭包复用；LevelBadge 内部自读）
   const { getLadder } = await import("@/lib/levels");
   const ladder = await getLadder().catch(() => undefined);
@@ -529,6 +543,11 @@ export default async function UserPage({
             收藏 <span style={{ marginLeft: 4, opacity: 0.75 }}>{favCount}</span>
           </Link>
         )}
+        {canSeePoints && (
+          <Link href={`/u/${encodeURIComponent(user.username)}?tab=points`} className={`tab ${tab === "points" ? "active" : ""}`}>
+            积分明细
+          </Link>
+        )}
       </div>
 
       {/* 主题列表 */}
@@ -658,6 +677,37 @@ export default async function UserPage({
                   pendingLabel="处理中…"
                   style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line)", borderRadius: 6, padding: "4px 8px", background: "var(--panel)" }}
                 />
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+      {tab === "points" && canSeePoints && (
+        pointTx.length === 0 ? (
+          <EmptyState variant="post" title="还没有积分变动" description="发帖、回帖、签到、邀请都会在这里留下一笔。" actionLabel="去逛逛" actionHref="/" />
+        ) : (
+          <ul className="post-list">
+            {pointTx.map((t) => (
+              <li key={t.id} className="post-item" style={{ minHeight: 0, padding: "10px 16px" }}>
+                <div className="post-body">
+                  <div className="post-title-row">
+                    <span style={{ fontSize: 13, fontWeight: 700 }}>{POINT_REASON_LABEL[t.reason] ?? t.reason}</span>
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 800,
+                        fontVariantNumeric: "tabular-nums",
+                        color: t.delta >= 0 ? "var(--success)" : "var(--danger)",
+                      }}
+                    >
+                      {t.delta >= 0 ? `+${t.delta}` : t.delta}
+                    </span>
+                  </div>
+                  <div className="post-meta">
+                    <span>{new Date(t.createdAt).toLocaleString("zh-CN", { hour12: false })}</span>
+                    <span>余额 {t.balance}</span>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

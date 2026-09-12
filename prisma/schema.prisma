@@ -65,6 +65,7 @@ model User {
   blocksMade        Block[]            @relation("BlockMaker")
   blocksReceived    Block[]            @relation("BlockTarget")
   checkIns          CheckIn[]
+  pointTransactions PointTransaction[]
   pollVotes         PollVote[]
   ipLogs            UserIpLog[]
 }
@@ -569,6 +570,25 @@ model Block {
 
   @@unique([userId, targetId])
   @@index([targetId])
+}
+
+/// 积分流水：每次加减分落一条，余额=变动后 User.points，便于个人明细与管理员对账。
+/// reason 见 lib/points.ts（thread_create/reply_create/invite_bonus/checkin/manual/…）。
+/// 历史余额无明细：迁移时按当时余额插一条 opening_balance 期初结转，此后每笔必留痕。
+model PointTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  delta     Int
+  balance   Int
+  reason    String
+  refType   String?
+  refId     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([refType, refId])
 }
 
 /// 每日签到

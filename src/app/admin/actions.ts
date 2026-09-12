@@ -264,11 +264,8 @@ export async function addPointsAction(formData: FormData): Promise<void> {
   if (!delta.success) redirect(ADMIN_TAB("users") + "&error=invalid");
   const user = await db.user.findUnique({ where: { id: userId }, select: { id: true } });
   if (!user) redirect(ADMIN_TAB("users") + "&error=not_found");
-
-  await db.user.update({
-    where: { id: userId },
-    data: { points: { increment: delta.data } },
-  });
+  const { addPoints } = await import("@/lib/points");
+  await addPoints(userId, delta.data, "manual");
   await db.auditLog.create({ data: { actorId, action: "add_points", targetType: "user", targetId: userId, detail: String(delta.data) } }).catch(() => {});
   logger.info("admin.add_points", { actorId, userId, delta: delta.data });
   revalidateTag("users");
@@ -736,7 +733,8 @@ export async function approveThreadAction(formData: FormData): Promise<void> {
   // 补发积分（分值走后台积分规则）
   const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("@/lib/points-config");
   const threadPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).thread;
-  await db.user.update({ where: { id: thread.authorId }, data: { points: { increment: threadPoints } } }).catch(() => {});
+  const { addPoints } = await import("@/lib/points");
+  await addPoints(thread.authorId, threadPoints, "thread_approve", { refType: "thread", refId: threadId }).catch(() => {});
   await db.notification.create({ data: { userId: thread.authorId, type: "system", title: "主题已过审", body: `你的主题「${thread.title.slice(0, 20)}」已通过审核`, link: `/t/${threadId}` } }).catch(() => {});
   await db.auditLog.create({ data: { actorId: staff.id, action: "approve_thread", targetType: "thread", targetId: threadId } }).catch(() => {});
   logger.info("admin.approve_thread", { actorId: staff.id, threadId });
@@ -773,7 +771,8 @@ export async function approvePostAction(formData: FormData): Promise<void> {
   await db.thread.update({ where: { id: post.threadId }, data: { lastPostAt: new Date() } });
   const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("@/lib/points-config");
   const replyPoints = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).reply;
-  await db.user.update({ where: { id: post.authorId }, data: { points: { increment: replyPoints } } }).catch(() => {});
+  const { addPoints } = await import("@/lib/points");
+  await addPoints(post.authorId, replyPoints, "reply_approve", { refType: "post", refId: postId }).catch(() => {});
   // 通知被提及和收藏者（与正常回帖一致，简化：仅通知楼主）
   const thread = await db.thread.findUnique({ where: { id: post.threadId }, select: { authorId: true } });
   if (thread && thread.authorId !== post.authorId) {
