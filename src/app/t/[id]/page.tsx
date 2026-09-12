@@ -8,6 +8,7 @@ import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import { jsonLdHtml } from "@/lib/jsonld";
 import Lightbox from "@/components/Lightbox";
+import AuthRequired from "@/components/AuthRequired";
 import Composer from "@/components/Composer";
 import SubmissionForm from "@/components/SubmissionForm";
 import ErrorState from "@/components/ErrorState";
@@ -43,6 +44,18 @@ import { getBlockedIdSet } from "@/lib/block";
 import { getPollView } from "@/lib/poll";
 import PollCard from "@/components/PollCard";
 import { isBoardModerator } from "@/lib/moderators";
+import { cookies, headers } from "next/headers";
+import { clientIp } from "@/lib/ratelimit";
+import { dayKey, detectDevice } from "@/lib/visit-stats";
+import {
+  countGuestView,
+  DEFAULT_GUEST_CONFIG,
+  gateDecision,
+  getGuestLimitConfig,
+  GUEST_COOKIE,
+  isFreshRepeat,
+  parseGuestCookie,
+} from "@/lib/guest-limit";
 import ReadTracker from "@/components/ReadTracker";
 import { draftKey } from "@/lib/draft";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
@@ -195,9 +208,6 @@ export default async function ThreadPage({
   const { thread, user, items, nextCursor, isNovel, opOnly, chapters, chapterOffset, hiddenByBlock, blockedThreadAuthor } = loaded;
   /** 小说章节阅读：一章一屏左右翻页 */
   const paged = isNovel && opOnly && chapters.length > 0;
-  const currentViews = (thread as unknown as { views: number }).views ?? 0;
-  void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
-  (thread as unknown as { views: number }).views = currentViews + 1;
 
   const admin = isAdmin(user);
   const isBoardStaff = admin || (user ? await isBoardModerator(user.id, (thread as unknown as { board: { id: string } }).board.id) : false);
@@ -206,6 +216,43 @@ export default async function ThreadPage({
   // 回收站里的主题：只有版主/管理员能看（用于判断是否恢复），普通访客一律 404
   const trashed = (thread as unknown as { status: string }).status === "deleted";
   if (trashed && !isBoardStaff) notFound();
+
+  // 游客试读额度：未登录 + 非爬虫 + 后台开启时计数，超限拦去登录（登录态/爬虫不受影响）
+  // 计数 cookie 由 middleware 滚动（Server Component 内只允许读），Redis 按 IP 计日次为主
+  if (!user) {
+    const h = await headers();
+    if (detectDevice(h.get("user-agent")) !== "bot") {
+      const cfg = await getGuestLimitConfig().catch(() => DEFAULT_GUEST_CONFIG);
+      if (cfg.threadLimit > 0) {
+        const ip = await clientIp();
+        const jar = await cookies();
+        const today = dayKey(new Date());
+        const nowSec = Math.floor(Date.now() / 1000);
+        const prev = parseGuestCookie(jar.get(GUEST_COOKIE)?.value, today);
+        let count = prev.count;
+        // middleware 与此处用同一规则判定是否重复（同主题 5 分钟内不烧额度）
+        if (!isFreshRepeat(prev, thread.id, nowSec)) {
+          count = (await countGuestView(ip, prev.count)).count;
+        }
+        const gate = gateDecision(cfg.threadLimit, count);
+        if (gate.gated) {
+          return (
+            <div style={{ display: "grid", gap: 12 }}>
+              <AuthRequired
+                title="今日试读额度用完了"
+                description={`游客每天可免费读 ${gate.limit} 个主题（今日已看 ${gate.count} 个），登录后无限畅读，还能发帖、回帖、追更收藏。`}
+                next={threadHref(thread.id, thread.title)}
+              />
+            </div>
+          );
+        }
+      }
+    }
+  }
+  // 浏览量：被额度拦下的不计入
+  const currentViews = (thread as unknown as { views: number }).views ?? 0;
+  void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
+  (thread as unknown as { views: number }).views = currentViews + 1;
   const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
   const authorIds = [...new Set(items.map((p) => p.authorId))];
   const medalsByUser = authorIds.length ? await db.userMedal.findMany({ where: { userId: { in: authorIds } }, include: { medal: true } }).then((rows: any[]) => {

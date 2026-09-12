@@ -41,10 +41,13 @@ handle_path /uploads/* {
 
 # 匿名读者的文档请求：交给 Cloudflare 边缘缓存 60s（国内用户直接命中香港/圣何塞节点，
 # 不必每次回法国源站）。登录用户、预取请求、需登录态的页面一律不缓存。
+# sg_gv 是游客试读计数 cookie：带它的请求必回源站计数，不进边缘缓存（回源响应带
+# Set-Cookie 时 Cloudflare 默认也不缓存，双保险）。
 @anon_doc {
 	method GET
 	header Accept *text/html*
 	not header Cookie *session=*
+	not header Cookie *sg_gv=*
 	not header RSC *
 	not header Next-Router-Prefetch *
 	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
@@ -57,6 +60,7 @@ handle_path /uploads/* {
 	header RSC 1
 	query _rsc=*
 	not header Cookie *session=*
+	not header Cookie *sg_gv=*
 	not header Next-Router-Prefetch *
 	not path /api/* /admin* /settings* /notifications* /messages* /drafts* /invite* /login* /register* /reset* /forgot* /verify-email* /u/*
 }

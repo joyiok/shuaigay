@@ -147,6 +147,8 @@ model SiteSetting {
   pointsCheckinStreak   Int @default(10)
   // 正式会员功能线：发外链 / 免新人待审 / 20MB 附件（等级展示 ladder 见 lib/levels.ts）
   pointsMemberThreshold Int @default(30)
+  // 游客试读：每天免登录可读主题数，0 = 不限（lib/guest-limit.ts）
+  guestThreadLimit      Int @default(0)
   // 等级 ladder 3–6 档门槛（第 2 档复用 pointsMemberThreshold；第 1 档恒为 0）
   pointsLevel3          Int @default(100)
   pointsLevel4          Int @default(300)

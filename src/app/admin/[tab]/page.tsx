@@ -253,6 +253,8 @@ async function SettingsTab() {
     thread: 10, reply: 3, invite: 10, checkinBase: 5, checkinStreak: 10, memberThreshold: 30,
     level3: 100, level4: 300, level5: 800, level6: 2000,
   }));
+  const { getGuestLimitConfig } = await import("@/lib/guest-limit");
+  const guest = await getGuestLimitConfig().catch(() => ({ threadLimit: 0 }));
   const mcpEndpoint = `${(process.env.SITE_URL ?? "https://www.shuai.gay").replace(/\/$/, "")}/api/mcp`;
   const mcpConfig = JSON.stringify({
     mcpServers: {
@@ -342,6 +344,16 @@ async function SettingsTab() {
             </label>
           </div>
           <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>正式会员线：达到后可发外链、免新人待审、附件 20MB；设为 0 等于关闭门槛。等级门槛必须严格递增（会员线＜中级＜高级＜金牌＜元老），否则保存会被拒绝。</span>
+        </div>
+        <div style={{ display: "grid", gap: 5, padding: 12, borderRadius: 3, background: "var(--bg-soft)" }}>
+          <span style={{ fontSize: 12, fontWeight: 700 }}>游客试读 <span style={{ color: "var(--text-subtle)", fontWeight: 400 }}>超限后必须登录</span></span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 }}>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>每日免登录可读主题数</span>
+              <input name="guestThreadLimit" type="number" required min={0} max={10000} step={1} defaultValue={guest.threadLimit} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+          </div>
+          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>设为 0 = 不限（功能关闭）。按 IP 按天计数，同一主题 5 分钟内重复看只计一次；爬虫不计数不拦截；登录用户不受影响。</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>

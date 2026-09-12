@@ -939,6 +939,11 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     const issue = pointsParsed.error.issues[0]?.message;
     redirect(ADMIN_TAB("settings") + (issue === "ladder_must_increase" ? "&error=ladder_order" : "&error=invalid"));
   }
+  const { clearGuestLimitConfigCache, guestSettingsSchema } = await import("@/lib/guest-limit");
+  const guestParsed = guestSettingsSchema.safeParse({
+    guestThreadLimit: formData.get("guestThreadLimit"),
+  });
+  if (!guestParsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
 
   if (logoEntry !== null && !(logoEntry instanceof File)) redirect(ADMIN_TAB("settings") + "&error=invalid");
   const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
@@ -965,8 +970,8 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   try {
     await db.siteSetting.upsert({
       where: { id: "site" },
-      update: { ...parsed.data, ...pointsParsed.data, logoUrl },
-      create: { id: "site", ...parsed.data, ...pointsParsed.data, logoUrl },
+      update: { ...parsed.data, ...pointsParsed.data, ...guestParsed.data, logoUrl },
+      create: { id: "site", ...parsed.data, ...pointsParsed.data, ...guestParsed.data, logoUrl },
     });
   } catch {
     if (newStoredName) await getStorage().remove(newStoredName).catch(() => {});
@@ -975,8 +980,9 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   const oldStoredName = storedNameFromSiteLogoUrl(previous?.logoUrl);
   if (oldStoredName && previous?.logoUrl !== logoUrl) await getStorage().remove(oldStoredName).catch(() => {});
   await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
-  logger.info("admin.update_site_settings", { actorId, points: pointsParsed.data });
+  logger.info("admin.update_site_settings", { actorId, points: pointsParsed.data, guest: guestParsed.data });
   clearPointsConfigCache();
+  clearGuestLimitConfigCache();
   revalidateTag("site-settings");
   revalidatePath("/");
   redirect(ADMIN_TAB("settings"));
