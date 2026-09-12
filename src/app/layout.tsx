@@ -171,7 +171,7 @@ export default async function RootLayout({
         <a href="#main-content" className="skip-link">
           跳到主内容
         </a>
-        {/* 顶部栏 - 原创极简风格 */}
+        {/* 顶部栏 - 经典论坛深蓝条 */}
         <header className="site-header top">
           <div className="bar">
             <Link href="/" className="brand" aria-label={`${settings.siteName}首页`}>
@@ -199,7 +199,7 @@ export default async function RootLayout({
                   <NotificationBell initialUnread={notifUnread} />
                   <Link
                     href="/messages"
-                    style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--text-muted)", padding: "6px 10px", borderRadius: 999, fontWeight: 600 }}
+                    style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 4, color: "var(--head-muted)", padding: "6px 10px", borderRadius: 3, fontWeight: 600 }}
                   >
                     私信
                     {unreadCount > 0 && (
@@ -227,11 +227,11 @@ export default async function RootLayout({
                   <Link className="nav-user-name" href={`/u/${encodeURIComponent(user.username)}`} style={{ fontWeight: 700, maxWidth: 110, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {user.username}
                   </Link>
-                  <Link href="/settings" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "6px 10px", borderRadius: 999 }} aria-label="账号设置">
+                  <Link href="/settings" style={{ color: "var(--head-muted)", fontWeight: 600, padding: "6px 10px", borderRadius: 3 }} aria-label="账号设置">
                     设置
                   </Link>
                   {user.role === "ADMIN" && (
-                    <Link href="/admin" style={{ color: "var(--violet)", fontWeight: 700, padding: "5px 10px", background: "var(--violet-soft)", border: "1px solid #DDD6FE", borderRadius: 999, fontSize: 12 }}>
+                    <Link href="/admin" style={{ color: "#fff", fontWeight: 700, padding: "5px 10px", background: "rgba(255,255,255,0.18)", border: "1px solid rgba(255,255,255,0.45)", borderRadius: 3, fontSize: 12 }}>
                       管理
                     </Link>
                   )}
@@ -239,7 +239,7 @@ export default async function RootLayout({
                     <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 11.5, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "3px 9px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
                   <form action={logoutAction} style={{ display: "inline" }}>
-                    <button type="submit" style={{ color: "var(--text-subtle)", fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 999 }}>
+                    <button type="submit" style={{ background: "transparent", border: 0, color: "var(--head-faint)", fontSize: 12, fontWeight: 600, padding: "6px 10px", borderRadius: 3 }}>
                       退出
                     </button>
                   </form>
@@ -249,7 +249,7 @@ export default async function RootLayout({
                   {online !== null && (
                     <span className="nav-online" style={{ display: "inline-flex", alignItems: "center", gap: 5, color: "var(--text-subtle)", fontWeight: 500, fontSize: 11.5, background: "var(--bg-soft)", border: "1px solid var(--line-faint)", padding: "3px 9px", borderRadius: 999 }}><span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--success)", boxShadow: "0 0 0 3px rgba(22,163,74,0.15)" }} />{online} 在线</span>
                   )}
-                  <Link href="/login" style={{ color: "var(--text-muted)", fontWeight: 600, padding: "7px 12px" }}>
+                  <Link href="/login" style={{ color: "var(--head-muted)", fontWeight: 600, padding: "7px 12px" }}>
                     登录
                   </Link>
                   <Link
@@ -273,9 +273,8 @@ export default async function RootLayout({
             </main>
 
             <aside className="sidebar" aria-label="侧边栏">
-              {/* 彩虹社区欢迎卡 */}
+              {/* 社区欢迎卡 */}
               <div className="welcome-card">
-                <img className="welcome-art" src="/art/rainbow-side.webp" alt="" width={1254} height={1254} loading="lazy" aria-hidden="true" />
                 <div style={{ position: "relative", zIndex: 1, maxWidth: 220 }}>
                   <h2 className="welcome-title">{settings.siteName} · 彩虹同好</h2>
                   <p className="welcome-copy">认识同频的人，聊喜欢的事，也分享自己的生活。</p>
@@ -377,6 +376,8 @@ export default async function RootLayout({
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: hotTopics.length ? 13 : 0 }}>
                     {boards.map((b) => (
                       <Link key={b.id} href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as any)._count.threads} 主题`} className="side-chip">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={(b as any).isLocked ? "/icons/folder-lock.svg" : "/icons/folder.svg"} alt="" width={14} height={14} style={{ flexShrink: 0 }} aria-hidden="true" />
                         <span style={{ fontWeight: 700 }}>{b.name}</span>
                         <span className="count">{(b as any)._count.threads}</span>
                       </Link>
@@ -451,8 +452,9 @@ export default async function RootLayout({
                 <div className="card">
                   <div className="quick-wrap">
                     <div className="quick-title">社区公告 <Link href={`/c/${announceBoard.slug}`}>更多 ›</Link></div>
-                    <Link href={announcement ? threadHref(announcement.id, announcement.title) : `/c/${announceBoard.slug}`} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 10, padding: "9px 11px" }}>
-                      <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--danger)", boxShadow: "0 0 0 3px var(--danger-soft)", flexShrink: 0 }} />
+                    <Link href={announcement ? threadHref(announcement.id, announcement.title) : `/c/${announceBoard.slug}`} style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, background: "#fff", border: "1.5px solid var(--line-faint)", borderRadius: 3, padding: "9px 11px" }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/icons/speaker.svg" alt="公告" width={14} height={14} style={{ flexShrink: 0 }} aria-hidden="true" />
                       <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--text)", fontWeight: 600 }}>{announcement?.title ?? "版块公告与站点通知"}</span>
                       {announcement?.pinned && <span style={{ background: "var(--danger-soft)", color: "var(--danger)", fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 999, border: "1px solid #FECACA" }}>置顶</span>}
                     </Link>

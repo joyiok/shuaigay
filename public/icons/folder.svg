@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <title>普通版块</title>
+  <path d="M1.5 14.5V3.5h4L7 5h7.5v9.5z" fill="#336699" stroke="#26384a" stroke-width="1" stroke-linejoin="round"/>
+  <path d="M1.5 6h13v8.5h-13z" fill="#5b8fc0" stroke="#26384a" stroke-width="1"/>
+</svg>

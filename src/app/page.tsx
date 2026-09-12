@@ -54,7 +54,6 @@ export default async function HomePage({
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(collectionJsonLd) }} />
       {/* 欢迎区 */}
       <div className="banner">
-        <img className="banner-art" src="/art/rainbow-hero.webp" alt="" width={1717} height={916} fetchPriority="high" aria-hidden="true" />
         <div className="banner-left">
           <h1 className="banner-title">
             找到同频的人<span>，</span>聊点真心话
