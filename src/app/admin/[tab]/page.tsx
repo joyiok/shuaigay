@@ -253,7 +253,6 @@ async function SettingsTab() {
     thread: 10, reply: 3, invite: 10, checkinBase: 5, checkinStreak: 10, memberThreshold: 30,
     level3: 100, level4: 300, level5: 800, level6: 2000,
   }));
-  const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
   const mcpEndpoint = `${(process.env.SITE_URL ?? "https://www.shuai.gay").replace(/\/$/, "")}/api/mcp`;
   const mcpConfig = JSON.stringify({
     mcpServers: {
@@ -346,7 +345,7 @@ async function SettingsTab() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>
-            {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" className="site-logo" style={{ maxWidth: 180, borderRadius: 10, border: "1px solid var(--line)" }} /> : <span className="brand-mark">{brandMark}</span>}
+            {settings.logoUrl ? <img src={settings.logoUrl} alt="当前 Logo" className="site-logo" style={{ maxWidth: 180, borderRadius: 3, border: "1px solid var(--line)" }} /> : <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>未上传则使用默认 logo（/logo.png）</span>}
             <span>当前 Logo 用于顶部品牌和浏览器图标</span>
           </div>
           <button type="submit" style={{ ...paperDarkBtn, marginLeft: "auto" }}>保存设置</button>

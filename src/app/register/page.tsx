@@ -31,12 +31,11 @@ export default async function RegisterPage({
   const { error, invite } = await searchParams;
   const inviteCode = typeof invite === "string" ? invite.trim().slice(0, 32) : "";
   const settings = await getCachedSiteSettings();
-  const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
     <div style={{ maxWidth: 460, margin: "32px auto", padding: "0 8px" }}>
       <div className="card" style={{ padding: 28 }}>
-        <AuthCardHeader logoUrl={settings.logoUrl} brandMark={brandMark} title="注册 — 进来坐坐" subtitle="3 分钟，丢个帖子就行" />
+        <AuthCardHeader logoUrl={settings.logoUrl} title="注册 — 进来坐坐" subtitle="3 分钟，丢个帖子就行" />
 
         {error && ERRORS[error] && (
           <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>

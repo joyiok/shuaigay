@@ -89,7 +89,6 @@ export default function MobileDrawer({
   }, [open, mounted]);
 
   const close = () => setOpen(false);
-  const brandMark = siteName === "SHUAI GAY" ? "SG" : siteName.slice(0, 2).toUpperCase();
 
   return (
     <>
@@ -114,7 +113,8 @@ export default function MobileDrawer({
             <div className="mobile-drawer-backdrop" onClick={close} />
             <div className="mobile-drawer-panel" tabIndex={-1}>
               <div className="mobile-drawer-head">
-                {logoUrl ? <img src={logoUrl} alt="" className="site-logo" /> : <span className="brand-mark">{brandMark}</span>}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={logoUrl || "/logo.png"} alt="" className="site-logo" />
                 <span style={{ fontWeight: 850, fontSize: 15, letterSpacing: "0.02em" }}>{siteName}</span>
                 <button
                   type="button"

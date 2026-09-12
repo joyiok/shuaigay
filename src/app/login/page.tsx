@@ -28,12 +28,11 @@ export default async function LoginPage({
 }) {
   const { error, next, reset } = await searchParams;
   const settings = await getCachedSiteSettings();
-  const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
     <div style={{ maxWidth: 460, margin: "32px auto", padding: "0 8px" }}>
       <div className="card" style={{ padding: 28 }}>
-        <AuthCardHeader logoUrl={settings.logoUrl} brandMark={brandMark} title="登录 — 回来坐坐" subtitle="别让帖子等太久" />
+        <AuthCardHeader logoUrl={settings.logoUrl} title="登录 — 回来坐坐" subtitle="别让帖子等太久" />
 
         {error && ERRORS[error] && (
           <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>

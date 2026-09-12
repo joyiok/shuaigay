@@ -10,7 +10,7 @@ import { logoutAction } from "./actions/auth";
 import { db } from "@/lib/db";
 import { threadHref } from "@/lib/slug";
 import { formatDate } from "@/lib/format";
-import { DEFAULT_SITE_SETTINGS, siteUrl } from "@/lib/site";
+import { siteUrl } from "@/lib/site";
 import { jsonLdHtml } from "@/lib/jsonld";
 import { getCachedActiveUsers, getCachedAnnouncement, getCachedBoards, getCachedCategoryCloud, getCachedHotTopics, getCachedSiteSettings, getCachedStats } from "@/lib/cached";
 import MobileDrawer from "@/components/MobileDrawer";
@@ -158,7 +158,6 @@ export default async function RootLayout({
       { "@type": "ListItem", position: 1, name: "首页", item: siteOrigin },
     ],
   };
-  const brandMark = settings.siteName === DEFAULT_SITE_SETTINGS.siteName ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
 
   return (
     <html lang="zh-CN">
@@ -175,7 +174,8 @@ export default async function RootLayout({
         <header className="site-header top">
           <div className="bar">
             <Link href="/" className="brand" aria-label={`${settings.siteName}首页`}>
-              {settings.logoUrl ? <img src={settings.logoUrl} alt="" className="site-logo" /> : <span className="brand-mark">{brandMark}</span>}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={settings.logoUrl || "/logo-reverse.png"} alt="" className="site-logo" />
               <span style={{ fontFamily: 'var(--font-grotesk), var(--font-plex), sans-serif', letterSpacing: '-0.03em' }}>{settings.siteName}</span>
             </Link>
             <MobileDrawer
