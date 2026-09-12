@@ -126,6 +126,8 @@ export function createForumMcpServer() {
       authorUsername: importNovelSchema.shape.authorUsername,
       source: importNovelSchema.shape.source,
       license: importNovelSchema.shape.license,
+      autoContinue: importNovelSchema.shape.autoContinue,
+      importKey: importNovelSchema.shape.importKey,
       chapters: importNovelSchema.shape.chapters,
     },
     annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
