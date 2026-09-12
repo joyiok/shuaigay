@@ -60,6 +60,9 @@ export default async function FollowersPage({
 
   const me = await getCurrentUser();
   const base = `/u/${encodeURIComponent(user.username)}`;
+  // 等级 ladder 走后台配置（单次读，行内展示闭包复用）
+  const { getLadder } = await import("@/lib/levels");
+  const ladder = await getLadder().catch(() => undefined);
 
   const [followerCount, followingCount] = await Promise.all([
     db.follow.count({ where: { followingId: user.id } }).catch(() => 0),
@@ -174,9 +177,9 @@ export default async function FollowersPage({
                   <Link href={`/u/${encodeURIComponent(p.username)}`} style={{ fontWeight: 700, fontSize: 13 }}>
                     {p.username}
                   </Link>
-                  <LevelBadge points={p.points} role={p.role} />
+                  <LevelBadge points={p.points} role={p.role} ladder={ladder} />
                   <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>
-                    {levelForPoints(p.points).name} · {p.points} 分
+                    {levelForPoints(p.points, ladder).name} · {p.points} 分
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

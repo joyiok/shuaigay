@@ -23,21 +23,51 @@ export const LEVELS: Level[] = [
   { min: 2000, name: "论坛元老", bg: "#fdf2f8", color: "#db2777", border: "#fce7f3" },
 ];
 
-export function levelForPoints(points: number): Level {
-  let cur = LEVELS[0];
-  for (const l of LEVELS) if (points >= l.min) cur = l;
+/** ladder 门槛数组（6 档，第 1 档恒 0）。缺省=历史默认值；后台改了走 buildLadder(cfg)。 */
+export const DEFAULT_LADDER: readonly number[] = [0, 30, 100, 300, 800, 2000];
+
+export function buildLadder(cfg: {
+  memberThreshold: number;
+  level3: number;
+  level4: number;
+  level5: number;
+  level6: number;
+}): number[] {
+  return [0, cfg.memberThreshold, cfg.level3, cfg.level4, cfg.level5, cfg.level6];
+}
+
+/** 当前生效的 ladder（读后台配置，60s 缓存；DB 故障回退默认） */
+export async function getLadder(): Promise<number[]> {
+  const { DEFAULT_POINTS_CONFIG, getPointsConfig } = await import("./points-config");
+  const cfg = await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG);
+  return buildLadder(cfg);
+}
+
+/** 按 ladder 生成展示用 Level[]（名字/配色固定，只换门槛） */
+export function levelsFromLadder(ladder: readonly number[] = DEFAULT_LADDER): Level[] {
+  return LEVELS.map((l, i) => ({ ...l, min: ladder[i] ?? l.min }));
+}
+
+export function levelForPoints(points: number, ladder: readonly number[] = DEFAULT_LADDER): Level {
+  const levels = levelsFromLadder(ladder);
+  let cur = levels[0]!;
+  for (const l of levels) if (points >= l.min) cur = l;
   return cur;
 }
 
-export function levelIndexForPoints(points: number): number {
+export function levelIndexForPoints(points: number, ladder: readonly number[] = DEFAULT_LADDER): number {
   let idx = 0;
-  for (let i = 0; i < LEVELS.length; i++) if (points >= LEVELS[i].min) idx = i;
+  for (let i = 0; i < ladder.length; i++) if (points >= ladder[i]!) idx = i;
   return idx;
 }
 
 /** 距离下一级还差多少分;已是顶级返回 null */
-export function nextLevelForPoints(points: number): { name: string; missing: number } | null {
-  for (const l of LEVELS) if (points < l.min) return { name: l.name, missing: l.min - points };
+export function nextLevelForPoints(
+  points: number,
+  ladder: readonly number[] = DEFAULT_LADDER,
+): { name: string; missing: number } | null {
+  const levels = levelsFromLadder(ladder);
+  for (const l of levels) if (points < l.min) return { name: l.name, missing: l.min - points };
   return null;
 }
 
@@ -50,8 +80,8 @@ export interface LevelPerms {
   canUpload: boolean;
 }
 
-export function permsForPoints(points: number): LevelPerms {
-  const idx = levelIndexForPoints(points);
+export function permsForPoints(points: number, ladder: readonly number[] = DEFAULT_LADDER): LevelPerms {
+  const idx = levelIndexForPoints(points, ladder);
   if (idx >= 5) return { dailyThreads: 20, dailyReplies: 100, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 元老
   if (idx >= 4) return { dailyThreads: 15, dailyReplies: 80, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 金牌
   if (idx >= 3) return { dailyThreads: 10, dailyReplies: 50, maxUploadMB: 20, canPostLink: true, canUpload: true }; // 高级

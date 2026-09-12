@@ -195,8 +195,9 @@ export async function createThreadAction(formData: FormData): Promise<string> {
   const postStatus = pending ? "pending" : "approved";
   // 等级每日限额
   if (!_isStaffForCreate && approvalUser) {
-    const { permsForPoints } = await import("@/lib/levels");
-    const perms = permsForPoints(approvalUser.points);
+    const { getLadder, permsForPoints } = await import("@/lib/levels");
+    const ladder = await getLadder().catch(() => undefined);
+    const perms = permsForPoints(approvalUser.points, ladder);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayThreads = await db.thread.count({ where: { authorId: user.id, createdAt: { gte: today } } });
@@ -380,8 +381,9 @@ export async function replyAction(formData: FormData): Promise<string> {
   const { pending: pendingReply, reason: pendingReasonReply } = approvalUserReply && approvalBoardReply ? await needsApproval(approvalUserReply, approvalBoardReply, "", content.data, _isStaffReply) : { pending: false, reason: null };
   const postStatusReply = pendingReply ? "pending" : "approved";
   if (!_isStaffReply && approvalUserReply) {
-    const { permsForPoints } = await import("@/lib/levels");
-    const perms = permsForPoints(approvalUserReply.points);
+    const { getLadder, permsForPoints } = await import("@/lib/levels");
+    const ladder = await getLadder().catch(() => undefined);
+    const perms = permsForPoints(approvalUserReply.points, ladder);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayReplies = await db.post.count({ where: { authorId: user.id, createdAt: { gte: today } } });

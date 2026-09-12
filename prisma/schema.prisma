@@ -146,6 +146,11 @@ model SiteSetting {
   pointsCheckinStreak   Int @default(10)
   // 正式会员功能线：发外链 / 免新人待审 / 20MB 附件（等级展示 ladder 见 lib/levels.ts）
   pointsMemberThreshold Int @default(30)
+  // 等级 ladder 3–6 档门槛（第 2 档复用 pointsMemberThreshold；第 1 档恒为 0）
+  pointsLevel3          Int @default(100)
+  pointsLevel4          Int @default(300)
+  pointsLevel5          Int @default(800)
+  pointsLevel6          Int @default(2000)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 }

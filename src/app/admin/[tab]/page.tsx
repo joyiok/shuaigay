@@ -105,6 +105,7 @@ const ERRORS: Record<string, string> = {
   medal_exists: "同名勋章已存在",
   medal_owned: "该用户已拥有此勋章",
   logo_too_large: "Logo 不能超过 2MB",
+  ladder_order: "等级门槛必须严格递增（会员线＜中级＜高级＜金牌＜元老）",
   logo_type: "Logo 仅支持 JPG/PNG/GIF/WEBP",
   upload_failed: "Logo 上传失败，请重试",
   ai_secret_key: "服务器尚未配置 AI_SETTINGS_ENCRYPTION_KEY，暂不能保存 AI 密钥",
@@ -250,6 +251,7 @@ async function SettingsTab() {
   const { getPointsConfig } = await import("@/lib/points-config");
   const points = await getPointsConfig().catch(() => ({
     thread: 10, reply: 3, invite: 10, checkinBase: 5, checkinStreak: 10, memberThreshold: 30,
+    level3: 100, level4: 300, level5: 800, level6: 2000,
   }));
   const brandMark = settings.siteName === "SHUAI GAY" ? "SG" : settings.siteName.slice(0, 2).toUpperCase();
   const mcpEndpoint = `${(process.env.SITE_URL ?? "https://www.shuai.gay").replace(/\/$/, "")}/api/mcp`;
@@ -323,8 +325,24 @@ async function SettingsTab() {
               <span style={{ fontSize: 12, fontWeight: 700 }}>正式会员线</span>
               <input name="pointsMemberThreshold" type="number" required min={0} max={10000} step={1} defaultValue={points.memberThreshold} style={{ ...paperInput, width: "100%", height: 36 }} />
             </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>中级线（3 档）</span>
+              <input name="pointsLevel3" type="number" required min={0} max={100000} step={1} defaultValue={points.level3} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>高级线（4 档）</span>
+              <input name="pointsLevel4" type="number" required min={0} max={100000} step={1} defaultValue={points.level4} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>金牌线（5 档）</span>
+              <input name="pointsLevel5" type="number" required min={0} max={100000} step={1} defaultValue={points.level5} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
+            <label style={{ display: "grid", gap: 5 }}>
+              <span style={{ fontSize: 12, fontWeight: 700 }}>元老线（6 档）</span>
+              <input name="pointsLevel6" type="number" required min={0} max={100000} step={1} defaultValue={points.level6} style={{ ...paperInput, width: "100%", height: 36 }} />
+            </label>
           </div>
-          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>正式会员线：达到后可发外链、免新人待审、附件 20MB；设为 0 等于关闭门槛。等级展示 ladder 不受影响。</span>
+          <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>正式会员线：达到后可发外链、免新人待审、附件 20MB；设为 0 等于关闭门槛。等级门槛必须严格递增（会员线＜中级＜高级＜金牌＜元老），否则保存会被拒绝。</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--text-subtle)", fontSize: 11 }}>

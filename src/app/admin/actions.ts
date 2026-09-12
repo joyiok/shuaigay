@@ -931,8 +931,15 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     pointsCheckinBase: formData.get("pointsCheckinBase"),
     pointsCheckinStreak: formData.get("pointsCheckinStreak"),
     pointsMemberThreshold: formData.get("pointsMemberThreshold"),
+    pointsLevel3: formData.get("pointsLevel3"),
+    pointsLevel4: formData.get("pointsLevel4"),
+    pointsLevel5: formData.get("pointsLevel5"),
+    pointsLevel6: formData.get("pointsLevel6"),
   });
-  if (!pointsParsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+  if (!pointsParsed.success) {
+    const issue = pointsParsed.error.issues[0]?.message;
+    redirect(ADMIN_TAB("settings") + (issue === "ladder_must_increase" ? "&error=ladder_order" : "&error=invalid"));
+  }
 
   if (logoEntry !== null && !(logoEntry instanceof File)) redirect(ADMIN_TAB("settings") + "&error=invalid");
   const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;

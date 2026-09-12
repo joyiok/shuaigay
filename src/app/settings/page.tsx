@@ -161,8 +161,11 @@ export default async function SettingsPage({
   }));
   const blocked = await listBlocked(me.id);
 
-  const lv = levelForPoints(user.points);
-  const next = nextLevelForPoints(user.points);
+  // 等级展示走后台配置的 ladder
+  const { getLadder } = await import("@/lib/levels");
+  const ladder = await getLadder().catch(() => undefined);
+  const lv = levelForPoints(user.points, ladder);
+  const next = nextLevelForPoints(user.points, ladder);
   const pwError = sp.error ? PASSWORD_ERRORS[sp.error] : undefined;
   const prefs: Record<string, boolean> = { reply: user.notifyReply, follow: user.notifyFollow };
 

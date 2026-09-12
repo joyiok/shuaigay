@@ -19,7 +19,7 @@ import EmptyState from "@/components/EmptyState";
 import AuthRequired from "@/components/AuthRequired";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass } from "@/lib/format";
-import { levelForPoints, nextLevelForPoints, permsForPoints, LEVELS } from "@/lib/levels";
+import { levelForPoints, nextLevelForPoints, permsForPoints } from "@/lib/levels";
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
@@ -71,6 +71,9 @@ export default async function UserPage({
   const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
   const me = meEarly;
   const isSelf = me?.id === user.id;
+  // 等级 ladder 走后台配置（IIFE 展示闭包复用；LevelBadge 内部自读）
+  const { getLadder } = await import("@/lib/levels");
+  const ladder = await getLadder().catch(() => undefined);
   const userMedals = await db.userMedal.findMany({ where: { userId: user.id }, include: { medal: true } }).catch(() => [] as any[]);
   const ipLogs = me && isAdmin(me) ? await db.userIpLog.findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 5 }).catch(() => [] as any[]) : [];
 
@@ -365,9 +368,9 @@ export default async function UserPage({
             </div>
             {/* 等级进度 */}
             {(() => {
-              const lv = levelForPoints(user.points);
-              const next = nextLevelForPoints(user.points);
-              const perms = permsForPoints(user.points);
+              const lv = levelForPoints(user.points, ladder);
+              const next = nextLevelForPoints(user.points, ladder);
+              const perms = permsForPoints(user.points, ladder);
               const pct = next ? Math.max(5, Math.min(100, Math.round(((user.points - lv.min) / (next.missing + (user.points - lv.min))) * 100))) : 100;
               return (
                 <div style={{ marginTop: 12, padding: "10px 12px", background: "var(--bg-soft)", border: "1.5px solid var(--line-soft)", borderRadius: 10 }}>

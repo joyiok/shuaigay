@@ -1,6 +1,15 @@
-import { levelForPoints, nextLevelForPoints } from "@/lib/levels";
+import { getLadder, levelForPoints, nextLevelForPoints } from "@/lib/levels";
 
-export default function LevelBadge({ points, role }: { points: number; role?: string | null }) {
+/** 等级徽章（服务端组件；不传 ladder 时读后台配置，60s 缓存） */
+export default async function LevelBadge({
+  points,
+  role,
+  ladder,
+}: {
+  points: number;
+  role?: string | null;
+  ladder?: readonly number[];
+}) {
   if (role === "ADMIN") {
     return (
       <span
@@ -20,8 +29,9 @@ export default function LevelBadge({ points, role }: { points: number; role?: st
       </span>
     );
   }
-  const lv = levelForPoints(points);
-  const next = nextLevelForPoints(points);
+  const l = ladder ?? (await getLadder().catch(() => undefined));
+  const lv = levelForPoints(points, l);
+  const next = nextLevelForPoints(points, l);
   const title = next ? `积分 ${points} · 距「${next.name}」还差 ${next.missing} 分` : `积分 ${points}`;
   return (
     <span
