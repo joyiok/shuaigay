@@ -273,6 +273,9 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .tab { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); background: var(--panel); color: var(--text-muted); font-size: 12px; font-weight: 500; border-radius: 3px; text-decoration: none; cursor: pointer; }
 .tab.active { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
 .tab:hover:not(.active) { background: var(--bg-soft); color: var(--brand); }
+.settings-tabs { flex-wrap: nowrap; overflow-x: auto; padding: 4px; border: 1px solid var(--line-soft); border-radius: var(--radius); background: var(--panel); overscroll-behavior-inline: contain; }
+.settings-tabs .tab { flex: 1 0 auto; min-height: 40px; white-space: nowrap; }
+.settings-save { min-height: 40px; }
 .topic-toolbar .tab { border-color: transparent; background: transparent; }
 .topic-toolbar .tab.active { background: var(--brand-soft); }
 .tab .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
@@ -1008,6 +1011,7 @@ mark.search-mark, .search-mark {
   .topic-toolbar .tab { flex: 1; padding: 0 6px; min-height: 40px; }
   .topic-toolbar .admin-tabs { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; flex-wrap: nowrap; overflow-x: auto; overscroll-behavior-inline: contain; padding-bottom: 4px; }
   .topic-toolbar .admin-tabs .tab { flex: 0 0 auto; min-height: 44px; padding: 0 12px; }
+  .settings-tabs .tab, .settings-save { min-height: 44px; }
   .topic-toolbar > .btn-publish { display: none; }
   .post-item { padding: 14px 13px; gap: 10px; align-items: flex-start; }
   .post-title { font-size: 14px; white-space: normal; overflow-wrap: anywhere; line-height: 1.5; }

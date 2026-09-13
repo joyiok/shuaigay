@@ -32,6 +32,7 @@ import { saveWriterSettings, writerSettingsSchema } from "@/lib/writer-settings"
 import { runNovelAuto } from "@/lib/novel-auto";
 
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
+const SETTINGS_SECTION = (section: string) => `${ADMIN_TAB("settings")}?section=${section}` as const;
 
 /** 管理操作统一鉴权:非 ADMIN 一律回登录页 */
 async function requireAdmin(): Promise<string> {
@@ -912,7 +913,7 @@ export async function broadcastAnnouncementAction(formData: FormData): Promise<v
 
 /* ---------------- 站点设置 ---------------- */
 
-export async function updateSiteSettingsAction(formData: FormData): Promise<void> {
+export async function updateSiteProfileAction(formData: FormData): Promise<void> {
   const actorId = await requireAdmin();
   const logoEntry = formData.get("logo");
   const parsed = siteSettingsSchema.safeParse({
@@ -921,7 +922,50 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
     siteDescription: formData.get("siteDescription"),
     logoUrl: formData.get("logoUrl") ?? "",
   });
-  if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+  if (!parsed.success) redirect(SETTINGS_SECTION("profile") + "&error=invalid");
+  if (logoEntry !== null && !(logoEntry instanceof File)) redirect(SETTINGS_SECTION("profile") + "&error=invalid");
+  const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
+  if (logoFile && logoFile.size > MAX_LOGO_BYTES) redirect(SETTINGS_SECTION("profile") + "&error=logo_too_large");
+
+  const previous = await db.siteSetting.findUnique({ where: { id: "site" }, select: { logoUrl: true } });
+  let logoUrl = parsed.data.logoUrl || null;
+  let newStoredName: string | null = null;
+  if (logoFile) {
+    const buf = Buffer.from(await logoFile.arrayBuffer());
+    const mime = sniffMime(buf);
+    if (!mime || !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime)) {
+      redirect(SETTINGS_SECTION("profile") + "&error=logo_type");
+    }
+    try {
+      const stored = await getStorage().save(buf, extensionForMime(mime));
+      newStoredName = stored.storedName;
+      logoUrl = siteLogoUrlForStoredName(stored.storedName);
+    } catch {
+      redirect(SETTINGS_SECTION("profile") + "&error=upload_failed");
+    }
+  }
+
+  try {
+    await db.siteSetting.upsert({
+      where: { id: "site" },
+      update: { ...parsed.data, logoUrl },
+      create: { id: "site", ...parsed.data, logoUrl },
+    });
+  } catch {
+    if (newStoredName) await getStorage().remove(newStoredName).catch(() => {});
+    redirect(SETTINGS_SECTION("profile") + "&error=upload_failed");
+  }
+  const oldStoredName = storedNameFromSiteLogoUrl(previous?.logoUrl);
+  if (oldStoredName && previous?.logoUrl !== logoUrl) await getStorage().remove(oldStoredName).catch(() => {});
+  await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
+  logger.info("admin.update_site_settings", { actorId });
+  revalidateTag("site-settings");
+  revalidatePath("/");
+  redirect(SETTINGS_SECTION("profile"));
+}
+
+export async function updatePointsSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
   const { clearPointsConfigCache, pointsSettingsSchema } = await import("@/lib/points-config");
   const pointsParsed = pointsSettingsSchema.safeParse({
     pointsThread: formData.get("pointsThread"),
@@ -937,55 +981,37 @@ export async function updateSiteSettingsAction(formData: FormData): Promise<void
   });
   if (!pointsParsed.success) {
     const issue = pointsParsed.error.issues[0]?.message;
-    redirect(ADMIN_TAB("settings") + (issue === "ladder_must_increase" ? "&error=ladder_order" : "&error=invalid"));
+    redirect(SETTINGS_SECTION("points") + (issue === "ladder_must_increase" ? "&error=ladder_order" : "&error=invalid"));
   }
-  const { clearGuestLimitConfigCache, guestSettingsSchema } = await import("@/lib/guest-limit");
-  const guestParsed = guestSettingsSchema.safeParse({
-    guestThreadLimit: formData.get("guestThreadLimit"),
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: pointsParsed.data,
+    create: { id: "site", ...pointsParsed.data },
   });
-  if (!guestParsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
-
-  if (logoEntry !== null && !(logoEntry instanceof File)) redirect(ADMIN_TAB("settings") + "&error=invalid");
-  const logoFile = logoEntry instanceof File && logoEntry.size > 0 ? logoEntry : null;
-  if (logoFile && logoFile.size > MAX_LOGO_BYTES) redirect(ADMIN_TAB("settings") + "&error=logo_too_large");
-
-  const previous = await db.siteSetting.findUnique({ where: { id: "site" }, select: { logoUrl: true } });
-  let logoUrl = parsed.data.logoUrl || null;
-  let newStoredName: string | null = null;
-  if (logoFile) {
-    const buf = Buffer.from(await logoFile.arrayBuffer());
-    const mime = sniffMime(buf);
-    if (!mime || !["image/jpeg", "image/png", "image/gif", "image/webp"].includes(mime)) {
-      redirect(ADMIN_TAB("settings") + "&error=logo_type");
-    }
-    try {
-      const stored = await getStorage().save(buf, extensionForMime(mime));
-      newStoredName = stored.storedName;
-      logoUrl = siteLogoUrlForStoredName(stored.storedName);
-    } catch {
-      redirect(ADMIN_TAB("settings") + "&error=upload_failed");
-    }
-  }
-
-  try {
-    await db.siteSetting.upsert({
-      where: { id: "site" },
-      update: { ...parsed.data, ...pointsParsed.data, ...guestParsed.data, logoUrl },
-      create: { id: "site", ...parsed.data, ...pointsParsed.data, ...guestParsed.data, logoUrl },
-    });
-  } catch {
-    if (newStoredName) await getStorage().remove(newStoredName).catch(() => {});
-    redirect(ADMIN_TAB("settings") + "&error=upload_failed");
-  }
-  const oldStoredName = storedNameFromSiteLogoUrl(previous?.logoUrl);
-  if (oldStoredName && previous?.logoUrl !== logoUrl) await getStorage().remove(oldStoredName).catch(() => {});
-  await db.auditLog.create({ data: { actorId, action: "update_site_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
-  logger.info("admin.update_site_settings", { actorId, points: pointsParsed.data, guest: guestParsed.data });
+  await db.auditLog.create({ data: { actorId, action: "update_points_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
+  logger.info("admin.update_points_settings", { actorId, points: pointsParsed.data });
   clearPointsConfigCache();
+  revalidateTag("site-settings");
+  revalidatePath("/");
+  redirect(SETTINGS_SECTION("points"));
+}
+
+export async function updateGuestSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const { clearGuestLimitConfigCache, guestSettingsSchema } = await import("@/lib/guest-limit");
+  const guestParsed = guestSettingsSchema.safeParse({ guestThreadLimit: formData.get("guestThreadLimit") });
+  if (!guestParsed.success) redirect(SETTINGS_SECTION("access") + "&error=invalid");
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: guestParsed.data,
+    create: { id: "site", ...guestParsed.data },
+  });
+  await db.auditLog.create({ data: { actorId, action: "update_guest_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
+  logger.info("admin.update_guest_settings", { actorId, guest: guestParsed.data });
   clearGuestLimitConfigCache();
   revalidateTag("site-settings");
   revalidatePath("/");
-  redirect(ADMIN_TAB("settings"));
+  redirect(SETTINGS_SECTION("access"));
 }
 
 /** 手动触发一轮自动追更（与 cron 走同一个函数，有 Redis 锁防重入） */
@@ -1031,7 +1057,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
     model: formData.get("model"),
     autoConfidence: formData.get("autoConfidence"),
   });
-  if (!parsed.success) redirect(ADMIN_TAB("settings") + "&error=invalid");
+  if (!parsed.success) redirect(SETTINGS_SECTION("mcp") + "&error=invalid");
 
   const adminApiKeyEntry = formData.get("adminApiKey");
   const providerApiKeyEntry = formData.get("providerApiKey");
@@ -1040,7 +1066,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
   const clearAdminApiKey = formData.get("clearAdminApiKey") === "on";
   const clearProviderApiKey = formData.get("clearProviderApiKey") === "on";
   if (!aiSecretSchema.safeParse(adminApiKey).success || !aiSecretSchema.safeParse(providerApiKey).success) {
-    redirect(ADMIN_TAB("settings") + "&error=invalid");
+    redirect(SETTINGS_SECTION("mcp") + "&error=invalid");
   }
 
   const hasSecretChange = Boolean(adminApiKey || providerApiKey || clearAdminApiKey || clearProviderApiKey);
@@ -1049,7 +1075,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
     aiProviderApiKeyEncrypted?: string | null;
   } = {};
   if (hasSecretChange) {
-    if (!process.env.AI_SETTINGS_ENCRYPTION_KEY?.trim()) redirect(ADMIN_TAB("settings") + "&error=ai_secret_key");
+    if (!process.env.AI_SETTINGS_ENCRYPTION_KEY?.trim()) redirect(SETTINGS_SECTION("mcp") + "&error=ai_secret_key");
     const previous = await db.siteSetting.findUnique({
       where: { id: "site" },
       select: { aiAdminApiKeyEncrypted: true, aiProviderApiKeyEncrypted: true },
@@ -1057,7 +1083,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
     const encryptedAdmin = adminApiKey ? encryptAiSecret(adminApiKey) : previous?.aiAdminApiKeyEncrypted ?? null;
     const encryptedProvider = providerApiKey ? encryptAiSecret(providerApiKey) : previous?.aiProviderApiKeyEncrypted ?? null;
     if ((adminApiKey && !encryptedAdmin) || (providerApiKey && !encryptedProvider)) {
-      redirect(ADMIN_TAB("settings") + "&error=ai_secret_key");
+      redirect(SETTINGS_SECTION("mcp") + "&error=ai_secret_key");
     }
     secretUpdate = {
       aiAdminApiKeyEncrypted: clearAdminApiKey ? null : encryptedAdmin,
@@ -1086,7 +1112,7 @@ export async function updateAiSettingsAction(formData: FormData): Promise<void> 
   await db.auditLog.create({ data: { actorId, action: "update_ai_settings", targetType: "site_setting", targetId: "site" } }).catch(() => {});
   logger.info("admin.update_ai_settings", { actorId, enabled: parsed.data.enabled, model: parsed.data.model });
   revalidateTag("site-settings");
-  redirect(ADMIN_TAB("settings"));
+  redirect(SETTINGS_SECTION("mcp"));
 }
 
 /* ---------------- 敏感词 ---------------- */
