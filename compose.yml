@@ -36,8 +36,6 @@ services:
     image: ${APP_IMAGE:-ghcr.io/joyiok/shuaigay:latest}
     build:
       context: .
-      args:
-        NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
     # SITE_URL 用于生成邮件链接与 sitemap,必须与 Caddy 的 DOMAIN 保持一致
     # SMTP_URL 留空则邮件仅打印到容器日志,配置后真实发送(见 src/lib/email.ts)
     environment:
@@ -49,10 +47,6 @@ services:
       STORAGE_DRIVER: local
       UPLOAD_DIR: /srv/uploads
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-20}
-      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
-      NEXT_PUBLIC_TURNSTILE_SITE_KEY: ${NEXT_PUBLIC_TURNSTILE_SITE_KEY:-}
-      TURNSTILE_HOSTNAMES: ${TURNSTILE_HOSTNAMES:-}
-      TURNSTILE_TEST_MODE: ${TURNSTILE_TEST_MODE:-}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-}
       RATE_LIMIT_REGISTER: ${RATE_LIMIT_REGISTER:-5}

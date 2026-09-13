@@ -15,7 +15,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
   await page.goto("/login");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
-  await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
+  await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/, { timeout: 20000 });
   const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await posted;

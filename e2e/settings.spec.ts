@@ -3,11 +3,11 @@ import { expect, test, isActionPostResponse } from "./fixtures";
 const uniq = `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 
 /**
- * 等 Turnstile 测试 widget 把 token 写进隐藏 input。
- * 不等就点提交，偶发会带着空 token 发出、服务端返回 captcha_failed（本套用例的抖动来源）。
+ * 等测试模式把验证码写进输入框。
+ * 不等就点提交，浏览器会因必填字段阻止表单提交。
  */
-async function waitTurnstile(page: import("@playwright/test").Page) {
-  await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
+async function waitCaptcha(page: import("@playwright/test").Page) {
+  await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/, { timeout: 20000 });
 }
 
 async function registerAs(page: import("@playwright/test").Page, username: string) {
@@ -15,7 +15,7 @@ async function registerAs(page: import("@playwright/test").Page, username: strin
   await page.fill('input[name="email"]', `${username}@test.dev`);
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "ForumTest123!");
-  await waitTurnstile(page);
+  await waitCaptcha(page);
   const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await posted;
@@ -28,7 +28,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string, pas
   await page.goto("/login");
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
-  await waitTurnstile(page);
+  await waitCaptcha(page);
   const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await posted;

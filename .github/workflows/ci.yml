@@ -23,10 +23,6 @@ env:
   NEXT_TELEMETRY_DISABLED: "1"
   SITE_URL: http://localhost:3100
   E2E_BASE_URL: http://localhost:3100
-  NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA"
-  TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA"
-  TURNSTILE_HOSTNAMES: "example.com"
-  TURNSTILE_TEST_MODE: "1"
   SEED_ADMIN_EMAIL: admin@example.com
   SEED_ADMIN_PASSWORD: "ReleaseAdmin123!"
 
@@ -125,7 +121,7 @@ jobs:
         run: |
           cp -r .next/static .next/standalone/.next/static
           cp -r public .next/standalone/public
-          (cd .next/standalone && PORT=3100 nohup node server.js > /tmp/standalone.log 2>&1 &)
+          (cd .next/standalone && CAPTCHA_TEST_MODE=1 PORT=3100 nohup node server.js > /tmp/standalone.log 2>&1 &)
           for i in $(seq 1 60); do
             curl -sf http://localhost:3100/api/health && break
             sleep 2

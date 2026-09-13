@@ -51,6 +51,7 @@ import {
   setUserRoleAction,
   updateAiSettingsAction,
   updateWriterSettingsAction,
+  updateCaptchaSettingsAction,
   updateGuestSettingsAction,
   updatePointsSettingsAction,
   updateSiteProfileAction,
@@ -253,6 +254,7 @@ const SETTINGS_SECTIONS = [
   { key: "profile", label: "站点资料" },
   { key: "points", label: "积分与等级" },
   { key: "access", label: "访客权限" },
+  { key: "captcha", label: "安全验证" },
   { key: "mcp", label: "MCP 管理" },
 ] as const;
 
@@ -275,6 +277,7 @@ async function SettingsTab({ section }: { section?: string }) {
       {active === "profile" && <SiteProfileSettings />}
       {active === "points" && <PointsSettings />}
       {active === "access" && <GuestAccessSettings />}
+      {active === "captcha" && <CaptchaSettings />}
       {active === "mcp" && <McpSettings />}
     </div>
   );
@@ -366,6 +369,28 @@ async function GuestAccessSettings() {
         </label>
         <span style={{ color: "var(--text-subtle)", fontSize: 11 }}>设为 0 表示不限。按 IP 按天计数，同一主题 5 分钟内重复查看只计一次；爬虫和登录用户不受影响。</span>
         <div style={{ display: "flex", justifyContent: "flex-end" }}><button type="submit" className="settings-save" style={paperDarkBtn}>保存访客权限</button></div>
+      </form>
+    </div>
+  );
+}
+
+async function CaptchaSettings() {
+  const settings = await getCachedSiteSettings();
+  return (
+    <div className="card" style={{ overflow: "hidden" }}>
+      <PaperCardHeader title="安全验证" count={settings.captchaEnabled ? "已开启" : "已关闭"} sub="站内五位数字验证码" />
+      <form action={updateCaptchaSettingsAction} style={{ display: "grid", gap: 14, padding: 14 }}>
+        <label className="setting-toggle-row">
+          <span>
+            <strong>启用站内验证码</strong>
+            <small>登录、注册、发主题和回复时显示；关闭后这些表单不再校验验证码。</small>
+          </span>
+          <input name="captchaEnabled" type="checkbox" defaultChecked={settings.captchaEnabled} aria-label="启用站内验证码" />
+        </label>
+        <p style={{ margin: 0, color: "var(--text-subtle)", fontSize: 11, lineHeight: 1.6 }}>
+          验证码 5 分钟内有效且只能使用一次。频率限制仍会一直生效，不受此开关影响。
+        </p>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}><button type="submit" className="settings-save" style={paperDarkBtn}>保存安全验证</button></div>
       </form>
     </div>
   );

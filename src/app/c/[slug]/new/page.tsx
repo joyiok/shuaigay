@@ -23,10 +23,11 @@ import TitleDraft from "@/components/TitleDraft";
 import SubmissionForm from "@/components/SubmissionForm";
 import TagAndPollFields from "@/components/TagAndPollFields";
 import { draftKey } from "@/lib/draft";
-import Turnstile from "@/components/Turnstile";
+import Captcha from "@/components/Captcha";
 import Link from "next/link";
 import AuthRequired from "@/components/AuthRequired";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
+import { getCachedSiteSettings } from "@/lib/cached";
 
 const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   invalid: { title: "少写了点", msg: "标题 5-120 字，正文 1-20000 字。", tip: "标题再补几个字，正文别空着" },
@@ -35,7 +36,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   file_too_large: { title: "附件太大了", msg: "新手 5MB，正式及以上 20MB。", tip: "升级后再传，或压一下图" },
   unsupported_type: { title: "格式不支持", msg: "只认 JPG/PNG/GIF/WEBP 等常见图。", tip: "换个格式再试" },
   too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发，或删几个" },
-  captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },
+  captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
   sensitive: { title: "有敏感词", msg: "内容里有敏感词，已转待审而不是直接拦。", tip: "等版主过审，或改一下措辞" },
   daily_limit: { title: "今天发够了", msg: "今日发帖已达上限。", tip: "新手 3/日 正式 5/日，明天再来或升个级" },
   ratelimited: { title: "发帖太快了", msg: "已达到发帖频率限制，草稿已保留。", tip: "稍后再试" },
@@ -81,6 +82,7 @@ export default async function NewThreadPage({
       </div>
     );
   }
+  const captchaEnabled = (await getCachedSiteSettings()).captchaEnabled;
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -134,7 +136,7 @@ export default async function NewThreadPage({
         />
         <TitleDraft storageKey={draftKey("newtitle", board.slug, user.id)} />
         <TagAndPollFields allowPoll={!isNovel} />
-        <Turnstile action="create_thread" resetSignal={error} />
+        {captchaEnabled && <Captcha action="create_thread" resetSignal={error} />}
         <div style={{ display: "flex", gap: 8 }}>
           <button
             type="submit"

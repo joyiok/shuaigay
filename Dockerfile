@@ -12,8 +12,6 @@ COPY prisma ./prisma
 RUN --mount=type=cache,target=/root/.npm npm ci --prefer-offline --no-audit --no-fund
 
 COPY . .
-ARG NEXT_PUBLIC_TURNSTILE_SITE_KEY
-ENV NEXT_PUBLIC_TURNSTILE_SITE_KEY=$NEXT_PUBLIC_TURNSTILE_SITE_KEY
 # .next/cache 挂载：服务器上重复构建时复用 Next 编译缓存（BuildKit）
 RUN --mount=type=cache,target=/app/.next/cache npx prisma generate && npm run build
 

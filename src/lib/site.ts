@@ -5,6 +5,7 @@ export const DEFAULT_SITE_SETTINGS = {
   siteTitle: "SHUAI GAY 论坛 · 开放 · 克制 · 高效",
   siteDescription: "SHUAI GAY 社区 — 连接兴趣 · 遇见同好 · 分享精彩。综合讨论、技术交流、生活分享与资源互助的极简高性能论坛。",
   logoUrl: "",
+  captchaEnabled: true,
 } as const;
 
 export const siteSettingsSchema = z.object({

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { registerAction } from "@/app/actions/auth";
-import Turnstile from "@/components/Turnstile";
+import Captcha from "@/components/Captcha";
 import AuthCardHeader from "@/components/AuthCardHeader";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import { getCachedSiteSettings } from "@/lib/cached";
@@ -20,7 +20,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   taken: { title: "注册不了", msg: "这个邮箱或用户名已经被用了。", tip: "换个邮箱或用户名再试，实在不行直接去登录" },
   ratelimited: { title: "手速太快", msg: "尝试太频繁，喝口水再试。", tip: "等 1 分钟，系统在保护你" },
   invite_invalid: { title: "邀请码不对", msg: "邀请码无效或已被用完。", tip: "找邀请人要个新的，或先不填邀请码直接注册" },
-  captcha_failed: { title: "人机验证没过", msg: "请重新点一下验证。", tip: "有时网慢，多试一次" },
+  captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
 };
 
 export default async function RegisterPage({
@@ -61,7 +61,7 @@ export default async function RegisterPage({
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text)" }}>密码 <span style={{ fontWeight: 400, color: "var(--text-subtle)", fontSize: 10 }}>至少 8 位</span></span>
             <input name="password" type="password" required minLength={8} autoComplete="new-password" placeholder="••••••••" aria-label="密码" className="auth-input" />
           </label>
-          <Turnstile action="signup" resetSignal={error} />
+          {settings.captchaEnabled && <Captcha action="signup" resetSignal={error} />}
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>
             {inviteCode ? "接受邀请，注册 →" : "注册 — 去吹水"}
           </button>

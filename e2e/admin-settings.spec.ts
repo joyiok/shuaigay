@@ -4,13 +4,13 @@ test("站点设置按职责拆分并独立保存", async ({ page }) => {
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
   await page.fill('input[name="password"]', "ReleaseAdmin123!");
-  await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
+  await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/, { timeout: 20000 });
   await page.getByRole("button", { name: "登录 →" }).click();
   await expect(page.locator("header")).toContainText("admin", { timeout: 20000 });
 
   await page.goto("/admin/settings");
   const sections = page.getByRole("navigation", { name: "站点设置分类" });
-  await expect(sections.getByRole("link")).toHaveCount(4);
+  await expect(sections.getByRole("link")).toHaveCount(5);
   await expect(page.locator('input[name="siteName"]')).toBeVisible();
   await expect(page.locator('input[name="pointsThread"]')).toHaveCount(0);
   await expect(page.locator('input[name="guestThreadLimit"]')).toHaveCount(0);
@@ -31,6 +31,13 @@ test("站点设置按职责拆分并独立保存", async ({ page }) => {
   await page.getByRole("button", { name: "保存访客权限" }).click();
   await savedAccess;
   await expect(page).toHaveURL(/section=access/);
+
+  await page.goto((await sections.getByRole("link", { name: "安全验证" }).getAttribute("href"))!);
+  await expect(page.locator('input[name="captchaEnabled"]')).toBeChecked();
+  const savedCaptcha = page.waitForResponse(isActionPostResponse);
+  await page.getByRole("button", { name: "保存安全验证" }).click();
+  await savedCaptcha;
+  await expect(page).toHaveURL(/section=captcha/);
 
   await page.goto((await sections.getByRole("link", { name: "MCP 管理" }).getAttribute("href"))!);
   await expect(page.locator('input[name="adminApiKey"]')).toBeVisible();

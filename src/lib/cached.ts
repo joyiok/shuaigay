@@ -157,7 +157,7 @@ export const getCachedSiteSettings = unstable_cache(
     try {
       const settings = await db.siteSetting.findUnique({
         where: { id: "site" },
-        select: { siteName: true, siteTitle: true, siteDescription: true, logoUrl: true },
+        select: { siteName: true, siteTitle: true, siteDescription: true, logoUrl: true, captchaEnabled: true },
       });
       return settings ? { ...settings, logoUrl: settings.logoUrl ?? "" } : DEFAULT_SITE_SETTINGS;
     } catch {

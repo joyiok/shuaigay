@@ -19,7 +19,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: "cp -r .next/static .next/standalone/.next/static 2>/dev/null; PORT=3100 node .next/standalone/server.js",
+        command: "cp -r .next/static .next/standalone/.next/static 2>/dev/null; CAPTCHA_TEST_MODE=1 PORT=3100 node .next/standalone/server.js",
         url: "http://localhost:3100",
         timeout: 120_000,
         reuseExistingServer: !process.env.CI,

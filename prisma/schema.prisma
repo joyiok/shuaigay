@@ -150,6 +150,8 @@ model SiteSetting {
   pointsMemberThreshold Int @default(30)
   // 游客试读：每天免登录可读主题数，0 = 不限（lib/guest-limit.ts）
   guestThreadLimit      Int @default(0)
+  // 站内数字验证码：登录、注册、发帖、回复共用，可由管理后台关闭
+  captchaEnabled        Boolean @default(true)
   // 等级 ladder 3–6 档门槛（第 2 档复用 pointsMemberThreshold；第 1 档恒为 0）
   pointsLevel3          Int @default(100)
   pointsLevel4          Int @default(300)

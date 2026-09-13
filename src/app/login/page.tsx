@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { loginAction } from "@/app/actions/auth";
-import Turnstile from "@/components/Turnstile";
+import Captcha from "@/components/Captcha";
 import AuthCardHeader from "@/components/AuthCardHeader";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
 import { getCachedSiteSettings } from "@/lib/cached";
@@ -17,7 +17,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   invalid: { title: "少填了点", msg: "邮箱和密码都得填。", tip: "检查下是不是漏了" },
   wrong: { title: "邮箱或密码不对", msg: "要么邮箱错，要么密码错。", tip: "试试找回密码，或检查大小写" },
   ratelimited: { title: "试太多次了", msg: "系统怕你是机器人，歇 10 分钟。", tip: "等会再试，或清下缓存" },
-  captcha_failed: { title: "验证没过", msg: "人机验证失败。", tip: "刷新一下重验" },
+  captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
   banned: { title: "账号被封了", msg: "封禁中，暂时登不了。", tip: "联系管理员或等解封" },
 };
 
@@ -53,7 +53,7 @@ export default async function LoginPage({
             </span>
             <input name="password" type="password" required autoComplete="current-password" placeholder="••••••••" aria-label="密码" className="auth-input" />
           </label>
-          <Turnstile action="login" resetSignal={error} />
+          {settings.captchaEnabled && <Captcha action="login" resetSignal={error} />}
           <button type="submit" className="btn-publish" style={{ width: "100%", minHeight: 44 }}>
             登录 →
           </button>

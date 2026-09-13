@@ -1,0 +1,1 @@
+ALTER TABLE "SiteSetting" ADD COLUMN "captchaEnabled" BOOLEAN NOT NULL DEFAULT true;

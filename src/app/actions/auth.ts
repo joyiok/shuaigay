@@ -14,7 +14,7 @@ import {
 } from "@/lib/auth";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
 import { passwordSchema } from "@/lib/password";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyCaptcha } from "@/lib/captcha";
 import { consumeInvite } from "@/lib/invite";
 import { createVerificationToken, sendVerificationEmail, sendPasswordResetEmail, consumeVerificationToken, verifyEmailToken } from "@/lib/email";
 import { safeNext } from "@/lib/navigation";
@@ -51,7 +51,7 @@ export async function registerAction(formData: FormData): Promise<void> {
   const { email, username, password, invite: inviteCode } = parsed.data;
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip, "signup"))) {
+  if (!(await verifyCaptcha(formData, "signup"))) {
     redirect("/register?error=captcha_failed");
   }
   if (!(await checkRateLimit(`register:${ip}`, REGISTER_RATE_LIMIT, 3600))) {
@@ -143,7 +143,7 @@ export async function loginAction(formData: FormData): Promise<void> {
   const { email, password } = parsed.data;
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip, "login"))) {
+  if (!(await verifyCaptcha(formData, "login"))) {
     redirect("/login?error=captcha_failed");
   }
   if (!(await checkRateLimit(`login:${ip}`, LOGIN_RATE_LIMIT, 600))) {

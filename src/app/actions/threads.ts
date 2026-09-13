@@ -20,7 +20,7 @@ import {
 import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "@/lib/points-config";
 import { isBoardModerator } from "@/lib/moderators";
 import { checkRateLimit, clientIp } from "@/lib/ratelimit";
-import { verifyTurnstile } from "@/lib/turnstile";
+import { verifyCaptcha } from "@/lib/captcha";
 import { containsSensitive } from "@/lib/sensitive";
 import { assertNotBanned } from "@/lib/ban";
 import { fetchApprovalBoard, fetchApprovalUser, needsApproval } from "@/lib/approval";
@@ -171,7 +171,7 @@ export async function createThreadAction(formData: FormData): Promise<string> {
   }
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip, "create_thread"))) {
+  if (!(await verifyCaptcha(formData, "create_thread"))) {
     redirect(`/c/${board.slug}/new?error=captcha_failed`);
   }
   // 发帖限流:同一用户 / IP 每分钟 N 次
@@ -346,7 +346,7 @@ export async function replyAction(formData: FormData): Promise<string> {
   if (!content.success) redirect(`/t/${thread.id}?error=invalid`);
 
   const ip = await clientIp();
-  if (!(await verifyTurnstile(formData.get("cf-turnstile-response"), ip, "create_reply"))) {
+  if (!(await verifyCaptcha(formData, "create_reply"))) {
     redirect(`/t/${thread.id}?error=captcha_failed`);
   }
   // 回帖限流:同一用户 / IP 每分钟 N 次

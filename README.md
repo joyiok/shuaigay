@@ -35,7 +35,6 @@ cp .env.example .env
 #   SITE_URL=https://forum.example.com
 #   SMTP_URL=smtp://user:pass@smtp.example.com:587
 #   MAIL_FROM="SHUAI GAY 论坛 <noreply@forum.example.com>"
-#   NEXT_PUBLIC_TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY
 #   SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD
 # 上线前检查（缺项会返回非 0）:
 npm run check:production

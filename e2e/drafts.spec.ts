@@ -7,7 +7,7 @@ async function registerAs(page: import("@playwright/test").Page, username: strin
   await page.fill('input[name="email"]', `${username}@test.dev`);
   await page.fill('input[name="username"]', username);
   await page.fill('input[name="password"]', "ForumTest123!");
-  await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
+  await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/, { timeout: 20000 });
   const posted = page.waitForResponse(isActionPostResponse, { timeout: 20000 });
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await posted;

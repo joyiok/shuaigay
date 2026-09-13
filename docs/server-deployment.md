@@ -93,9 +93,6 @@ POSTGRES_PASSWORD=<独立强口令>
 RESTIC_PASSWORD=<独立强口令>
 SMTP_URL=<真实 SMTP 地址>
 MAIL_FROM="SHUAI GAY 论坛 <noreply@shuai.gay>"
-NEXT_PUBLIC_TURNSTILE_SITE_KEY=<正式站点密钥>
-TURNSTILE_SECRET_KEY=<正式服务端密钥>
-TURNSTILE_HOSTNAMES=shuai.gay,www.shuai.gay
 SEED_ADMIN_EMAIL=<管理员邮箱>
 SEED_ADMIN_PASSWORD=<管理员强口令>
 
@@ -229,4 +226,3 @@ MCP 密钥使用管理后台「站点设置 → AI 自动运营」里的 AI 管�
 - 单次最多 20 个动作，逐个返回 `applied/skipped/failed`；所有实际变更写审计日志
   （actor = 最早的管理员账号），可在后台「审计日志」查看
 - MCP 密钥等同管理员权限：**不要与服务器 root 密码共用**，泄露后先到后台轮换密钥
-

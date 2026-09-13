@@ -9,7 +9,7 @@ test("发帖校验失败保留草稿，成功后清空，切换账号隔离草�
   await page.goto("/c/tech/new");
   const title = page.locator('[name="title"]');
   const content = page.locator('textarea[name="content"]');
-  await expect(page.locator('input[name="cf-turnstile-response"]')).not.toHaveValue("");
+  await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/);
   await title.fill("短标题");
   await title.evaluate((element: HTMLInputElement) => { element.minLength = 1; });
   await content.fill("提交失败也要保留的正文");

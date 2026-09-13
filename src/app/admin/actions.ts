@@ -1018,6 +1018,21 @@ export async function updateGuestSettingsAction(formData: FormData): Promise<voi
   redirect(SETTINGS_SECTION("access"));
 }
 
+export async function updateCaptchaSettingsAction(formData: FormData): Promise<void> {
+  const actorId = await requireAdmin();
+  const captchaEnabled = formData.get("captchaEnabled") === "on";
+  await db.siteSetting.upsert({
+    where: { id: "site" },
+    update: { captchaEnabled },
+    create: { id: "site", captchaEnabled },
+  });
+  await db.auditLog.create({ data: { actorId, action: "update_captcha_settings", targetType: "site_setting", targetId: "site", detail: captchaEnabled ? "enabled" : "disabled" } }).catch(() => {});
+  logger.info("admin.update_captcha_settings", { actorId, captchaEnabled });
+  revalidateTag("site-settings");
+  revalidatePath("/");
+  redirect(SETTINGS_SECTION("captcha"));
+}
+
 /** 手动触发一轮自动追更（与 cron 走同一个函数，有 Redis 锁防重入） */
 export async function runNovelAutoAction(): Promise<void> {
   const actorId = await requireAdmin();

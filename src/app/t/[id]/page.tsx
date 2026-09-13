@@ -31,7 +31,7 @@ import { ratePostAction } from "@/app/actions/ratings";
 import ReportButton from "@/components/report-button";
 import PostEditor from "@/components/PostEditor";
 import EditHistory from "@/components/EditHistory";
-import Turnstile from "@/components/Turnstile";
+import Captcha from "@/components/Captcha";
 import UserAvatar from "@/components/UserAvatar";
 import LevelBadge from "@/components/LevelBadge";
 import { catToneClass, formatDate, formatBytes } from "@/lib/format";
@@ -59,6 +59,7 @@ import {
 import ReadTracker from "@/components/ReadTracker";
 import { draftKey } from "@/lib/draft";
 import HumanizedFeedback from "@/components/HumanizedFeedback";
+import { getCachedSiteSettings } from "@/lib/cached";
 
 const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   invalid: { title: "少写了点", msg: "内容 1-20000 字。", tip: "再补几句" },
@@ -72,7 +73,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   file_too_large: { title: "附件太大了", msg: "新手 5MB，正式 20MB。", tip: "压一下图" },
   unsupported_type: { title: "格式不支持", msg: "只认常见图片。", tip: "换个格式" },
   too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发" },
-  captcha_failed: { title: "验证没过", msg: "人机验证失败。", tip: "重验一次" },
+  captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
   sensitive: { title: "有敏感词", msg: "已转待审。", tip: "等审核" },
   reason_sensitive: { title: "理由有敏感词", msg: "评分理由含敏感词。", tip: "换个说法" },
   self_rate: { title: "不能自评", msg: "不能给自己评分。", tip: "去给别人点赞" },
@@ -255,6 +256,7 @@ export default async function ThreadPage({
   void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
   (thread as unknown as { views: number }).views = currentViews + 1;
   const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
+  const captchaEnabled = canReplyNow ? (await getCachedSiteSettings()).captchaEnabled : false;
   const authorIds = [...new Set(items.map((p) => p.authorId))];
   const medalsByUser = authorIds.length ? await db.userMedal.findMany({ where: { userId: { in: authorIds } }, include: { medal: true } }).then((rows: any[]) => {
     const m = new Map<string, any[]>();
@@ -628,7 +630,7 @@ export default async function ThreadPage({
           <SubmissionForm key={draftKey("reply", thread.id, user!.id)} action={replyAction} style={{ display: "grid", gap: 10 }}>
             <input type="hidden" name="threadId" value={thread.id} />
             <Composer placeholder={isNovel ? (user!.id === thread.authorId ? "写下下一章，支持 Markdown" : "留下读后感，内容会显示在读者讨论中") : "回复，支持 Markdown（@提及 / 粘贴图片 / 表情）"} rows={isNovel && user!.id === thread.authorId ? 14 : 5} maxFiles={MAX_FILES_PER_POST} maxBytes={maxUploadBytes()} draftKey={draftKey("reply", thread.id, user!.id)} />
-            <Turnstile action="create_reply" resetSignal={error} />
+            {captchaEnabled && <Captcha action="create_reply" resetSignal={error} />}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
               <button type="submit" style={{ background: "var(--brand)", color: "#fff", borderRadius: 6, height: 32, padding: "0 16px", fontSize: 13, fontWeight: 600, border: "1px solid var(--brand)" }}>{isNovel ? (user!.id === thread.authorId ? "更新下一章" : "参与讨论") : "回复"}</button>
             </div>

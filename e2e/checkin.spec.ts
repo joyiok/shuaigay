@@ -9,7 +9,7 @@ for (const mobile of [false, true]) {
     await page.fill('[name="email"]', `${username}@test.dev`);
     await page.fill('[name="username"]', username);
     await page.fill('[name="password"]', "ForumTest123!");
-    await expect(page.locator('input[name="cf-turnstile-response"]')).toHaveValue(/.+/, { timeout: 20000 });
+    await expect(page.locator('input[name="captcha-answer"]')).toHaveValue(/^\d{5}$/, { timeout: 20000 });
     await page.getByRole("button", { name: /注册/ }).click();
     await expect(page.locator("header")).toContainText(username);
     await page.goto("/c/general");
