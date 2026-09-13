@@ -74,7 +74,7 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
   // 通过后主题可见，Markdown 正常渲染
   await page.goto(threadHref ?? "/");
   await expect(page.getByRole("heading", { name: e2eTitle })).toBeVisible();
-  await expect(page.locator("strong")).toHaveText("加粗");
+  await expect(page.locator(".post-content strong")).toHaveText("加粗");
 
   // 回复
   await page.fill('textarea[name="content"]', "这是一条回复");
