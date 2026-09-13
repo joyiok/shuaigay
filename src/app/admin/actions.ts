@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidateTag, revalidatePath } from "next/cache";
+import { revalidateTag as nextRevalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -31,6 +31,7 @@ import { aiSecretSchema, aiSettingsSchema, encryptAiSecret } from "@/lib/ai-admi
 import { saveWriterSettings, writerSettingsSchema } from "@/lib/writer-settings";
 import { runNovelAuto } from "@/lib/novel-auto";
 
+const revalidateTag = (tag: string) => nextRevalidateTag(tag, { expire: 0 });
 const ADMIN_TAB = (tab: string) => `/admin/${tab}` as const;
 const SETTINGS_SECTION = (section: string) => `${ADMIN_TAB("settings")}?section=${section}` as const;
 

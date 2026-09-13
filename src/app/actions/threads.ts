@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidateTag, revalidatePath } from "next/cache";
+import { revalidateTag as nextRevalidateTag, revalidatePath } from "next/cache";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { attachTags, parseTagInput } from "@/lib/taxonomy";
@@ -50,6 +50,7 @@ import { maybeEmailNotify } from "@/lib/email-notify";
 import { after } from "next/server";
 import { logger } from "@/lib/logger";
 
+const revalidateTag = (tag: string) => nextRevalidateTag(tag, { expire: 0 });
 const titleSchema = z.string().trim().min(5).max(120);
 const contentSchema = z.string().trim().min(1).max(20_000);
 

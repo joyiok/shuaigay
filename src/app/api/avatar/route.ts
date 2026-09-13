@@ -85,10 +85,10 @@ export async function GET(req: NextRequest): Promise<Response> {
     try {
       const path = await import("node:path");
       const { readFile } = await import("node:fs/promises");
-      const root = path.resolve(process.env.UPLOAD_DIR ?? "./uploads");
+      const root = path.resolve(/*turbopackIgnore: true*/ process.env.UPLOAD_DIR ?? "./uploads");
       const full = path.resolve(root, file);
       if (!full.startsWith(root + path.sep)) return new Response("forbidden", { status: 403 });
-      data = await readFile(full);
+      data = await readFile(/*turbopackIgnore: true*/ full);
     } catch {
       return new Response("not found", { status: 404 });
     }

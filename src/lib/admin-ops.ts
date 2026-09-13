@@ -668,7 +668,8 @@ export async function executeAdminActions(actions: readonly AdminAction[], opts:
     }
   }
   if (mutated) {
-    const { revalidateTag, revalidatePath } = await import("next/cache");
+    const { revalidateTag: nextRevalidateTag, revalidatePath } = await import("next/cache");
+    const revalidateTag = (tag: string) => nextRevalidateTag(tag, { expire: 0 });
     revalidateTag("boards");
     revalidateTag("threads");
     revalidateTag("stats");

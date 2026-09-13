@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
  * 写必须在这里。游客访问主题页时滚动计数（同一主题 5 分钟内不重复计），
  * 响应带 Set-Cookie 的请求 Cloudflare 默认不缓存 + Caddy 显式排除，
  * 保证计数与拦截状态不污染边缘缓存。
- * 注意：本文件禁止 import 任何 lib（含 db/redis），保持 middleware 轻量。
+ * 注意：本文件禁止 import 任何 lib（含 db/redis），保持 proxy 轻量。
  */
 const GUEST_COOKIE = "sg_gv";
 const GUEST_REPEAT_WINDOW_SEC = 300;
@@ -43,7 +43,7 @@ function bumpGuestCookie(raw: string | undefined, threadId: string, today: strin
   return `${today}.${count}.${threadId}.${nowSec}`;
 }
 
-export function middleware(req: NextRequest) {
+export function proxy(req: NextRequest) {
   const incoming = req.headers.get("x-request-id");
   const requestId =
     incoming && /^[a-zA-Z0-9-_]{4,64}$/.test(incoming)

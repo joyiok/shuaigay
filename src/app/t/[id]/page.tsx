@@ -219,7 +219,7 @@ export default async function ThreadPage({
   if (trashed && !isBoardStaff) notFound();
 
   // 游客试读额度：未登录 + 非爬虫 + 后台开启时计数，超限拦去登录（登录态/爬虫不受影响）
-  // 计数 cookie 由 middleware 滚动（Server Component 内只允许读），Redis 按 IP 计日次为主
+  // 计数 cookie 由 proxy 滚动（Server Component 内只允许读），Redis 按 IP 计日次为主
   if (!user) {
     const h = await headers();
     if (detectDevice(h.get("user-agent")) !== "bot") {
@@ -231,7 +231,7 @@ export default async function ThreadPage({
         const nowSec = Math.floor(Date.now() / 1000);
         const prev = parseGuestCookie(jar.get(GUEST_COOKIE)?.value, today);
         let count = prev.count;
-        // middleware 与此处用同一规则判定是否重复（同主题 5 分钟内不烧额度）
+        // proxy 与此处用同一规则判定是否重复（同主题 5 分钟内不烧额度）
         if (!isFreshRepeat(prev, thread.id, nowSec)) {
           count = (await countGuestView(ip, prev.count)).count;
         }

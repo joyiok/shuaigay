@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { revalidatePath, revalidateTag } from "next/cache";
+import { revalidatePath, revalidateTag as nextRevalidateTag } from "next/cache";
 import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { db } from "./db";
@@ -7,6 +7,8 @@ import { reviewReport } from "./moderation";
 import { checkRateLimit } from "./ratelimit";
 import { getRedis } from "./redis";
 import { logger } from "./logger";
+
+const revalidateTag = (tag: string) => nextRevalidateTag(tag, { expire: 0 });
 
 const MAX_ACTIONS = 20;
 const DEFAULT_AI_SETTINGS = {
