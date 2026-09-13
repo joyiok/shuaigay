@@ -3,6 +3,7 @@
  * 唯一键 (userId, day) 保证幂等，重复点也只算一次。
  */
 import { db } from "./db";
+import { Prisma } from "@prisma/client";
 import { dayForDb } from "./visit-stats";
 import { DEFAULT_POINTS_CONFIG, getPointsConfig } from "./points-config";
 
@@ -68,8 +69,8 @@ export async function doCheckIn(userId: string): Promise<{ ok: boolean; points?:
   const today = dayForDb(new Date());
   const yesterday = dayForDb(new Date(today.getTime() - DAY_MS));
   const [exists, prev] = await Promise.all([
-    db.checkIn.findUnique({ where: { userId_day: { userId, day: today } }, select: { id: true } }).catch(() => null),
-    db.checkIn.findUnique({ where: { userId_day: { userId, day: yesterday } }, select: { streak: true } }).catch(() => null),
+    db.checkIn.findUnique({ where: { userId_day: { userId, day: today } }, select: { id: true } }),
+    db.checkIn.findUnique({ where: { userId_day: { userId, day: yesterday } }, select: { streak: true } }),
   ]);
   if (exists) return { ok: false, error: "今天已经签过了" };
 
@@ -82,9 +83,11 @@ export async function doCheckIn(userId: string): Promise<{ ok: boolean; points?:
       const row = await tx.checkIn.create({ data: { userId, day: today, points, streak } });
       await applyPoints(tx, userId, points, "checkin", { refType: "checkin", refId: row.id });
     });
-  } catch {
-    // 并发下的唯一键冲突：当作已签到
-    return { ok: false, error: "今天已经签过了" };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { ok: false, error: "今天已经签过了" };
+    }
+    throw error;
   }
   return { ok: true, points, streak };
 }

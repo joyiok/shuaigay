@@ -7,12 +7,12 @@ import { assertNotBanned } from "@/lib/ban";
 import { doCheckIn } from "@/lib/checkin";
 import { logger } from "@/lib/logger";
 
-export async function checkInAction(): Promise<void> {
+export async function checkInAction() {
   const user = await getCurrentUser();
   if (!user) redirect("/login?next=/");
   await assertNotBanned(user.id);
   const result = await doCheckIn(user.id);
   if (result.ok) logger.info("checkin.done", { userId: user.id, points: result.points, streak: result.streak });
-  revalidatePath("/");
-  redirect(result.ok ? `/?checkin=ok&points=${result.points}&streak=${result.streak}` : "/?checkin=dup");
+  revalidatePath("/", "layout");
+  return result;
 }

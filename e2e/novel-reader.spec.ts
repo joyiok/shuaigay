@@ -61,12 +61,19 @@ test("小说阅读：章节目录、上一章/下一章、追更按钮", async (
 
     // 当前章高亮 + 下一章跳转
     await expect(page.locator(".novel-chapter-nav")).toContainText("第 1 章");
+    const progress = page.locator(".novel-nav-fill");
+    await expect(progress).toHaveCSS("transform", "matrix(0.33, 0, 0, 1, 0, 0)");
     await page.getByRole("button", { name: /下一章/ }).click();
     await expect(page.locator(".novel-chapter-nav")).toContainText("第 2 章", { timeout: 15000 });
+    await expect(progress).toHaveCSS("transform", "matrix(0.67, 0, 0, 1, 0, 0)");
+    expect(await progress.evaluate((el) => (el as HTMLElement).offsetWidth === el.parentElement!.clientWidth)).toBe(true);
 
     // 目录点击跳转回第一章
     await page.locator(".novel-toc-link").first().click();
     await expect(page.locator(".novel-chapter-nav")).toContainText("第 1 章", { timeout: 15000 });
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(progress).toHaveCSS("transition-duration", "0s");
+    await expect(progress).toHaveCSS("transform", "matrix(0.33, 0, 0, 1, 0, 0)");
 
     // 追更（收藏）按钮：点击后即时变「追更中」
     const followBtn = page.getByRole("button", { name: "☆ 追更" });

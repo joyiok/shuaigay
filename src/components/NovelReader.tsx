@@ -210,7 +210,7 @@ export default function NovelReader({
             第 {current?.index ?? "—"} 章 · {current?.title ?? ""}
           </span>
           <div className="novel-nav-track">
-            <div className="novel-nav-fill" style={{ width: `${pct}%` }} />
+            <div className="novel-nav-fill" style={{ transform: `scaleX(${pct / 100})` }} />
           </div>
         </div>
         <span className="novel-nav-count" aria-label={`第 ${currentIndex + 1} 章，共 ${chapters.length} 章`}>

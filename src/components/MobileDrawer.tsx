@@ -6,6 +6,8 @@ import { createPortal } from "react-dom";
 import { logoutAction } from "@/app/actions/auth";
 import UserAvatar from "@/components/UserAvatar";
 import { threadHref } from "@/lib/slug";
+import CheckInCard from "@/components/CheckInCard";
+import type { CheckInState } from "@/lib/checkin";
 
 interface BoardLink {
   slug: string;
@@ -53,6 +55,7 @@ export default function MobileDrawer({
   stats,
   hotTopics = [],
   activeUsers = [],
+  checkIn,
 }: {
   siteName: string;
   logoUrl: string;
@@ -62,6 +65,7 @@ export default function MobileDrawer({
   stats?: DrawerStats;
   hotTopics?: HotTopic[];
   activeUsers?: ActiveUser[];
+  checkIn?: CheckInState | null;
 }) {
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -127,6 +131,8 @@ export default function MobileDrawer({
                   </svg>
                 </button>
               </div>
+
+              {user && checkIn && <CheckInCard state={checkIn} />}
 
               <nav className="mobile-drawer-section" aria-label="版块">
                 <div className="mobile-drawer-title">版块</div>

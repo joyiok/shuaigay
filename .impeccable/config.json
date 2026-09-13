@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/app/globals.css"
+        ],
+        "createdAt": "2026-09-12T23:58:56.469Z",
+        "reason": "Agent: the existing .post-content blockquote uses a neutral border to identify quoted content; this is semantic quotation styling, not a decorative card accent."
+      }
+    ]
+  }
+}

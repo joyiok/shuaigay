@@ -19,7 +19,7 @@ import UserAvatar from "@/components/UserAvatar";
 import NotificationBell from "@/components/NotificationBell";
 import SearchAutocomplete from "@/components/SearchAutocomplete";
 import WebVitals from "@/components/WebVitals";
-import { checkInAction } from "@/app/actions/checkin";
+import CheckInCard from "@/components/CheckInCard";
 import { getCheckInState, type CheckInState } from "@/lib/checkin";
 import ForumNav from "@/components/ForumNav";
 
@@ -187,6 +187,7 @@ export default async function RootLayout({
               stats={{ userCount, threadCount, postCount, online }}
               hotTopics={hotTopics.map((t: any) => ({ id: t.id, title: t.title, replyCount: Math.max(0, (t._count?.posts ?? 1) - 1) }))}
               activeUsers={activeUsers as any}
+              checkIn={checkIn}
             />
             <ForumNav boards={boards.map((b) => ({ slug: b.slug, name: b.name }))} />
             <SearchAutocomplete variant="header" placeholder="搜索关键词" />
@@ -297,50 +298,7 @@ export default async function RootLayout({
               {/* 每日签到 — 登录用户 */}
               {user && checkIn && (
                 <div className="card">
-                  <div className="quick-wrap">
-                    <div className="quick-title">
-                      每日签到
-                      <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-subtle)" }}>
-                        {checkIn.doneToday ? `已连续 ${checkIn.streak} 天` : "今天还没签"}
-                      </span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                      <div style={{ display: "flex", gap: 3 }}>
-                        {checkIn.recent.map((hit, i) => (
-                          <span
-                            key={i}
-                            title={hit ? "已签到" : "未签到"}
-                            style={{
-                              width: 9,
-                              height: 18,
-                              borderRadius: 3,
-                              background: hit ? "var(--brand)" : "var(--bg-soft)",
-                              border: "1px solid var(--line-soft)",
-                              opacity: hit ? 1 : 0.7,
-                            }}
-                          />
-                        ))}
-                      </div>
-                      <span style={{ fontSize: 11.5, color: "var(--text-subtle)", fontFamily: "var(--font-jet)" }}>
-                        本月 {checkIn.monthCount} 天
-                      </span>
-                    </div>
-                    {checkIn.doneToday ? (
-                      <div style={{ fontSize: 12.5, color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 6 }}>
-                        <span style={{ color: "var(--brand)", fontWeight: 700 }}>✓ 今天已签到</span>
-                        <span>连续 {checkIn.streak} 天</span>
-                      </div>
-                    ) : (
-                      <form action={checkInAction}>
-                        <button
-                          type="submit"
-                          style={{ width: "100%", height: 34, borderRadius: 8, border: "1px solid var(--brand)", background: "var(--brand)", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}
-                        >
-                          签到 +{checkIn.nextPoints} 积分
-                        </button>
-                      </form>
-                    )}
-                  </div>
+                  <CheckInCard state={checkIn} />
                 </div>
               )}
 
