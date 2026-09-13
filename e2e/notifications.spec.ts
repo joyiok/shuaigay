@@ -22,7 +22,7 @@ test("通知闭环:注册→顶栏铃铛→通知中心空态→API未读数为0
   // 通知中心:tab 与空态
   await page.getByRole("link", { name: "查看全部通知 →" }).click();
   await expect(page).toHaveURL(/\/notifications/);
-  await expect(page.getByRole("link", { name: "全部" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "全部", exact: true })).toBeVisible();
   await expect(page.getByText("还没有通知")).toBeVisible();
 
   // API:已登录可读,未读数为 0
