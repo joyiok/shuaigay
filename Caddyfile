@@ -1,4 +1,4 @@
-# Caddyfile — 反向代理 + 附件直出 + 自动 HTTPS
+# Caddyfile — 反向代理 + 自动 HTTPS
 # 说明:
 #  - {$CADDY_DOMAINS} 由 compose.yml 注入,默认与 DOMAIN 一致；可加入 www 等别名，
 #    例如 "forum.example.com, www.forum.example.com"。
@@ -7,7 +7,7 @@
 #  - SITE_URL 是 Next.js 生成 sitemap / 邮件链接的基地址,务必与 DOMAIN 保持一致,
 #    例如 DOMAIN=forum.example.com 时 SITE_URL=https://forum.example.com
 #    否则邮件中的验证链接、sitemap 里的 URL 会指向错误域名。
-#  - 附件 /uploads/* 由 Caddy 直接 file_server,不经过 Node,节省 1 次反代开销。
+#  - 附件 /uploads/* 由 Next 鉴权后伺服（见 src/app/uploads/[...path]/route.ts），Caddy 仅反代，不再 file_server 直出。
 
 {
 	servers {
@@ -28,19 +28,14 @@ header {
 	-Server
 }
 
-# 附件:Caddy 直接读盘伺服,不经过 Node
-# 注意：此路径不经过 Next 的附件可见性检查（隐藏/待审/已删主题的附件 URL 仍可直链）。
-# 附件 storedName 为 128bit 随机不可枚举，请将其视为 bearer token；需强鉴权时改为反代到 Next。
-# 已删附件在回收站 purge（30 天）时随主题彻底删除，之前仍可通过直链访问（恢复需要）。
+# 附件:一律反代到 Next 做可见性鉴权（已删/待审/隐藏版块仅作者与 staff 可见，见 src/app/uploads/[...path]/route.ts）。
+# 曾用 Caddy file_server 直出以省 1 次反代开销，但会绕过上述检查（128bit 随机名仍可被转发泄漏），
+# 已改为回源鉴权；如需恢复直出性能，仅允许对明确公开的路径加白名单。
 handle_path /uploads/* {
-	root * /srv/uploads
-	file_server
-	header Cache-Control "public, max-age=31536000, immutable"
-	header X-Content-Type-Options "nosniff"
-	header Content-Security-Policy "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; frame-ancestors 'none'"
-	header X-Frame-Options "DENY"
-	header Cross-Origin-Resource-Policy "same-origin"
-	header Referrer-Policy "no-referrer"
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {client_ip}
+		header_up -CF-Connecting-IP
+	}
 }
 
 # 匿名读者的文档请求：交给 Cloudflare 边缘缓存 60s（国内用户直接命中香港/圣何塞节点，

@@ -21,6 +21,27 @@ const postInclude = {
 type ThreadRow = Prisma.ThreadGetPayload<{ include: typeof threadInclude }>;
 type PostRow = Prisma.PostGetPayload<{ include: typeof postInclude }>;
 
+/**
+ * 置顶过期清理节流：列表页高频调用，updateMany 每次写会放大主库压力。
+ * 同进程 5 分钟最多清一次；查询本身已用 pinnedUntil 惰性判断（过期即视为普通帖），
+ * 清理只负责写回 DB，延迟几分钟无感知。cron 也可另起每日全量兜底。
+ */
+let lastPinSweep = 0;
+const PIN_SWEEP_INTERVAL_MS = 5 * 60_000;
+async function sweepExpiredPins(now: Date): Promise<void> {
+  const t = now.getTime();
+  if (t - lastPinSweep < PIN_SWEEP_INTERVAL_MS) return;
+  lastPinSweep = t;
+  try {
+    await db.thread.updateMany({
+      where: { pinnedUntil: { lt: now }, OR: [{ pinned: true }, { globalPinned: true }] },
+      data: { pinned: false, globalPinned: false, pinnedUntil: null },
+    });
+  } catch {}
+}
+
+/** 查询层统一的过期判定在各函数内联（pinActive / expiredCond），此处仅保留节流写回。 */
+
 export interface ThreadListItem {
   id: string;
   title: string;
@@ -163,14 +184,19 @@ export async function listThreads(
         ],
       }
     : {};
-  // 置顶过期惰性清理：到点即脱钩，避免 cron 挂了置顶永不过期（失败静默，不阻塞列表）
-  try {
-    await db.thread.updateMany({
-      where: { pinnedUntil: { lt: now }, OR: [{ pinned: true }, { globalPinned: true }] },
-      data: { pinned: false, globalPinned: false, pinnedUntil: null },
-    });
-  } catch {}
-  const baseCond: any = { boardId, pinned: false, globalPinned: false, ...categoryFilter, ...statusCond, ...publishCond };
+  // 置顶过期惰性清理：节流写回（5 分钟一次），查询层用 pinnedUntil 判定有效性，不阻塞列表
+  void sweepExpiredPins(now);
+  // 有效置顶 = pinned/globalPinned 且 pinnedUntil 未过期；过期在查询层直接视为普通帖
+  // 普通列表需收录“已过期但尚未写回”的旧置顶，否则它们两边都不显示
+  const expiredCond: any = { pinnedUntil: { lte: now } };
+  const pinActive: any = { OR: [{ pinnedUntil: null }, { pinnedUntil: { gt: now } }] };
+  const baseCond: any = {
+    boardId,
+    ...categoryFilter,
+    ...statusCond,
+    ...publishCond,
+    AND: [{ OR: [{ pinned: false }, expiredCond] }, { OR: [{ globalPinned: false }, expiredCond] }],
+  };
   const whereCond: any = cursor ? { AND: [baseCond, cursorCond] } : baseCond;
   const rows = await db.thread.findMany({
     where: whereCond,
@@ -192,13 +218,13 @@ export async function listThreads(
     categoryName: (t as unknown as { category: { name: string } | null }).category?.name ?? null,
   });
 
-  // 置顶区:版块置顶 + 全局置顶都收录(全局置顶是全站行为,自然也属于本版块)
+  // 置顶区:版块置顶 + 全局置顶都收录(全局置顶是全站行为,自然也属于本版块)，仅收录未过期的
   const pinOr = [{ pinned: true }, { globalPinned: true }];
   const pinnedWhere: any = isStaff
-    ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { status: { not: "deleted" } }] }
+    ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, pinActive, { status: { not: "deleted" } }] }
     : viewerId
-      ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
-      : { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { status: "approved" }] };
+      ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, pinActive, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
+      : { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, pinActive, { status: "approved" }] };
   const pinned = cursor
     ? []
     : (
@@ -406,18 +432,14 @@ export async function searchPosts(
 
 export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
   const nowAll = new Date();
-  try {
-    await db.thread.updateMany({
-      where: { pinnedUntil: { lt: nowAll }, OR: [{ pinned: true }, { globalPinned: true }] },
-      data: { pinned: false, globalPinned: false, pinnedUntil: null },
-    });
-  } catch {}
+  void sweepExpiredPins(nowAll);
+  const expiredAll: any = { pinnedUntil: { lte: nowAll } };
   const rows = await db.thread.findMany({
     where: {
-      globalPinned: false,
       status: "approved",
       OR: [{ publishAt: null }, { publishAt: { lte: nowAll } }],
       board: { isHidden: false },
+      AND: [{ OR: [{ globalPinned: false }, expiredAll] }],
       ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
     orderBy: [{ lastPostAt: "desc" as const }, { id: "desc" as const }],
@@ -432,7 +454,13 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
     ? []
     : (
         await db.thread.findMany({
-          where: { globalPinned: true, status: "approved", OR: [{ publishAt: null }, { publishAt: { lte: nowAll } }], board: { isHidden: false } },
+          where: {
+            globalPinned: true,
+            status: "approved",
+            OR: [{ publishAt: null }, { publishAt: { lte: nowAll } }],
+            board: { isHidden: false },
+            AND: [{ OR: [{ pinnedUntil: null }, { pinnedUntil: { gt: nowAll } }] }],
+          },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, board: { select: { slug: true, name: true } } },
