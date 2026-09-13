@@ -23,7 +23,6 @@ import CheckInCard from "@/components/CheckInCard";
 import { getCheckInState, type CheckInState } from "@/lib/checkin";
 import ForumNav from "@/components/ForumNav";
 import AnnouncementBanner from "@/components/AnnouncementBanner";
-import ThemeToggle from "@/components/ThemeToggle";
 import PwaRegister from "@/components/PwaRegister";
 import { buildBoardTree, groupBoards } from "@/lib/boards";
 
@@ -70,11 +69,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0056b3" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
-  ],
-  colorScheme: "light dark",
+  themeColor: "#0056b3",
+  colorScheme: "light",
   width: "device-width",
   initialScale: 1,
 };
@@ -169,14 +165,8 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
+    <html lang="zh-CN">
       <head>
-        <script
-          // 首屏前应用主题，防闪白；localStorage 不可用时跟随系统
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem("sg:theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
-          }}
-        />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(websiteJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(organizationJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
@@ -207,7 +197,6 @@ export default async function RootLayout({
             />
             <ForumNav boards={boards.map((b) => ({ slug: b.slug, name: b.name }))} />
             <SearchAutocomplete variant="header" placeholder="搜索关键词" />
-            <ThemeToggle />
             <div className="nav-mine" style={{ display: "flex", alignItems: "center" }}>
               {user ? (
                 <>
