@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   canCreateThread,
   canDeletePost,
+  canEditPost,
   canGlobalPin,
   canModerate,
   canModerateBoard,
   canMoveThread,
   canReply,
   isAdmin,
+  isEditWindowOpen,
 } from "@/lib/permissions";
 
 const user = { id: "u1", role: "USER" as const };
@@ -85,5 +87,27 @@ describe("权限判断", () => {
     expect(canMoveThread(user, true, false)).toBe(false);
     expect(canMoveThread(user, false, true)).toBe(false);
     expect(canMoveThread(null, true, true)).toBe(false);
+  });
+});
+
+describe("P0 权限修复", () => {
+  it("锁帖下版主可回，普通用户不行", () => {
+    const thread = { authorId: "u1", locked: true };
+    expect(canReply(user, thread, { isModerator: true })).toBe(true);
+    expect(canReply(user, thread, { staff: true })).toBe(true);
+    expect(canReply(user, thread)).toBe(false);
+  });
+
+  it("编辑时间窗：超窗作者不可改，staff 可改", () => {
+    const old = new Date(Date.now() - 25 * 3600 * 1000);
+    const fresh = new Date();
+    // 作者 + 新帖可改
+    expect(canEditPost(user, { authorId: "u1", createdAt: fresh }, { threadLocked: false })).toBe(true);
+    // 作者 + 25h 前超默认 24h 窗不可改
+    expect(canEditPost(user, { authorId: "u1", createdAt: old }, { threadLocked: false })).toBe(false);
+    // staff 超窗也可改（含锁帖）
+    expect(canEditPost(user, { authorId: "other", createdAt: old }, { threadLocked: true, staff: true })).toBe(true);
+    expect(isEditWindowOpen(fresh)).toBe(true);
+    expect(isEditWindowOpen(old)).toBe(false);
   });
 });

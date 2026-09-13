@@ -39,6 +39,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
   sensitive: { title: "有敏感词", msg: "内容里有敏感词，已转待审而不是直接拦。", tip: "等版主过审，或改一下措辞" },
   daily_limit: { title: "今天发够了", msg: "今日发帖已达上限。", tip: "新手 3/日 正式 5/日，明天再来或升个级" },
+  invalid_schedule: { title: "定时时间不对", msg: "定时发布需未来 30 天内，置顶过期需未来 90 天内。", tip: "重新选个时间" },
   ratelimited: { title: "发帖太快了", msg: "已达到发帖频率限制，草稿已保留。", tip: "稍后再试" },
   duplicate: { title: "这篇已经发过了", msg: "检测到 10 分钟内相同的主题，已阻止重复提交。", tip: "回到版块查看刚才的主题" },
 };
@@ -136,6 +137,11 @@ export default async function NewThreadPage({
         />
         <TitleDraft storageKey={draftKey("newtitle", board.slug, user.id)} />
         <TagAndPollFields allowPoll={!isNovel} />
+        <label style={{ display: "grid", gap: 4 }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>定时发布（可选，留空立即发布）</span>
+          <input type="datetime-local" name="publishAt" style={{ width: "100%", border: "1px solid var(--line)", borderRadius: 6, padding: "10px 12px", fontSize: 14, outline: "none", background: "var(--panel)" }} />
+          <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>未来 30 天内；到点前仅自己与版主可见。</span>
+        </label>
         {captchaEnabled && <Captcha action="create_thread" resetSignal={error} />}
         <div style={{ display: "flex", gap: 8 }}>
           <button

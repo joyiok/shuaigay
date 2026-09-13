@@ -14,9 +14,9 @@ export const getCachedBoards = unstable_cache(
     try {
       return await db.board.findMany({
         where: { isHidden: false },
-        orderBy: { order: "asc" },
+        orderBy: [{ group: "asc" }, { order: "asc" }],
         include: { _count: { select: { threads: true } } },
-        take: 8,
+        take: 20,
       });
     } catch {
       return [] as Awaited<ReturnType<typeof db.board.findMany>>;

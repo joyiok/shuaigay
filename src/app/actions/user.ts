@@ -17,6 +17,7 @@ import {
 } from "@/lib/invite";
 
 const bioSchema = z.string().trim().max(200);
+const titleSchema = z.string().trim().max(12);
 
 /** 编辑自己的 bio(限本人,最多 200 字；被封禁不可改资料) */
 export async function updateBioAction(formData: FormData): Promise<void> {
@@ -48,6 +49,38 @@ export async function updateNotificationPrefsAction(formData: FormData): Promise
   await db.user.update({ where: { id: user.id }, data: prefs });
   logger.info("user.notify_prefs_updated", { userId: user.id, ...prefs });
   revalidatePath("/settings");
+}
+
+/**
+ * 自设头衔：正式会员（积分达会员线）可设 2-12 字，管理员免门槛；
+ * 空字符串 = 清除。敏感词拦截，长度超限静默截断前返回。
+ */
+export async function updateTitleAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
+  await assertNotBanned(user.id);
+  const raw = String(formData.get("customTitle") ?? "").trim();
+  if (!raw) {
+    await db.user.update({ where: { id: user.id }, data: { customTitle: null } });
+    revalidatePath("/settings");
+    revalidatePath(`/u/${user.username}`);
+    return;
+  }
+  const parsed = titleSchema.safeParse(raw);
+  if (!parsed.success || parsed.data.length < 2) return;
+  const { containsSensitive } = await import("@/lib/sensitive");
+  if (await containsSensitive(parsed.data)) return;
+  // 会员线校验（管理员跳过）
+  if (user.role !== "ADMIN") {
+    const { getPointsConfig, DEFAULT_POINTS_CONFIG } = await import("@/lib/points-config");
+    const cfg = await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG);
+    const full = await db.user.findUnique({ where: { id: user.id }, select: { points: true } });
+    if (!full || full.points < cfg.memberThreshold) return;
+  }
+  await db.user.update({ where: { id: user.id }, data: { customTitle: parsed.data } });
+  logger.info("user.title_updated", { userId: user.id });
+  revalidatePath("/settings");
+  revalidatePath(`/u/${user.username}`);
 }
 
 /** 生成新邀请码:每人最多 5 个 */

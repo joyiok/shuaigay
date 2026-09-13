@@ -917,6 +917,7 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
                             <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>用户名</span><input name="username" defaultValue={u.username} pattern="[a-zA-Z0-9_-]{3,20}" style={{ ...paperInput, height: 30 }} /></label>
                             <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>邮箱</span><input name="email" defaultValue={u.email} type="email" style={{ ...paperInput, height: 30 }} /></label>
                             <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>简介</span><textarea name="bio" defaultValue={(u as any).bio ?? ""} maxLength={200} rows={2} style={{ ...paperInput, height: 60, resize: "vertical", padding: "8px 10px" }} /></label>
+                            <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>头衔（2-12 字，留空清除）</span><input name="customTitle" defaultValue={(u as any).customTitle ?? ""} maxLength={12} placeholder="如：版务组" style={{ ...paperInput, height: 30 }} /></label>
                             <button type="submit" style={paperDarkBtn}>保存资料</button>
                           </form>
                         </details>
@@ -965,11 +966,13 @@ async function UsersTab({ currentUserId }: { currentUserId: string }) {
 
 async function BoardsTab() {
   const boards = await db.board.findMany({
-    orderBy: { order: "asc" },
+    orderBy: [{ group: "asc" }, { order: "asc" }],
     include: {
       _count: { select: { threads: true } },
       moderators: { include: { user: { select: { id: true, username: true, avatarUrl: true } } }, orderBy: { createdAt: "asc" } },
       categories: { orderBy: { order: "asc" } },
+      parent: { select: { id: true, slug: true, name: true } },
+      children: { select: { id: true, slug: true, name: true } },
     },
   });
   const today = new Date();
@@ -1009,6 +1012,26 @@ async function BoardsTab() {
             <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>简介 <span style={{ fontWeight: 400, color: "var(--text-subtle)" }}>— 一句话，显示在版块页顶部</span></span>
             <input name="description" maxLength={200} placeholder="例如：随便聊聊 · 寻找同好" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", fontSize: 13, outline: "none", boxShadow: "2px 2px 0 var(--line)" }} />
           </label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>分区（默认“默认分区”）</span>
+              <input name="group" maxLength={20} placeholder="默认分区" list="board-groups" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 10px", fontSize: 13, outline: "none", boxShadow: "2px 2px 0 var(--line)" }} />
+              <datalist id="board-groups">
+                {[...new Set(boards.map((b) => (b as unknown as { group?: string }).group || "默认分区"))].map((g) => (
+                  <option key={g} value={g} />
+                ))}
+              </datalist>
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-muted)" }}>挂靠父版块（可选，仅一层）</span>
+              <select name="parentId" defaultValue="" style={{ height: 34, border: "1.5px solid var(--line)", borderRadius: 10, padding: "0 8px", fontSize: 13, boxShadow: "2px 2px 0 var(--line)" }}>
+                <option value="">顶级版块</option>
+                {boards.filter((x) => !(x as unknown as { parentId?: string | null }).parentId).map((x) => (
+                  <option key={x.id} value={x.id}>{x.name} /{x.slug}</option>
+                ))}
+              </select>
+            </label>
+          </div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 2 }}>
             <button type="submit" style={{ height: 36, padding: "0 18px", background: "var(--text)", color: "var(--panel)", border: "2px solid var(--line)", borderRadius: 999, fontSize: 13, fontWeight: 700, boxShadow: "3px 3px 0 var(--line)", fontFamily: "var(--font-grotesk)", cursor: "pointer" }}>+ 创建版块</button>
           </div>
@@ -1152,7 +1175,22 @@ async function BoardsTab() {
                     <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>名称</span><input name="name" defaultValue={b.name} required maxLength={30} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
                   </div>
                   <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>简介</span><input name="description" defaultValue={b.description ?? ""} maxLength={200} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
-                  <div style={{ display: "flex", justifyContent: "flex-end" }}><button type="submit" style={{ height: 30, padding: "0 12px", background: "var(--text)", color: "var(--panel)", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>保存</button></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>分区</span><input name="group" defaultValue={(b as unknown as { group?: string }).group ?? "默认分区"} maxLength={20} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 8px", fontSize: 12 }} /></label>
+                    <label style={{ display: "grid", gap: 4 }}><span style={{ fontSize: 11, fontWeight: 600 }}>父版块（仅一层）</span>
+                      <select name="parentId" defaultValue={(b as unknown as { parentId?: string | null }).parentId ?? ""} style={{ height: 30, border: "1px solid var(--line)", borderRadius: 6, padding: "0 6px", fontSize: 12 }}>
+                        <option value="">顶级版块</option>
+                        {boards.filter((x) => x.id !== b.id && !(x as unknown as { parentId?: string | null }).parentId).map((x) => (
+                          <option key={x.id} value={x.id}>{x.name} /{x.slug}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 8 }}>
+                    {(b as unknown as { parent?: { name: string } | null }).parent && <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>挂靠于 {(b as unknown as { parent: { name: string } }).parent.name}</span>}
+                    {(b as unknown as { children?: unknown[] }).children && (b as unknown as { children: unknown[] }).children.length > 0 && <span style={{ fontSize: 11, color: "var(--text-subtle)" }}>{(b as unknown as { children: unknown[] }).children.length} 个子版块</span>}
+                    <button type="submit" style={{ height: 30, padding: "0 12px", background: "var(--text)", color: "var(--panel)", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>保存</button>
+                  </div>
                 </form>
               </details>
               <div style={{ display: "flex", gap: 6, marginLeft: "auto", flexWrap: "wrap" }}>

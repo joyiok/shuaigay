@@ -70,6 +70,7 @@ export default async function MembersPage({
           bio: true,
           points: true,
           role: true,
+          customTitle: true,
           createdAt: true,
           lastActiveAt: true,
           _count: { select: { threads: true, posts: true, followers: true } },
@@ -178,7 +179,7 @@ export default async function MembersPage({
                     <Link href={`/u/${encodeURIComponent(u.username)}`} style={{ fontWeight: 700, fontSize: 13.5 }}>
                       {u.username}
                     </Link>
-                    <LevelBadge points={u.points} role={u.role} />
+                    <LevelBadge points={u.points} role={u.role} customTitle={(u as unknown as { customTitle?: string | null }).customTitle ?? null} />
                   </div>
                   <div className="member-stats">
                     <span><strong>{u.points}</strong> 积分</span>

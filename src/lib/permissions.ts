@@ -26,10 +26,30 @@ export function canCreateThread(user: UserLike | null): boolean {
   return user !== null;
 }
 
-export function canReply(user: UserLike | null, thread: ThreadLike): boolean {
+export function canReply(
+  user: UserLike | null,
+  thread: ThreadLike,
+  opts?: { isModerator?: boolean; staff?: boolean },
+): boolean {
   if (!user) return false;
   if (!thread.locked) return true;
-  return isAdmin(user);
+  if (isAdmin(user)) return true;
+  return !!(opts?.isModerator || opts?.staff);
+}
+
+/** 帖子编辑时间窗（分钟）：0 = 不限。默认 1440（24h），经 EDIT_WINDOW_MINUTES 可配 */
+export function editWindowMinutes(): number {
+  const raw = Number(process.env.EDIT_WINDOW_MINUTES ?? 1440);
+  if (!Number.isFinite(raw) || raw < 0) return 1440;
+  return Math.floor(raw);
+}
+
+export function isEditWindowOpen(createdAt: Date | string | number, now: number = Date.now()): boolean {
+  const mins = editWindowMinutes();
+  if (mins === 0) return true;
+  const ts = new Date(createdAt).getTime();
+  if (!Number.isFinite(ts)) return false;
+  return now - ts <= mins * 60 * 1000;
 }
 
 export function canDeletePost(
@@ -43,14 +63,19 @@ export function canDeletePost(
   return post.authorId === user.id && !opts.isFirstPost && !opts.threadLocked;
 }
 
-/** 编辑帖子:本人且主题未锁;锁定的主题谁都不能改 */
+/** 编辑帖子:本人且主题未锁且在时间窗内；版主/管理员不受窗限制，锁帖也可改（删帖走 canDeletePost） */
 export function canEditPost(
   user: UserLike | null,
-  post: PostLike,
-  opts: { threadLocked: boolean },
+  post: PostLike & { createdAt?: Date | string | number },
+  opts: { threadLocked: boolean; staff?: boolean; isModerator?: boolean; now?: number },
 ): boolean {
   if (!user) return false;
-  return post.authorId === user.id && !opts.threadLocked;
+  const staff = isAdmin(user) || !!opts.staff || !!opts.isModerator;
+  if (staff) return true;
+  if (opts.threadLocked) return false;
+  if (post.authorId !== user.id) return false;
+  if (post.createdAt !== undefined) return isEditWindowOpen(post.createdAt, opts.now);
+  return true;
 }
 
 export function canModerate(user: UserLike | null): boolean {

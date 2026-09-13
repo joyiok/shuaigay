@@ -254,7 +254,7 @@ export default async function UserPage({
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <h1 style={{ fontSize: 18, fontWeight: 800, margin: 0 }}>{user.username}</h1>
-              <LevelBadge points={user.points} role={user.role} />
+              <LevelBadge points={user.points} role={user.role} customTitle={(user as unknown as { customTitle?: string | null }).customTitle ?? null} />
               {userMedals.slice(0, 3).map((um: any) => (
                 <span key={um.id} title={`${um.medal.name}${um.reason ? " · " + um.reason : ""} · ${um.medal.description ?? ""}`} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: um.medal.color, border: "1.5px solid var(--line)", borderRadius: 999, padding: "2px 8px", fontSize: 11, fontWeight: 700, boxShadow: "1px 1px 0 var(--line)" }}>
                   <span>{um.medal.icon}</span>{um.medal.name}

@@ -35,6 +35,8 @@ model User {
   emailNotify    Boolean @default(false)
   // 头像 storage 相对路径(storedName);未设置时全站回退到首字母占位
   avatarUrl    String?
+  // 自定义头衔：正式会员可自设，管理员可代设；展示时优先于等级名（见 LevelBadge）
+  customTitle  String?
   registrationIp String?
   lastLoginIp    String?
   lastLoginAt    DateTime?
@@ -182,6 +184,11 @@ model Board {
   name             String
   description      String?
   order            Int      @default(0)
+  // 分区：首页/导航按 group 聚合展示，默认“默认分区”；子版块经 parentId 挂靠（见 children）
+  group            String   @default("默认分区")
+  parentId         String?
+  parent           Board?   @relation("BoardChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children         Board[]  @relation("BoardChildren")
   isHidden         Boolean  @default(false)
   isLocked         Boolean  @default(false)
   requireApproval  Boolean  @default(false)
@@ -285,6 +292,9 @@ model Thread {
   autoContinue Boolean @default(false)
   // 外部迁移幂等键:同一来源记录重试时不重复创建主题
   importKey  String?  @unique
+  // 定时发布：publishAt 未来 = 定时帖，到点前仅作者/staff 可见；pinnedUntil 过期 = 自动取消置顶（查询时惰性判断）
+  publishAt    DateTime?
+  pinnedUntil  DateTime?
   views      Int      @default(0)
   // approved | pending | deleted（deleted 为软删除，进回收站，30 天后彻底清除）
   status     String   @default("approved")

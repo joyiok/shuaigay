@@ -4,12 +4,12 @@ import { decodeCursor, encodeCursor, type Cursor } from "./cursor";
 import { makeExcerpt } from "./excerpt";
 
 const threadInclude = {
-  author: { select: { username: true, avatarUrl: true } },
+  author: { select: { username: true, avatarUrl: true, customTitle: true } },
   _count: { select: { posts: true } },
 } satisfies Prisma.ThreadInclude;
 
 const postInclude = {
-  author: { select: { username: true, role: true, avatarUrl: true, points: true } },
+  author: { select: { username: true, role: true, avatarUrl: true, points: true, customTitle: true } },
   attachments: true,
   edits: {
     orderBy: { createdAt: "desc" as const },
@@ -68,6 +68,7 @@ export interface PostListItem {
   authorRole: string;
   authorPoints: number;
   authorAvatarUrl: string | null;
+  authorCustomTitle?: string | null;
   attachments: { id: string; storedName: string; fileName: string; mimeType: string; sizeBytes: number }[];
   edits: PostEditListItem[];
   rating: PostRatingView;
@@ -102,6 +103,7 @@ function toPostListItem(p: PostRow, rating: PostRatingView): PostListItem {
     authorRole: p.author.role,
     authorPoints: (p.author as unknown as { points: number }).points ?? 0,
     authorAvatarUrl: (p.author as unknown as { avatarUrl: string | null }).avatarUrl ?? null,
+    authorCustomTitle: (p.author as unknown as { customTitle?: string | null }).customTitle ?? null,
     status: (p as unknown as { status: string }).status ?? "approved",
     attachments: p.attachments.map((a) => ({
       id: a.id,
@@ -139,6 +141,10 @@ export async function listThreads(
     categoryId = null;
   }
   const categoryFilter = categoryId ? { categoryId: String(categoryId) } : {};
+  // 定时发布：非 staff 仅可见已到点（publishAt 为空或过去）；staff 全见。
+  // 置顶过期：pinnedUntil 过去视为普通帖（查询时惰性，不写回 DB，cron 可选清理）。
+  const now = new Date();
+  const publishCond = isStaff ? {} : { OR: [{ publishAt: null }, { publishAt: { lte: now } }] };
   const statusFilter = isStaff
     ? { status: { not: "deleted" } }
     : viewerId
@@ -157,7 +163,14 @@ export async function listThreads(
         ],
       }
     : {};
-  const baseCond: any = { boardId, pinned: false, globalPinned: false, ...categoryFilter, ...statusCond };
+  // 置顶过期惰性清理：到点即脱钩，避免 cron 挂了置顶永不过期（失败静默，不阻塞列表）
+  try {
+    await db.thread.updateMany({
+      where: { pinnedUntil: { lt: now }, OR: [{ pinned: true }, { globalPinned: true }] },
+      data: { pinned: false, globalPinned: false, pinnedUntil: null },
+    });
+  } catch {}
+  const baseCond: any = { boardId, pinned: false, globalPinned: false, ...categoryFilter, ...statusCond, ...publishCond };
   const whereCond: any = cursor ? { AND: [baseCond, cursorCond] } : baseCond;
   const rows = await db.thread.findMany({
     where: whereCond,
@@ -182,10 +195,10 @@ export async function listThreads(
   // 置顶区:版块置顶 + 全局置顶都收录(全局置顶是全站行为,自然也属于本版块)
   const pinOr = [{ pinned: true }, { globalPinned: true }];
   const pinnedWhere: any = isStaff
-    ? { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { status: { not: "deleted" } }] }
+    ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { status: { not: "deleted" } }] }
     : viewerId
-      ? { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
-      : { boardId, ...categoryFilter, AND: [{ OR: pinOr }, { status: "approved" }] };
+      ? { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }] }
+      : { boardId, ...categoryFilter, ...publishCond, AND: [{ OR: pinOr }, { status: "approved" }] };
   const pinned = cursor
     ? []
     : (
@@ -229,9 +242,58 @@ export async function searchThreads(
   cursor: Cursor | null,
   pageSize = 20,
 ) {
+  const keyword = q.trim().slice(0, 100);
+  if (!keyword) return { items: [], nextCursor: null as string | null };
+  // LIKE 转义：% _ \ 按字面匹配，避免用户输入改写查询语义
+  const escaped = keyword.replace(/[\\%_]/g, (m) => `\\${m}`);
+  const like = `%${escaped}%`;
+  try {
+    // trigram 相关度 + 时间双排序：标题命中优先，内容命中随后；
+    // ILIKE 走 Thread_title_trgm_idx / Post_contentMd_trgm_idx（见 forum_completion 迁移），
+    // similarity 仅做排序不做过滤，中文短词也能召回。
+    type Row = {
+      id: string; title: string; pinned: boolean; globalPinned: boolean; digested: boolean;
+      locked: boolean; views: number; createdAt: Date; lastPostAt: Date;
+      authorName: string; authorAvatarUrl: string | null; replyCount: string | number;
+      boardSlug: string; boardName: string; sim: number;
+    };
+    const params: unknown[] = [keyword, like];
+    let idx = 3;
+    let boardCond = `"b"."isHidden" = false`;
+    if (boardId) { boardCond = `"t"."boardId" = $${idx}`; params.push(boardId); idx++; }
+    let cursorCond = `TRUE`;
+    if (cursor) {
+      cursorCond = `("t"."lastPostAt" < $${idx} OR ("t"."lastPostAt" = $${idx} AND "t"."id" < $${idx + 1}))`;
+      params.push(new Date(cursor.t), cursor.id); idx += 2;
+    }
+    const limitParam = `$${idx}`; params.push(pageSize + 1);
+    const rows = await db.$queryRawUnsafe<Row[]>(
+      `SELECT "t"."id", "t"."title", "t"."pinned", "t"."globalPinned", "t"."digested", "t"."locked", "t"."views",\n        "t"."createdAt", "t"."lastPostAt",\n        "u"."username" AS "authorName", "u"."avatarUrl" AS "authorAvatarUrl",\n        (SELECT COUNT(*) FROM "Post" "p2" WHERE "p2"."threadId" = "t"."id") - 1 AS "replyCount",\n        "b"."slug" AS "boardSlug", "b"."name" AS "boardName",\n        GREATEST(similarity("t"."title", $1), 0) AS "sim"\n      FROM "Thread" "t"\n      JOIN "Board" "b" ON "b"."id" = "t"."boardId"\n      JOIN "User" "u" ON "u"."id" = "t"."authorId"\n      WHERE "t"."status" = 'approved'\n        AND ("t"."publishAt" IS NULL OR "t"."publishAt" <= NOW())\n        AND ${boardCond}\n        AND ("t"."title" ILIKE $2 ESCAPE '\\'\n          OR EXISTS (SELECT 1 FROM "Post" "p" WHERE "p"."threadId" = "t"."id" AND "p"."status" = 'approved' AND "p"."contentMd" ILIKE $2 ESCAPE '\\''))\n        AND ${cursorCond}\n      ORDER BY "sim" DESC, "t"."lastPostAt" DESC, "t"."id" DESC\n      LIMIT ${limitParam}`,
+      ...params,
+    );
+    const hasMore = rows.length > pageSize;
+    const items = rows.slice(0, pageSize);
+    const last = items[items.length - 1];
+    const nextCursor: string | null = hasMore && last ? encodeCursor({ t: new Date(last.lastPostAt).toISOString(), id: last.id }) : null;
+    return {
+      items: items.map((t) => ({
+        id: t.id, title: t.title, pinned: t.pinned, globalPinned: (t as unknown as { globalPinned: boolean }).globalPinned,
+        digested: t.digested, locked: t.locked, views: Number(t.views ?? 0),
+        createdAt: new Date(t.createdAt), lastPostAt: new Date(t.lastPostAt),
+        authorName: t.authorName, authorAvatarUrl: t.authorAvatarUrl ?? null,
+        replyCount: Math.max(0, Number(t.replyCount ?? 0)),
+        boardSlug: t.boardSlug, boardName: t.boardName,
+      })),
+      nextCursor,
+    };
+  } catch {
+    // pg_trgm 不可用时回退到 Prisma ILIKE（功能不变，只是无相关度排序）
+  }
+  const nowFallback = new Date();
   const rows = await db.thread.findMany({
     where: {
       status: "approved",
+      OR: [{ publishAt: null }, { publishAt: { lte: nowFallback } }],
       ...(boardId ? { boardId } : { board: { isHidden: false } }),
       AND: [
         {
@@ -265,6 +327,48 @@ export async function searchPosts(
   cursor: Cursor | null,
   pageSize = 20,
 ) {
+  const keyword = q.trim().slice(0, 100);
+  if (!keyword) return { items: [], nextCursor: null as string | null };
+  const escaped = keyword.replace(/[\\%_]/g, (m) => `\\${m}`);
+  const like = `%${escaped}%`;
+  try {
+    type Row = {
+      id: string; contentMd: string; createdAt: Date;
+      threadId: string; threadTitle: string; boardSlug: string; boardName: string;
+      authorName: string; authorRole: string; authorAvatarUrl: string | null; sim: number;
+    };
+    const params: unknown[] = [keyword, like];
+    let idx = 3;
+    let boardCond = `"b"."isHidden" = false`;
+    if (boardId) { boardCond = `"t"."boardId" = $${idx}`; params.push(boardId); idx++; }
+    let cursorCond = `TRUE`;
+    if (cursor) {
+      cursorCond = `("p"."createdAt" < $${idx} OR ("p"."createdAt" = $${idx} AND "p"."id" < $${idx + 1}))`;
+      params.push(new Date(cursor.t), cursor.id); idx += 2;
+    }
+    const limitParam = `$${idx}`; params.push(pageSize + 1);
+    const rows = await db.$queryRawUnsafe<Row[]>(
+      `SELECT "p"."id", "p"."contentMd", "p"."createdAt",\n        "t"."id" AS "threadId", "t"."title" AS "threadTitle",\n        "b"."slug" AS "boardSlug", "b"."name" AS "boardName",\n        "u"."username" AS "authorName", "u"."role" AS "authorRole", "u"."avatarUrl" AS "authorAvatarUrl",\n        GREATEST(similarity("p"."contentMd", $1), 0) AS "sim"\n      FROM "Post" "p"\n      JOIN "Thread" "t" ON "t"."id" = "p"."threadId"\n      JOIN "Board" "b" ON "b"."id" = "t"."boardId"\n      JOIN "User" "u" ON "u"."id" = "p"."authorId"\n      WHERE "p"."status" = 'approved' AND "t"."status" = 'approved' AND ("t"."publishAt" IS NULL OR "t"."publishAt" <= NOW())\n        AND ${boardCond}\n        AND "p"."contentMd" ILIKE $2 ESCAPE '\\'\n        AND ${cursorCond}\n      ORDER BY "sim" DESC, "p"."createdAt" DESC, "p"."id" DESC\n      LIMIT ${limitParam}`,
+      ...params,
+    );
+    const hasMore = rows.length > pageSize;
+    const items = rows.slice(0, pageSize);
+    const last = items[items.length - 1];
+    const nextCursor: string | null = hasMore && last ? encodeCursor({ t: new Date(last.createdAt).toISOString(), id: last.id }) : null;
+    return {
+      items: items.map((p) => ({
+        id: p.id, threadId: p.threadId, threadTitle: p.threadTitle,
+        boardSlug: p.boardSlug, boardName: p.boardName,
+        excerpt: makeExcerpt(p.contentMd, keyword),
+        createdAt: new Date(p.createdAt),
+        authorName: p.authorName, authorRole: p.authorRole,
+        authorAvatarUrl: p.authorAvatarUrl ?? null,
+      })),
+      nextCursor,
+    };
+  } catch {
+    // 回退 Prisma
+  }
   const rows = await db.post.findMany({
     where: {
       contentMd: { contains: q, mode: "insensitive" },
@@ -301,10 +405,18 @@ export async function searchPosts(
 }
 
 export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
+  const nowAll = new Date();
+  try {
+    await db.thread.updateMany({
+      where: { pinnedUntil: { lt: nowAll }, OR: [{ pinned: true }, { globalPinned: true }] },
+      data: { pinned: false, globalPinned: false, pinnedUntil: null },
+    });
+  } catch {}
   const rows = await db.thread.findMany({
     where: {
       globalPinned: false,
       status: "approved",
+      OR: [{ publishAt: null }, { publishAt: { lte: nowAll } }],
       board: { isHidden: false },
       ...(cursor ? { OR: [{ lastPostAt: { lt: new Date(cursor.t) } }, { lastPostAt: new Date(cursor.t), id: { lt: cursor.id } }] } : {}),
     },
@@ -320,7 +432,7 @@ export async function listAllThreads(cursor: Cursor | null, pageSize = 20) {
     ? []
     : (
         await db.thread.findMany({
-          where: { globalPinned: true, status: "approved", board: { isHidden: false } },
+          where: { globalPinned: true, status: "approved", OR: [{ publishAt: null }, { publishAt: { lte: nowAll } }], board: { isHidden: false } },
           orderBy: { lastPostAt: "desc" as const },
           take: 20,
           include: { ...threadInclude, board: { select: { slug: true, name: true } } },
@@ -445,4 +557,36 @@ export async function listPosts(threadId: string, cursor: Cursor | null, viewerI
     }),
   );
   return { items: mapped, nextCursor };
+}
+
+/**
+ * 楼层电梯：算出「第 floor 楼所在页」的 cursor（50 楼/页，升序）。
+ * 第 1 页返回 null（默认地址即第 1 页）。越界返回 null。
+ */
+export async function floorPageCursor(
+  threadId: string,
+  floor: number,
+  opts: { authorId?: string | null; viewerId?: string | null; isStaff?: boolean } = {},
+  pageSize = 50,
+): Promise<string | null> {
+  const f = Math.floor(floor);
+  if (!Number.isFinite(f) || f < 1) return null;
+  const pageStart = Math.floor((f - 1) / pageSize);
+  if (pageStart === 0) return null;
+  const { authorId = null, viewerId = null, isStaff = false } = opts;
+  const statusCond: unknown = isStaff
+    ? { status: { not: "deleted" } }
+    : viewerId
+      ? { OR: [{ status: "approved" }, { status: "pending", authorId: viewerId }] }
+      : { status: "approved" };
+  const prev = await db.post.findMany({
+    where: { threadId, ...(authorId ? { authorId } : {}), ...(statusCond as object) },
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    skip: pageStart * pageSize - 1,
+    take: 1,
+    select: { id: true, createdAt: true },
+  });
+  const row = prev[0];
+  if (!row) return null;
+  return encodeCursor({ t: row.createdAt.toISOString(), id: row.id });
 }

@@ -10,7 +10,7 @@ import { deleteAccountAction, revokeOtherSessionsAction, revokeSessionAction, up
 import { formatDate } from "@/lib/format";
 import { levelForPoints, nextLevelForPoints } from "@/lib/levels";
 import { NOTIFY_GROUPS } from "@/lib/notifications";
-import { updateBioAction, updateNotificationPrefsAction } from "@/app/actions/user";
+import { updateBioAction, updateNotificationPrefsAction, updateTitleAction } from "@/app/actions/user";
 import { changePasswordAction, resendVerificationAction } from "@/app/actions/auth";
 import AuthRequired from "@/components/AuthRequired";
 import AvatarUploader from "@/components/AvatarUploader";
@@ -121,6 +121,7 @@ export default async function SettingsPage({
       points: true,
       bio: true,
       avatarUrl: true,
+      customTitle: true,
       notifyReply: true,
       notifyFollow: true,
       emailNotify: true,
@@ -197,7 +198,7 @@ export default async function SettingsPage({
           <div style={{ flex: 1, minWidth: 220, display: "grid", gap: 5 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <strong style={{ fontSize: 15 }}>{user.username}</strong>
-              <LevelBadge points={user.points} role={user.role} />
+              <LevelBadge points={user.points} role={user.role} customTitle={(user as unknown as { customTitle?: string | null }).customTitle ?? null} />
               {user.emailVerified ? (
                 <span className="chip-success">
                   <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -305,8 +306,19 @@ export default async function SettingsPage({
       }
 
       {/* 个人资料 */}
-      {section === "profile" && <Section title="个人资料" description="头像和简介会展示在主题、回复与个人主页上。">
+      {section === "profile" && <Section title="个人资料" description="头像和简介会展示在主题、回复与个人主页上。自设头衔需正式会员，2-12 字，留空清除。">
         <AvatarUploader username={user.username} initialUrl={user.avatarUrl ? `/api/avatar?file=${encodeURIComponent(user.avatarUrl)}` : null} />
+        <SettingsForm action={updateTitleAction} next="/settings?section=profile" style={{ display: "grid", gap: 8 }}>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>自设头衔（正式会员，2-12 字）</span>
+            <input name="customTitle" maxLength={12} defaultValue={(user as unknown as { customTitle?: string | null }).customTitle ?? ""} placeholder="如：潜水爱好者" style={inputStyle} />
+          </label>
+          <div>
+            <button type="submit" style={{ height: 34, padding: "0 16px", background: "var(--panel)", color: "var(--text)", borderRadius: 8, fontSize: 13, fontWeight: 700, border: "1px solid var(--line)" }}>
+              保存头衔
+            </button>
+          </div>
+        </SettingsForm>
         <SettingsForm action={updateBioAction} next={`/u/${encodeURIComponent(user.username)}?ok=bio_saved`} style={{ display: "grid", gap: 8 }}>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>个人简介（最多 200 字）</span>

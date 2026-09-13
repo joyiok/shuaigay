@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
-import { listPosts, chapterPageCursor } from "@/lib/queries";
+import { listPosts, chapterPageCursor, floorPageCursor } from "@/lib/queries";
 import { decodeCursor } from "@/lib/cursor";
 import { renderMarkdown, linkMentions, collectMentionCandidates } from "@/lib/markdown";
 import { jsonLdHtml } from "@/lib/jsonld";
@@ -22,6 +22,7 @@ import {
   toggleGlobalPinAction,
   toggleLockAction,
   togglePinAction,
+  updateThreadScheduleAction,
 } from "@/app/actions/threads";
 import { toggleFavoriteAction } from "@/app/actions/favorites";
 import ActionToggle from "@/components/ActionToggle";
@@ -71,6 +72,8 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   ratelimited: { title: "手速太快", msg: "操作太频繁，歇会。", tip: "等 1 分钟" },
   duplicate: { title: "这条已经发过了", msg: "检测到两分钟内相同的回复，已阻止重复提交。", tip: "刷新页面查看刚才的回复" },
   file_too_large: { title: "附件太大了", msg: "新手 5MB，正式 20MB。", tip: "压一下图" },
+  invalid_schedule: { title: "定时时间不对", msg: "定时需未来 30 天内，置顶过期需未来 90 天内。", tip: "重新选个时间" },
+  edit_window: { title: "超过可编辑时间", msg: "发帖 24 小时后不能再改，请联系版主。", tip: "找版主帮忙改" },
   unsupported_type: { title: "格式不支持", msg: "只认常见图片。", tip: "换个格式" },
   too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发" },
   captcha_failed: { title: "验证码不对", msg: "验证码错误或已经过期。", tip: "看不清就换一张" },
@@ -196,13 +199,37 @@ export default async function ThreadPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ cursor?: string; error?: string; filter?: string; pending?: string }>;
+  searchParams: Promise<{ cursor?: string; error?: string; filter?: string; pending?: string; floor?: string; scheduled?: string }>;
 }) {
   const { id } = await params;
-  const { cursor: rawCursor, error, filter: rawFilter, pending } = await searchParams;
+  const { cursor: rawCursor, error, filter: rawFilter, pending, floor: rawFloor, scheduled } = await searchParams;
+  // 楼层电梯：?floor=N 无 cursor 时换算成分页 cursor（只看楼主/讨论态透传 author 过滤）
+  let effectiveCursor = rawCursor;
+  let targetFloor: number | null = null;
+  if (rawFloor && !rawCursor) {
+    const f = Math.floor(Number(rawFloor));
+    if (Number.isFinite(f) && f >= 1 && f <= 100000) {
+      targetFloor = f;
+      try {
+        const stub = await db.thread.findUnique({ where: { id: parseThreadId(id) }, select: { id: true, authorId: true, board: { select: { slug: true } } } });
+        if (stub) {
+          const isNovelStub = stub.board.slug === "novel";
+          const opOnlyStub = isNovelStub ? rawFilter !== "discussion" : rawFilter === "op";
+          const meStub = await getCurrentUser().catch(() => null);
+          const staffStub = meStub ? (meStub.role === "ADMIN" || await isBoardModerator(meStub.id, (await db.thread.findUnique({ where: { id: stub.id }, select: { boardId: true } }).catch(() => null))?.boardId ?? "")) : false;
+          const c = await floorPageCursor(stub.id, f, { authorId: opOnlyStub ? stub.authorId : null, viewerId: meStub?.id ?? null, isStaff: staffStub }).catch(() => null);
+          if (c) effectiveCursor = c;
+          else if (f <= 50) effectiveCursor = undefined;
+        }
+      } catch {}
+    }
+  } else if (rawFloor) {
+    const f = Math.floor(Number(rawFloor));
+    if (Number.isFinite(f) && f >= 1) targetFloor = f;
+  }
   let loaded: Awaited<ReturnType<typeof loadThreadPage>>;
   try {
-    loaded = await loadThreadPage(id, decodeCursor(rawCursor), rawFilter);
+    loaded = await loadThreadPage(id, decodeCursor(effectiveCursor), rawFilter);
   } catch {
     return <ErrorState title="加载主题失败" description="数据库暂时不可用，请稍后重试或返回首页。" code={500} />;
   }
@@ -218,6 +245,9 @@ export default async function ThreadPage({
   // 回收站里的主题：只有版主/管理员能看（用于判断是否恢复），普通访客一律 404
   const trashed = (thread as unknown as { status: string }).status === "deleted";
   if (trashed && !isBoardStaff) notFound();
+  // 定时发布：到点前仅作者与 staff 可见，其余 404（列表已过滤，此处防直链）
+  const publishAt = (thread as unknown as { publishAt?: Date | string | null }).publishAt ?? null;
+  if (publishAt && new Date(publishAt).getTime() > Date.now() && user?.id !== thread.authorId && !isBoardStaff) notFound();
 
   // 游客试读额度：未登录 + 非爬虫 + 后台开启时计数，超限拦去登录（登录态/爬虫不受影响）
   // 计数 cookie 由 proxy 滚动（Server Component 内只允许读），Redis 按 IP 计日次为主
@@ -255,7 +285,7 @@ export default async function ThreadPage({
   const currentViews = (thread as unknown as { views: number }).views ?? 0;
   void db.thread.update({ where: { id: thread.id }, data: { views: { increment: 1 } } }).catch(() => {});
   (thread as unknown as { views: number }).views = currentViews + 1;
-  const canReplyNow = canReply(user, thread) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
+  const canReplyNow = canReply(user, thread, { isModerator: isBoardStaff }) && !((thread as unknown as { board: { isLocked: boolean } }).board.isLocked && !isBoardStaff);
   const captchaEnabled = canReplyNow ? (await getCachedSiteSettings()).captchaEnabled : false;
   const authorIds = [...new Set(items.map((p) => p.authorId))];
   const medalsByUser = authorIds.length ? await db.userMedal.findMany({ where: { userId: { in: authorIds } }, include: { medal: true } }).then((rows: any[]) => {
@@ -271,7 +301,7 @@ export default async function ThreadPage({
 
   // 继续阅读：小说首屏给入口（进度来自服务端，跨设备）
   let resumeReading: { chapter: number; href: string } | null = null;
-  if (paged && !rawCursor && user) {
+  if (paged && !effectiveCursor && user) {
     const progress = await getProgress(user.id, thread.id).catch(() => null);
     if (progress && progress.chapter > 1) {
       const cursor = await chapterPageCursor(thread.id, thread.authorId, progress.chapter).catch(() => null);
@@ -379,6 +409,9 @@ export default async function ThreadPage({
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 6 }}>
           <h1 style={{ fontSize: isNovel ? 28 : 18, fontWeight: 800, margin: 0, lineHeight: 1.4 }}>{thread.title}</h1>
           {(thread as any).status === "pending" && <span className="topic-badge pending">待审</span>}
+          {(thread as unknown as { publishAt?: Date | string | null }).publishAt && new Date((thread as unknown as { publishAt: Date | string }).publishAt).getTime() > Date.now() && (
+            <span className="topic-badge pending" title={`定时发布：${formatDate(new Date((thread as unknown as { publishAt: Date | string }).publishAt))}`}>定时待发</span>
+          )}
           {thread.pinned && <span className="topic-badge pinned">置顶</span>}
           {thread.globalPinned && <span className="topic-badge pinned">全局置顶</span>}
           {thread.digested && <span className="topic-badge digest">精华</span>}
@@ -454,7 +487,7 @@ export default async function ThreadPage({
             />
           </div>
         )}
-        <div className={isNovel ? "novel-view-tabs" : undefined} style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap" }}>
+        <div className={isNovel ? "novel-view-tabs" : undefined} style={{ display: "flex", gap: 8, marginTop: user ? 8 : 10, flexWrap: "wrap", alignItems: "center" }}>
           {isNovel ? (
             <>
               <Link href={threadHref(thread.id, thread.title)} className={`tab ${opOnly ? "active" : ""}`}>章节阅读</Link>
@@ -479,7 +512,29 @@ export default async function ThreadPage({
               {opOnly ? "只看楼主 ✓" : "只看楼主"}
             </Link>
           )}
+          <form method="get" action={threadHref(thread.id, thread.title)} style={{ display: "inline-flex", gap: 4, alignItems: "center", marginLeft: "auto" }} aria-label="楼层电梯">
+            {rawFilter && <input type="hidden" name="filter" value={rawFilter} />}
+            <label htmlFor="floor-jump" style={{ fontSize: 11, color: "var(--text-subtle)" }}>跳楼</label>
+            <input id="floor-jump" name="floor" type="number" min={1} max={100000} defaultValue={targetFloor ?? undefined} placeholder="#" required style={{ width: 64, height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12, padding: "0 8px" }} />
+            <button type="submit" style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>GO</button>
+          </form>
         </div>
+        {isBoardStaff && (
+          <SubmissionForm action={updateThreadScheduleAction} style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line-soft)" }}>
+            <input type="hidden" name="threadId" value={thread.id} />
+            <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-subtle)" }}>定时：</span>
+            <label style={{ display: "inline-flex", gap: 4, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
+              发布
+              <input type="datetime-local" name="publishAt" defaultValue={(thread as unknown as { publishAt?: Date | string | null }).publishAt ? new Date((thread as unknown as { publishAt: Date | string }).publishAt).toISOString().slice(0, 16) : ""} style={{ height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }} />
+            </label>
+            <label style={{ display: "inline-flex", gap: 4, alignItems: "center", fontSize: 11, color: "var(--text-muted)" }}>
+              置顶到
+              <input type="datetime-local" name="pinnedUntil" defaultValue={(thread as unknown as { pinnedUntil?: Date | string | null }).pinnedUntil ? new Date((thread as unknown as { pinnedUntil: Date | string }).pinnedUntil).toISOString().slice(0, 16) : ""} style={{ height: 28, border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }} />
+            </label>
+            <button type="submit" style={{ height: 28, padding: "0 10px", border: "1px solid var(--line)", borderRadius: 6, background: "var(--panel)", fontSize: 12 }}>保存定时</button>
+            <span style={{ fontSize: 10, color: "var(--text-subtle)" }}>留空=取消定时；发布30天/置顶90天内</span>
+          </SubmissionForm>
+        )}
       </div>
 
       {error && ERRORS[error] && (
@@ -488,13 +543,19 @@ export default async function ThreadPage({
       {pending && (
         <p className="notice-pending">内容已提交，待版主/管理员审核后可见</p>
       )}
+      {(scheduled || ((thread as unknown as { publishAt?: Date | string | null }).publishAt && new Date((thread as unknown as { publishAt: Date | string }).publishAt).getTime() > Date.now())) && (
+        <p className="notice-pending">⏰ 定时帖：到 {formatDate(new Date((thread as unknown as { publishAt: Date | string }).publishAt))} 自动发布，到点前仅你与版主可见</p>
+      )}
+      {targetFloor && (
+        <p style={{ margin: 0, fontSize: 12, color: "var(--text-subtle)" }}>已定位到第 {targetFloor} 楼附近（高亮显示）</p>
+      )}
 
       {isNovel && opOnly && chapters.length > 0 && (
         <NovelReader
           chapters={chapters}
           threadId={thread.id}
           resume={resumeReading}
-          hasPrevPage={!!rawCursor}
+          hasPrevPage={!!effectiveCursor}
           hasNextPage={!!nextCursor}
           nextHref={nextCursor ? `${threadHref(thread.id, thread.title)}?cursor=${nextCursor}` : null}
           threadHref={threadHref(thread.id, thread.title)}
@@ -510,16 +571,17 @@ export default async function ThreadPage({
       >
         <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
           {items.map((p, idx) => {
-            const isFirstPost = idx === 0 && !rawCursor;
+            const isFirstPost = idx === 0 && !effectiveCursor;
             const deletable = canDeletePost(user, p, { isFirstPost, threadLocked: thread.locked, staff: isBoardStaff });
-            const editable = canEditPost(user, p, { threadLocked: thread.locked });
+            const editable = canEditPost(user, p, { threadLocked: thread.locked, staff: isBoardStaff });
             const canRate = !!user && user.id !== p.authorId;
+            const isTargetFloor = targetFloor !== null && idx === (targetFloor - 1) % 50;
             return (
-              <li key={p.id} id={`post-${p.id}`} className={`thread-post${isNovel && p.authorId === thread.authorId ? " novel-chapter" : ""}`}>
+              <li key={p.id} id={`post-${p.id}`} className={`thread-post${isNovel && p.authorId === thread.authorId ? " novel-chapter" : ""}`} style={isTargetFloor ? { outline: "2px solid var(--brand)", outlineOffset: -2, borderRadius: 8, background: "var(--brand-soft)" } : undefined}>
                 <div className="post-head">
                   <UserAvatar username={p.authorName} avatarUrl={p.authorAvatarUrl} size={40} radius={10} />
                   <span style={{ fontWeight: 700 }}>{p.authorName}</span>
-                  <LevelBadge points={p.authorPoints} role={p.authorRole} />
+                  <LevelBadge points={p.authorPoints} role={p.authorRole} customTitle={(p as unknown as { authorCustomTitle?: string | null }).authorCustomTitle ?? null} />
                   {(medalsByUser.get(p.authorId) ?? []).map((med: any) => (
                     <span key={med.id} className="post-medal" title={`${med.name} · ${med.description ?? ""}`} style={{ background: med.color }}>{med.icon} {med.name}</span>
                   ))}

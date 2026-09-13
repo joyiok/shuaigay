@@ -101,6 +101,7 @@ export async function GET(
   }
 
   // 非图片/非 PDF 一律 attachment 下载，避免浏览器内渲染文本类附件
+  // 纵深防御：即使 Content-Type 被嗅探，也用 sandbox + nosniff + 拒绝嵌框，防存储型 XSS
   const inline = att.mimeType.startsWith("image/") || att.mimeType === "application/pdf";
   return new Response(new Uint8Array(data), {
     headers: {
@@ -109,6 +110,10 @@ export async function GET(
       "Content-Disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(att.fileName)}`,
       "Cache-Control": "public, max-age=31536000, immutable",
       "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data: blob:; frame-ancestors 'none'",
+      "X-Frame-Options": "DENY",
+      "Cross-Origin-Resource-Policy": "same-origin",
+      "Referrer-Policy": "no-referrer",
     },
   });
 }

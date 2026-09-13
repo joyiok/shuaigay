@@ -22,6 +22,10 @@ import WebVitals from "@/components/WebVitals";
 import CheckInCard from "@/components/CheckInCard";
 import { getCheckInState, type CheckInState } from "@/lib/checkin";
 import ForumNav from "@/components/ForumNav";
+import AnnouncementBanner from "@/components/AnnouncementBanner";
+import ThemeToggle from "@/components/ThemeToggle";
+import PwaRegister from "@/components/PwaRegister";
+import { buildBoardTree, groupBoards } from "@/lib/boards";
 
 const site = siteUrl();
 const siteOrigin = site.origin;
@@ -39,6 +43,8 @@ export async function generateMetadata(): Promise<Metadata> {
     category: "community",
     alternates: { canonical: siteOrigin, types: { "application/rss+xml": `${siteOrigin}/rss.xml`, "application/atom+xml": `${siteOrigin}/atom.xml`, "application/feed+json": `${siteOrigin}/feed.json` } },
     icons: settings.logoUrl ? { icon: settings.logoUrl } : undefined,
+    manifest: "/manifest.webmanifest",
+    appleWebApp: { capable: true, statusBarStyle: "default", title: settings.siteName },
     openGraph: {
       type: "website",
       siteName: settings.siteName,
@@ -64,8 +70,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export const viewport: Viewport = {
-  themeColor: "#6951c6",
-  colorScheme: "light",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0056b3" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+  ],
+  colorScheme: "light dark",
   width: "device-width",
   initialScale: 1,
 };
@@ -160,8 +169,14 @@ export default async function RootLayout({
   };
 
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
+        <script
+          // 首屏前应用主题，防闪白；localStorage 不可用时跟随系统
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("sg:theme")||"system";var d=t==="dark"||(t==="system"&&matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.dataset.theme=d?"dark":"light";document.documentElement.style.colorScheme=d?"dark":"light";}catch(e){}})();`,
+          }}
+        />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(websiteJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(organizationJsonLd) }} />
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdHtml(breadcrumbJsonLd) }} />
@@ -170,6 +185,7 @@ export default async function RootLayout({
         <a href="#main-content" className="skip-link">
           跳到主内容
         </a>
+        <AnnouncementBanner announcement={announcement ? { id: announcement.id, title: announcement.title, pinned: (announcement as unknown as { pinned?: boolean }).pinned } : null} />
         {/* 顶部栏 - 经典论坛深蓝条 */}
         <header className="site-header top">
           <div className="bar">
@@ -191,6 +207,7 @@ export default async function RootLayout({
             />
             <ForumNav boards={boards.map((b) => ({ slug: b.slug, name: b.name }))} />
             <SearchAutocomplete variant="header" placeholder="搜索关键词" />
+            <ThemeToggle />
             <div className="nav-mine" style={{ display: "flex", alignItems: "center" }}>
               {user ? (
                 <>
@@ -327,20 +344,41 @@ export default async function RootLayout({
                 </div>
               </div>
 
-              {/* 热门话题 — 版块 + 热帖分开，信息更清晰 */}
+              {/* 热门话题 — 版块按分区、分父子展示，信息更清晰 */}
               <div className="card">
                 <div className="quick-wrap">
                   <div className="quick-title">热门话题 <Link href="/hot">热榜 →</Link></div>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: hotTopics.length ? 13 : 0 }}>
-                    {boards.map((b) => (
-                      <Link key={b.id} href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as any)._count.threads} 主题`} className="side-chip">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={(b as any).isLocked ? "/icons/folder-lock.svg" : "/icons/folder.svg"} alt="" width={14} height={14} style={{ flexShrink: 0 }} aria-hidden="true" />
-                        <span style={{ fontWeight: 700 }}>{b.name}</span>
-                        <span className="count">{(b as any)._count.threads}</span>
-                      </Link>
-                    ))}
-                  </div>
+                  {(() => {
+                    const groups = groupBoards(boards as unknown as Parameters<typeof groupBoards>[0]);
+                    return groups.map((g) => {
+                      const tree = buildBoardTree(g.boards);
+                      return (
+                        <div key={g.group} style={{ marginBottom: 10 }}>
+                          {groups.length > 1 && (
+                            <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-subtle)", letterSpacing: "0.06em", marginBottom: 6 }}>{g.group}</div>
+                          )}
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginBottom: 4 }}>
+                            {tree.map((b) => (
+                              <span key={b.id} style={{ display: "inline-flex", flexWrap: "wrap", gap: 7, alignItems: "center" }}>
+                                <Link href={`/c/${b.slug}`} prefetch={false} title={`${b.name} · ${(b as unknown as { _count?: { threads?: number } })._count?.threads ?? 0} 主题`} className="side-chip">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={(b as unknown as { isLocked?: boolean }).isLocked ? "/icons/folder-lock.svg" : "/icons/folder.svg"} alt="" width={14} height={14} style={{ flexShrink: 0 }} aria-hidden="true" />
+                                  <span style={{ fontWeight: 700 }}>{b.name}</span>
+                                  <span className="count">{(b as unknown as { _count?: { threads?: number } })._count?.threads ?? 0}</span>
+                                </Link>
+                                {(b.children ?? []).map((sub) => (
+                                  <Link key={sub.id} href={`/c/${sub.slug}`} prefetch={false} title={`${b.name} / ${sub.name}`} className="side-chip" style={{ opacity: 0.85 }}>
+                                    <span style={{ color: "var(--text-subtle)" }}>└</span>
+                                    <span style={{ fontWeight: 600 }}>{sub.name}</span>
+                                  </Link>
+                                ))}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    });
+                  })()}
                   {hotTopics.length > 0 && (
                     <>
                       <div style={{ fontSize: 11, fontWeight: 800, color: "var(--text-subtle)", letterSpacing: "0.06em", marginBottom: 8, display: "flex", alignItems: "center", gap: 7 }}>
@@ -454,6 +492,7 @@ export default async function RootLayout({
           </div>
         </footer>
         {reqHeaders.get("x-doc") === "1" && <WebVitals path={docPath} />}
+        <PwaRegister />
       </body>
     </html>
   );

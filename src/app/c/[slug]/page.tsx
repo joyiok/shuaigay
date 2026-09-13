@@ -63,9 +63,13 @@ export default async function BoardPage({
   const viewerIsStaff = isAdmin(viewer) || (viewer ? await isBoardModerator(viewer.id, board.id) : false);
   if ((board as unknown as { isHidden: boolean }).isHidden && !viewerIsStaff) notFound();
 
-  const [categories, moderators] = await Promise.all([
+  const [categories, moderators, parent, children] = await Promise.all([
     db.threadCategory.findMany({ where: { boardId: board.id }, orderBy: { order: "asc" } }),
     listBoardModerators(board.id),
+    (board as unknown as { parentId?: string | null }).parentId
+      ? db.board.findUnique({ where: { id: (board as unknown as { parentId: string }).parentId }, select: { slug: true, name: true } }).catch(() => null)
+      : Promise.resolve(null),
+    db.board.findMany({ where: { parentId: board.id }, orderBy: { order: "asc" }, select: { slug: true, name: true, _count: { select: { threads: true } } } }).catch(() => []),
   ]);
   const categoryId = rawCat && categories.some((c) => c.id === rawCat) ? rawCat : null;
 
@@ -121,10 +125,32 @@ export default async function BoardPage({
           <Link itemProp="item" href="/"><span itemProp="name">首页</span></Link><meta itemProp="position" content="1" />
         </span>
         <span>/</span>
+        {parent && (
+          <>
+            <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
+              <Link itemProp="item" href={`/c/${parent.slug}`}><span itemProp="name">{parent.name}</span></Link><meta itemProp="position" content="2" />
+            </span>
+            <span>/</span>
+          </>
+        )}
         <span itemProp="itemListElement" itemScope itemType="https://schema.org/ListItem">
-          <Link itemProp="item" href={`/c/${board.slug}`} style={{ fontWeight: 600, color: "var(--text)" }}><span itemProp="name">{board.name}</span></Link><meta itemProp="position" content="2" />
+          <Link itemProp="item" href={`/c/${board.slug}`} style={{ fontWeight: 600, color: "var(--text)" }}><span itemProp="name">{board.name}</span></Link><meta itemProp="position" content={parent ? "3" : "2"} />
         </span>
+        {(board as unknown as { group?: string }).group && (board as unknown as { group: string }).group !== "默认分区" && (
+          <span style={{ fontSize: 11, color: "var(--text-subtle)", border: "1px solid var(--line-soft)", borderRadius: 999, padding: "1px 8px" }}>{(board as unknown as { group: string }).group}</span>
+        )}
       </div>
+      {children.length > 0 && (
+        <div style={{ display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" }} aria-label="子版块">
+          <span style={{ fontSize: 11, fontWeight: 800, color: "var(--text-subtle)" }}>子版块</span>
+          {children.map((sub) => (
+            <Link key={sub.slug} href={`/c/${sub.slug}`} prefetch={false} className="side-chip" title={`${sub.name} · ${sub._count.threads} 主题`}>
+              <span style={{ fontWeight: 700 }}>{sub.name}</span>
+              <span className="count">{sub._count.threads}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <div className={`card${isNovel ? " novel-library-head" : ""}`} style={{ padding: 14, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
         <div style={{ minWidth: 0, flex: 1 }}>

@@ -335,6 +335,17 @@ export async function adminUpdateUserAction(formData: FormData): Promise<void> {
     data.email = email;
   }
   if (formData.has("bio")) data.bio = bio;
+  if (formData.has("customTitle")) {
+    const rawTitle = String(formData.get("customTitle") ?? "").trim();
+    if (!rawTitle) {
+      data.customTitle = null;
+    } else {
+      if (rawTitle.length < 2 || rawTitle.length > 12) redirect(ADMIN_TAB("users") + "&error=invalid");
+      const { containsSensitive } = await import("@/lib/sensitive");
+      if (await containsSensitive(rawTitle)) redirect(ADMIN_TAB("users") + "&error=sensitive");
+      data.customTitle = rawTitle;
+    }
+  }
   if (Object.keys(data).length === 0) redirect(ADMIN_TAB("users") + "&error=invalid");
   await db.user.update({ where: { id: userId }, data });
   await db.auditLog.create({ data: { actorId, action: "update_user", targetType: "user", targetId: userId, detail: JSON.stringify(data).slice(0, 100) } }).catch(() => {});
@@ -370,6 +381,7 @@ const boardSlugSchema = z
   .regex(/^[a-z0-9-]{1,32}$/);
 const boardNameSchema = z.string().trim().min(1).max(30);
 const boardDescSchema = z.string().trim().max(200).optional();
+const boardGroupSchema = z.string().trim().min(1).max(20).optional();
 
 export async function createBoardAction(formData: FormData): Promise<void> {
   const actorId = await requireAdmin();
@@ -381,6 +393,16 @@ export async function createBoardAction(formData: FormData): Promise<void> {
     redirect(ADMIN_TAB("boards") + "&error=invalid");
   }
 
+  const group = boardGroupSchema.safeParse(formData.get("group") ?? "");
+  const rawParent = String(formData.get("parentId") ?? "").trim();
+  let parentId: string | null = null;
+  if (rawParent) {
+    const parent = await db.board.findUnique({ where: { id: rawParent }, select: { id: true, parentId: true } });
+    if (!parent) redirect(ADMIN_TAB("boards") + "&error=not_found");
+    // 仅允许一层：父版块本身不能是子版块，防止无限嵌套
+    if (parent.parentId) redirect(ADMIN_TAB("boards") + "&error=invalid");
+    parentId = parent.id;
+  }
   const existing = await db.board.findUnique({
     where: { slug: slug.data },
     select: { id: true },
@@ -393,6 +415,8 @@ export async function createBoardAction(formData: FormData): Promise<void> {
       name: name.data,
       description: description.data || null,
       order: order.data,
+      group: group.success && group.data ? group.data : "默认分区",
+      parentId,
     },
   });
   await db.auditLog.create({ data: { actorId, action: "create_board", targetType: "board", detail: slug.data } }).catch(() => {});
@@ -638,7 +662,31 @@ export async function updateBoardAction(formData: FormData): Promise<void> {
   if (!board) redirect(ADMIN_TAB("boards") + "&error=not_found");
   const dup = await db.board.findFirst({ where: { slug: slug.data, id: { not: boardId } }, select: { id: true } });
   if (dup) redirect(ADMIN_TAB("boards") + "&error=slug_taken");
-  await db.board.update({ where: { id: boardId }, data: { slug: slug.data, name: name.data, description: description.data || null } });
+  const groupUp = boardGroupSchema.safeParse(formData.get("group") ?? "");
+  const rawParentUp = String(formData.get("parentId") ?? "").trim();
+  let parentUp: string | null | undefined = undefined;
+  if (formData.has("parentId")) {
+    if (!rawParentUp) parentUp = null;
+    else {
+      if (rawParentUp === boardId) redirect(ADMIN_TAB("boards") + "&error=invalid");
+      const parent = await db.board.findUnique({ where: { id: rawParentUp }, select: { id: true, parentId: true } });
+      if (!parent || parent.parentId) redirect(ADMIN_TAB("boards") + "&error=invalid");
+      // 不允许把有子版块的版块挂到别人下面（保持一层）
+      const kids = await db.board.count({ where: { parentId: boardId } });
+      if (kids > 0) redirect(ADMIN_TAB("boards") + "&error=invalid");
+      parentUp = parent.id;
+    }
+  }
+  await db.board.update({
+    where: { id: boardId },
+    data: {
+      slug: slug.data,
+      name: name.data,
+      description: description.data || null,
+      ...(groupUp.success && groupUp.data ? { group: groupUp.data } : {}),
+      ...(parentUp !== undefined ? { parentId: parentUp } : {}),
+    },
+  });
   await db.auditLog.create({ data: { actorId, action: "update_board", targetType: "board", targetId: boardId, detail: slug.data } }).catch(() => {});
   logger.info("admin.update_board", { actorId, boardId, slug: slug.data });
   revalidateTag("boards");

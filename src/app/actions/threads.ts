@@ -37,6 +37,7 @@ import {
   type StorageDriver,
 } from "@/lib/storage";
 import { sniffMime } from "@/lib/filetype";
+import { pdfHasJavaScript, scanAttachment } from "@/lib/attachment-scan";
 import { collectMentionCandidates } from "@/lib/markdown";
 import {
   excerptForNotify,
@@ -79,6 +80,20 @@ async function prepareFiles(
     const buf = Buffer.from(await file.arrayBuffer());
     const mime = sniffMime(buf);
     if (!mime) return { files: [], error: "unsupported_type" };
+    const verdict = scanAttachment(buf, mime);
+    if (!verdict.ok) {
+      const { logger } = await import("@/lib/logger");
+      logger.info("attachment.rejected", { fileName: file.name.slice(0, 80), mime, reason: verdict.reason, size: buf.length });
+      // 炸弹图/超大图按太大提示，其余按不支持类型提示（复用前端现有文案）
+      if (verdict.reason === "image_too_large" || verdict.reason === "image_bomb") {
+        return { files: [], error: "file_too_large" };
+      }
+      return { files: [], error: "unsupported_type" };
+    }
+    if (mime === "application/pdf" && pdfHasJavaScript(buf)) {
+      const { logger } = await import("@/lib/logger");
+      logger.info("attachment.pdf_with_js", { fileName: file.name.slice(0, 80), size: buf.length });
+    }
     prepared.push({
       buf,
       mime,
@@ -154,6 +169,19 @@ export async function createThreadAction(formData: FormData): Promise<string> {
   const board = await db.board.findUnique({ where: { slug: boardSlug } });
   if (!board) redirect("/?error=board_not_found");
   if (!title.success || !content.success) redirect(`/c/${board.slug}/new?error=invalid`);
+  // 定时发布（可选）：datetime-local，未来 30 天内；非法值忽略（按立即发布）
+  let publishAt: Date | null = null;
+  const rawPublish = String(formData.get("publishAt") ?? "").trim();
+  if (rawPublish) {
+    const ts = new Date(rawPublish).getTime();
+    if (Number.isFinite(ts) && ts > Date.now() && ts <= Date.now() + 30 * 24 * 3600 * 1000) {
+      publishAt = new Date(ts);
+    } else if (Number.isFinite(ts) && ts <= Date.now()) {
+      publishAt = null;
+    } else {
+      redirect(`/c/${board.slug}/new?error=invalid_schedule`);
+    }
+  }
   const _isStaffForCreate = isAdmin(user) || (await isBoardModerator(user.id, board.id));
   if ((board as unknown as { isHidden: boolean }).isHidden && !_isStaffForCreate) redirect("/?error=not_found");
   if ((board as unknown as { isLocked: boolean }).isLocked && !_isStaffForCreate) redirect(`/c/${board.slug}/new?error=board_locked`);
@@ -237,6 +265,7 @@ export async function createThreadAction(formData: FormData): Promise<string> {
           title: title.data,
           categoryId,
           status: threadStatus,
+          publishAt,
           posts: {
             create: {
               authorId: user.id,
@@ -299,7 +328,7 @@ export async function createThreadAction(formData: FormData): Promise<string> {
       return t;
     });
     threadId = thread.id;
-    logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip, status: threadStatus, reason: pendingReason });
+    logger.info("thread.create", { userId: user.id, threadId, board: board.slug, ip, status: threadStatus, reason: pendingReason, scheduled: !!publishAt });
     // 记录活跃 IP
     void db.user.update({ where: { id: user.id }, data: { lastActiveIp: ip, lastActiveAt: new Date() } }).catch(() => {});
     void db.userIpLog.create({ data: { userId: user.id, ip, action: "post" } }).catch(() => {});
@@ -317,7 +346,7 @@ export async function createThreadAction(formData: FormData): Promise<string> {
     logger.error("thread.create_failed", { userId: user.id, error: String(e) });
     throw e;
   }
-  return pending ? `/c/${board.slug}?pending=1` : `/t/${threadId}`;
+  return pending ? `/c/${board.slug}?pending=1` : publishAt ? `/t/${threadId}?scheduled=1` : `/t/${threadId}`;
 }
 
 export async function replyAction(formData: FormData): Promise<string> {
@@ -337,8 +366,9 @@ export async function replyAction(formData: FormData): Promise<string> {
     },
   });
   if (!thread) redirect("/");
-  if (!canReply(user, thread)) redirect(`/t/${thread.id}?error=locked`);
-  const _isStaffReply = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  const _isStaffReplyEarly = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  if (!canReply(user, thread, { isModerator: _isStaffReplyEarly })) redirect(`/t/${thread.id}?error=locked`);
+  const _isStaffReply = _isStaffReplyEarly;
   if ((thread.board as unknown as { isHidden: boolean }).isHidden && !_isStaffReply) redirect("/");
   if ((thread.board as unknown as { isLocked: boolean }).isLocked && !_isStaffReply) redirect(`/t/${thread.id}?error=board_locked`);
 
@@ -536,7 +566,20 @@ export async function editPostAction(formData: FormData): Promise<void> {
   });
   if (!post) redirect("/");
 
-  if (!canEditPost(user, post, { threadLocked: post.thread.locked })) {
+  let _staffEdit = isAdmin(user);
+  if (!_staffEdit) {
+    try {
+      const t = await db.thread.findUnique({ where: { id: post.threadId }, select: { boardId: true } });
+      if (t) _staffEdit = await isBoardModerator(user.id, t.boardId);
+    } catch {}
+  }
+  if (!canEditPost(user, post, { threadLocked: post.thread.locked, staff: _staffEdit })) {
+    // 超窗编辑给明确提示，前端 ERRORS 需有 edit_window（无则回退 forbidden）
+    const { isEditWindowOpen } = await import("@/lib/permissions");
+    const windowOpen = isEditWindowOpen(post.createdAt);
+    if (!windowOpen && post.authorId === user.id && !_staffEdit) {
+      redirect(`/t/${post.threadId}?error=edit_window`);
+    }
     redirect(`/t/${post.threadId}?error=forbidden`);
   }
 
@@ -807,6 +850,45 @@ export async function moveThreadAction(formData: FormData): Promise<string> {
   logger.info("thread.move", { userId: user.id, threadId, from: thread.board.slug, to: target.slug });
   revalidateTag("threads");
   revalidateTag("boards");
+  revalidatePath(`/t/${thread.id}`);
+  revalidatePath("/");
+  return `/t/${thread.id}`;
+}
+
+/**
+ * 版主/管理员调整定时发布与置顶过期（P1）。
+ * - publishAt 空 = 立即发布；未来 30 天内 = 定时；过去 = 立即
+ * - pinnedUntil 空 = 常置顶；未来 = 到点自动脱钩；过去 = 立即脱钩
+ */
+export async function updateThreadScheduleAction(formData: FormData): Promise<string> {
+  const user = await getCurrentUser();
+  if (!user) return "/";
+  const threadId = String(formData.get("threadId") ?? "");
+  const thread = await db.thread.findUnique({
+    where: { id: threadId },
+    select: { id: true, board: { select: { id: true } } },
+  });
+  if (!thread) return "/";
+  const isStaff = isAdmin(user) || (await isBoardModerator(user.id, thread.board.id));
+  if (!isStaff) return `/t/${threadId}?error=forbidden`;
+  const parseOptionalFuture = (v: FormDataEntryValue | null, maxDays: number): Date | null | "invalid" => {
+    const raw = String(v ?? "").trim();
+    if (!raw) return null;
+    const ts = new Date(raw).getTime();
+    if (!Number.isFinite(ts)) return "invalid";
+    if (ts <= Date.now()) return null;
+    if (ts > Date.now() + maxDays * 24 * 3600 * 1000) return "invalid";
+    return new Date(ts);
+  };
+  const publishAt = parseOptionalFuture(formData.get("publishAt"), 30);
+  const pinnedUntil = parseOptionalFuture(formData.get("pinnedUntil"), 90);
+  if (publishAt === "invalid" || pinnedUntil === "invalid") return `/t/${threadId}?error=invalid_schedule`;
+  await db.thread.update({ where: { id: thread.id }, data: { publishAt, pinnedUntil } });
+  await db.auditLog
+    .create({ data: { actorId: user.id, action: "update_schedule", targetType: "thread", targetId: thread.id, detail: `publishAt=${publishAt?.toISOString() ?? "-"} pinnedUntil=${pinnedUntil?.toISOString() ?? "-"}` } })
+    .catch(() => {});
+  logger.info("thread.schedule", { userId: user.id, threadId });
+  revalidateTag("threads");
   revalidatePath(`/t/${thread.id}`);
   revalidatePath("/");
   return `/t/${thread.id}`;
