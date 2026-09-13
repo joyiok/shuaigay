@@ -1,6 +1,6 @@
 # SHUAI GAY 论坛
 
-原创极简风格的高性能论坛 — 基于 Next.js 15 + Prisma + PostgreSQL + Redis + Caddy。
+原创极简风格的高性能论坛 — 基于 Next.js 16 + Prisma + PostgreSQL + Redis + Caddy。
 
 ## 一键部署
 
@@ -116,6 +116,8 @@ npm run dev    # http://localhost:3000
 
 邮件: 开发环境未配置 `SMTP_URL` 时内容以 `email.mock` JSON 打印到日志；生产环境必须配置 SMTP，否则注册验证和重发会明确失败。
 
+验证码: 内置五位数字验证码，不需要 Cloudflare 密钥。默认开启，覆盖登录、注册、发主题和回复；管理员可在「站点设置 → 安全验证」关闭。验证码五分钟内有效且只能使用一次，开启时依赖 Redis。
+
 封禁: 管理后台 → 用户管理 → 封禁/解封(可填天数,留空=永久),被封用户登录时 403,已登录会话的发帖/回帖/私信同样会被拦截。
 
 敏感词: 管理后台 → 敏感词,增删后 1 分钟内生效(内存缓存)。
@@ -133,7 +135,7 @@ npm run dev    # http://localhost:3000
 ## 运维
 
 - 附件: `STORAGE_DRIVER=local`, 宿主机 `./uploads` 映射到容器 `/srv/uploads`,Caddy 直出。
-- 限流/在线: 依赖 Redis,未配置或故障时自动降级放行。
+- Redis: 限流和在线统计在故障时自动降级；验证码开启时会安全拒绝验证，恢复 Redis 或在后台关闭验证码后才可继续提交受保护表单。
 - 站点 URL: `SITE_URL` 缺省时用 `forum.example.com` 占位,生产必须覆盖。
 
 ## 许可证
