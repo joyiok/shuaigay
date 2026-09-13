@@ -188,7 +188,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           load: false
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
           tags: |
             ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
             ghcr.io/${{ github.repository }}:latest
@@ -202,7 +202,7 @@ jobs:
           push: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
           load: false
           cache-from: type=gha,scope=backup
-          cache-to: type=gha,mode=max,scope=backup
+          cache-to: type=gha,mode=min,scope=backup
           tags: |
             ghcr.io/${{ github.repository }}-backup:sha-${{ github.sha }}
             ghcr.io/${{ github.repository }}-backup:latest

@@ -94,6 +94,10 @@ export const getCurrentUser = cache(
       await db.session.delete({ where: { id: session.id } }).catch(() => {});
       return null;
     }
+    if (session.user.deletedAt) {
+      await db.session.delete({ where: { id: session.id } }).catch(() => {});
+      return null;
+    }
     // 活跃时间：5 分钟粒度更新，供「登录设备」展示与邮件提醒判断在线状态
     if (Date.now() - session.lastSeenAt.getTime() > 5 * 60_000) {
       void db.session.update({ where: { id: session.id }, data: { lastSeenAt: new Date() } }).catch(() => {});

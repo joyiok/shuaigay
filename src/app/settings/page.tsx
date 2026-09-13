@@ -6,7 +6,7 @@ import { cookies } from "next/headers";
 import { createHash } from "node:crypto";
 import { listBlocked } from "@/lib/block";
 import { unblockUserAction } from "@/app/actions/block";
-import { revokeOtherSessionsAction, revokeSessionAction, updateEmailAction, updateNotifyPrefsAction } from "@/app/actions/account";
+import { deleteAccountAction, revokeOtherSessionsAction, revokeSessionAction, updateEmailAction, updateNotifyPrefsAction } from "@/app/actions/account";
 import { formatDate } from "@/lib/format";
 import { levelForPoints, nextLevelForPoints } from "@/lib/levels";
 import { NOTIFY_GROUPS } from "@/lib/notifications";
@@ -19,6 +19,7 @@ import LevelBadge from "@/components/LevelBadge";
 import SettingsForm from "@/components/SettingsForm";
 import SubmissionForm from "@/components/SubmissionForm";
 import UserAvatar from "@/components/UserAvatar";
+import { ConfirmForm } from "@/app/admin/ConfirmForms";
 
 export const metadata: Metadata = {
   title: "账号设置",
@@ -90,10 +91,11 @@ function deviceName(ua: string): string {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; ok?: string }>;
+  searchParams: Promise<{ error?: string; ok?: string; section?: string }>;
 }) {
   const me = await getCurrentUser();
   const sp = await searchParams;
+  const section = sp.section === "notifications" || sp.section === "security" || sp.section === "privacy" ? sp.section : "profile";
 
   if (!me) {
     return (
@@ -177,9 +179,19 @@ export default async function SettingsPage({
         <span style={{ color: "var(--text)", fontWeight: 600 }}>账号设置</span>
       </div>
       <h1 className="page-heading">账号设置</h1>
+      <nav className="tab-bar settings-tabs" aria-label="账号设置分类">
+        {[
+          ["profile", "个人资料"],
+          ["notifications", "通知"],
+          ["security", "账号安全"],
+          ["privacy", "数据与隐私"],
+        ].map(([key, label]) => (
+          <Link key={key} href={`/settings?section=${key}`} className={`tab ${section === key ? "active" : ""}`}>{label}</Link>
+        ))}
+      </nav>
 
       {/* 账号概览 */}
-      <Section title="账号概览" description="账号名与注册邮箱不可自行修改；需要变更请联系管理员。">
+      {section === "profile" && <Section title="账号概览" description="账号状态与社区贡献概览。邮箱可在账号安全中换绑。">
         <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
           <UserAvatar username={user.username} avatarUrl={user.avatarUrl} size={52} radius={14} />
           <div style={{ flex: 1, minWidth: 220, display: "grid", gap: 5 }}>
@@ -216,9 +228,10 @@ export default async function SettingsPage({
           </Link>
         </div>
       </Section>
+      }
 
       {/* 邮箱验证 */}
-      {!user.emailVerified && (
+      {section === "profile" && !user.emailVerified && (
         <Section title="验证邮箱" description="验证后能正常接收回复提醒与找回密码邮件。没收到可重新发送，结果会跳转到验证页提示。">
           <form action={resendVerificationAction}>
             <button
@@ -232,13 +245,13 @@ export default async function SettingsPage({
       )}
 
       {/* 修改密码 */}
-      <Section title="修改密码" description="改完其它设备会自动下线，本机保持登录。">
+      {section === "security" && <Section title="修改密码" description="改完其它设备会自动下线，本机保持登录。">
         {sp.ok === "password_changed" && (
           <HumanizedFeedback type="success" title="密码已换好" message="其它设备已下线，本机继续用。" suggestion="新密码记牢" />
         )}
         {pwError && <HumanizedFeedback type="error" title={pwError.title} message={pwError.message} suggestion={pwError.suggestion} />}
         <SubmissionForm action={changePasswordAction} style={{ display: "grid", gap: 8 }}>
-          <input type="hidden" name="next" value="/settings" />
+          <input type="hidden" name="next" value="/settings?section=security" />
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>原密码</span>
             <input type="password" name="currentPassword" autoComplete="current-password" required style={inputStyle} />
@@ -255,11 +268,12 @@ export default async function SettingsPage({
           </div>
         </SubmissionForm>
       </Section>
+      }
 
       {/* 通知偏好 */}
-      <Section title="通知偏好" description="关掉后站内不再生成该类通知；待审、举报、系统公告等运营通知不受影响。">
+      {section === "notifications" && <Section title="通知偏好" description="关掉后站内不再生成该类通知；待审、举报、系统公告等运营通知不受影响。">
         {sp.ok === "notify_saved" && <HumanizedFeedback type="success" title="通知偏好已保存" message="之后按新的设置给你发提醒。" autoDismiss={5000} />}
-        <SettingsForm action={updateNotificationPrefsAction} next="/settings?ok=notify_saved" style={{ display: "grid", gap: 10 }}>
+        <SettingsForm action={updateNotificationPrefsAction} next="/settings?section=notifications&ok=notify_saved" style={{ display: "grid", gap: 10 }}>
           {NOTIFY_GROUPS.map((g) => (
             <label
               key={g.key}
@@ -288,9 +302,10 @@ export default async function SettingsPage({
           </div>
         </SettingsForm>
       </Section>
+      }
 
       {/* 个人资料 */}
-      <Section title="个人资料" description="头像和简介会展示在主题、回复与个人主页上。">
+      {section === "profile" && <Section title="个人资料" description="头像和简介会展示在主题、回复与个人主页上。">
         <AvatarUploader username={user.username} initialUrl={user.avatarUrl ? `/api/avatar?file=${encodeURIComponent(user.avatarUrl)}` : null} />
         <SettingsForm action={updateBioAction} next={`/u/${encodeURIComponent(user.username)}?ok=bio_saved`} style={{ display: "grid", gap: 8 }}>
           <label style={{ display: "grid", gap: 5 }}>
@@ -304,9 +319,10 @@ export default async function SettingsPage({
           </div>
         </SettingsForm>
       </Section>
+      }
 
       {/* 换绑邮箱 */}
-      <Section title="换绑邮箱" description="换绑需要到新邮箱点确认链接才生效；旧邮箱会收到一封提醒邮件。当前邮箱是找回密码的唯一通道，请填常用邮箱。">
+      {section === "security" && <Section title="换绑邮箱" description="换绑需要到新邮箱点确认链接才生效；旧邮箱会收到一封提醒邮件。当前邮箱是找回密码的唯一通道，请填常用邮箱。">
         {sp.ok === "email_sent" && (
           <HumanizedFeedback type="success" title="确认邮件已发送" message="请到新邮箱点击确认链接完成换绑。" autoDismiss={8000} />
         )}
@@ -317,7 +333,7 @@ export default async function SettingsPage({
         {sp.error === "email_same" && <HumanizedFeedback type="error" title="邮箱没变" message="新邮箱与当前邮箱相同。" />}
         {sp.error === "email_invalid" && <HumanizedFeedback type="error" title="邮箱格式不对" message="检查一下再提交。" />}
         {sp.error === "email_ratelimited" && <HumanizedFeedback type="error" title="提交太频繁" message="每小时最多发起 3 次换绑，请稍后再试。" />}
-        <SettingsForm action={updateEmailAction} next="/settings" style={{ display: "grid", gap: 8 }}>
+        <SettingsForm action={updateEmailAction} next="/settings?section=security" style={{ display: "grid", gap: 8 }}>
           <label style={{ display: "grid", gap: 5 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-muted)" }}>新邮箱</span>
             <input name="newEmail" type="email" required placeholder="you@example.com" style={inputStyle} autoComplete="email" />
@@ -327,10 +343,11 @@ export default async function SettingsPage({
           </div>
         </SettingsForm>
       </Section>
+      }
 
       {/* 邮件提醒 */}
-      <Section title="邮件提醒" description="开启后，有人回复你、@你或给你发私信时，若你不在线会收到一封邮件。默认关闭。">
-        <SettingsForm action={updateNotifyPrefsAction} next="/settings?ok=notify_saved" style={{ display: "grid", gap: 10 }}>
+      {section === "notifications" && <Section title="邮件提醒" description="开启后，有人回复你、@你或给你发私信时，若你不在线会收到一封邮件。默认关闭。">
+        <SettingsForm action={updateNotifyPrefsAction} next="/settings?section=notifications&ok=notify_saved" style={{ display: "grid", gap: 10 }}>
           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13 }}>
             <input type="checkbox" name="emailNotify" defaultChecked={Boolean((me as any).emailNotify)} style={{ marginTop: 3 }} />
             <span>
@@ -345,9 +362,10 @@ export default async function SettingsPage({
           </div>
         </SettingsForm>
       </Section>
+      }
 
       {/* 登录设备 */}
-      <Section title="登录设备" description="查看当前登录的会话，发现陌生设备可立即下线（改密码会下线全部其它设备）。">
+      {section === "security" && <Section title="登录设备" description="查看当前登录的会话，发现陌生设备可立即下线（改密码会下线全部其它设备）。">
         <div style={{ display: "grid", gap: 8 }}>
           {sessions.map((s) => (
             <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 11px", border: "1px solid var(--line-soft)", borderRadius: 10, background: "var(--bg-soft)", flexWrap: "wrap" }}>
@@ -379,9 +397,39 @@ export default async function SettingsPage({
           </form>
         )}
       </Section>
+      }
+
+      {section === "privacy" && <Section title="我的数据" description="下载账号相关数据，或查看本站如何收集、使用与保留数据。">
+        <div className="settings-action-row">
+          <a href="/api/account/export" download style={btnStyle}>导出我的数据</a>
+          <Link href="/privacy">隐私政策</Link>
+          <Link href="/terms">用户协议</Link>
+        </div>
+      </Section>}
+
+      {section === "privacy" && <Section title="注销账号" description="注销后无法恢复。私信、登录记录和个人数据会删除；已发布的公共主题与回复保留，但作者会匿名化。">
+        {sp.error === "delete_confirmation" && <HumanizedFeedback type="error" title="账号名不匹配" message={`请输入完整账号名 ${user.username}。`} />}
+        {sp.error === "delete_password" && <HumanizedFeedback type="error" title="密码不正确" message="请确认当前密码后再注销。" />}
+        {sp.error === "last_admin" && <HumanizedFeedback type="error" title="暂不能注销" message="这是站点最后一个管理员，请先任命另一位管理员。" />}
+        <ConfirmForm
+          action={deleteAccountAction}
+          message={`永久注销 ${user.username}？\n\n账号与私人数据将不可恢复，公开讨论只保留匿名内容。建议先导出数据。`}
+          style={{ display: "grid", gap: 10 }}
+        >
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>输入账号名确认</span>
+            <input name="confirmation" required autoComplete="off" placeholder={user.username} style={inputStyle} />
+          </label>
+          <label style={{ display: "grid", gap: 5 }}>
+            <span style={{ fontSize: 12, fontWeight: 700 }}>当前密码</span>
+            <input name="password" type="password" required autoComplete="current-password" style={inputStyle} />
+          </label>
+          <div><button type="submit" className="danger-button">永久注销账号</button></div>
+        </ConfirmForm>
+      </Section>}
 
       {/* 屏蔽管理 */}
-      <Section title="屏蔽管理" description="被你屏蔽的人：你俩互相看不到回帖与私信，也不会收到对方通知。">
+      {section === "privacy" && <Section title="屏蔽管理" description="被你屏蔽的人：你俩互相看不到回帖与私信，也不会收到对方通知。">
         {blocked.length === 0 ? (
           <span style={{ fontSize: 12.5, color: "var(--text-subtle)" }}>还没有屏蔽任何人。在用户主页可以屏蔽。</span>
         ) : (
@@ -392,7 +440,7 @@ export default async function SettingsPage({
                 <Link href={`/u/${encodeURIComponent(b.target.username)}`} style={{ color: "var(--text)", fontWeight: 600 }}>{b.target.username}</Link>
                 <form action={unblockUserAction}>
                   <input type="hidden" name="targetId" value={b.target.id} />
-                  <input type="hidden" name="back" value="/settings" />
+                  <input type="hidden" name="back" value="/settings?section=privacy" />
                   <button type="submit" style={{ fontSize: 11.5, color: "var(--danger)", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
                     解除
                   </button>
@@ -402,9 +450,10 @@ export default async function SettingsPage({
           </div>
         )}
       </Section>
+      }
 
       {/* 快捷入口 */}
-      <Section title="快捷入口">
+      {section === "profile" && <Section title="快捷入口">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {[
             { href: `/u/${encodeURIComponent(user.username)}?tab=favs`, label: "我的收藏" },
@@ -425,6 +474,7 @@ export default async function SettingsPage({
           ))}
         </div>
       </Section>
+      }
     </div>
   );
 }

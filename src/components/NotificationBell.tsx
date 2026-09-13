@@ -13,7 +13,7 @@ interface NotifItem {
   createdAt: string;
 }
 
-const POLL_MS = 30_000;
+const POLL_MS = 60_000;
 
 function timeAgo(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -26,7 +26,7 @@ function timeAgo(iso: string): string {
 }
 
 /**
- * 通知铃铛:挂载时拉一次列表,之后每 30s 只刷未读数;点开铃铛时刷新列表。
+ * 通知铃铛:挂载时拉一次列表，SSE 收到变化立即刷新；低频轮询负责断线兜底。
  * 未读数小红点只在 >0 时显示。
  */
 export default function NotificationBell({ initialUnread = 0 }: { initialUnread?: number }) {
@@ -63,7 +63,13 @@ export default function NotificationBell({ initialUnread = 0 }: { initialUnread?
   useEffect(() => {
     fetchList();
     const timer = setInterval(fetchUnread, POLL_MS);
-    return () => clearInterval(timer);
+    // Playwright 的 networkidle 会把长连接当作永不结束；自动化仍覆盖轮询兜底。
+    const events = typeof EventSource === "undefined" || navigator.webdriver ? null : new EventSource("/api/notifications/stream");
+    if (events) events.onmessage = () => void fetchList();
+    return () => {
+      clearInterval(timer);
+      events?.close();
+    };
   }, [fetchList, fetchUnread]);
 
   // 点外部关掉下拉

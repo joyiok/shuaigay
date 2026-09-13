@@ -136,7 +136,7 @@ async function findMentionedUsers(
   const names = collectMentionCandidates([content]);
   if (!names.length) return [];
   return db.user.findMany({
-    where: { username: { in: names }, id: { not: selfId } },
+    where: { username: { in: names }, id: { not: selfId }, deletedAt: null },
     select: { id: true },
   });
 }
@@ -183,6 +183,17 @@ export async function createThreadAction(formData: FormData): Promise<string> {
   if (!(await checkRateLimit(`thread:${user.id}`, THREAD_RATE_LIMIT, 3600))) {
     redirect(`/c/${board.slug}/new?error=ratelimited`);
   }
+  const recentDuplicate = await db.thread.findFirst({
+    where: {
+      authorId: user.id,
+      title: title.data,
+      createdAt: { gte: new Date(Date.now() - 10 * 60_000) },
+      status: { not: "deleted" },
+      posts: { some: { authorId: user.id, contentMd: content.data } },
+    },
+    select: { id: true },
+  });
+  if (recentDuplicate) redirect(`/c/${board.slug}/new?error=duplicate`);
 
   const { files: prepared, error: fileError } = await prepareFiles(formData);
   if (fileError) redirect(`/c/${board.slug}/new?error=${fileError}`);
@@ -347,6 +358,11 @@ export async function replyAction(formData: FormData): Promise<string> {
   if (!(await checkRateLimit(`reply:${user.id}`, REPLY_RATE_LIMIT, 3600))) {
     redirect(`/t/${thread.id}?error=ratelimited`);
   }
+  const recentDuplicate = await db.post.findFirst({
+    where: { threadId: thread.id, authorId: user.id, contentMd: content.data, createdAt: { gte: new Date(Date.now() - 2 * 60_000) }, status: { not: "deleted" } },
+    select: { id: true },
+  });
+  if (recentDuplicate) redirect(`/t/${thread.id}?error=duplicate`);
 
   const { files: prepared, error: fileError } = await prepareFiles(formData);
   if (fileError) redirect(`/t/${thread.id}?error=${fileError}`);

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { db } from "@/lib/db";
+import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { formatDate } from "@/lib/format";
+import { CONVERSATION_PAGE_SIZE, listConversations } from "@/lib/messages";
 import AuthRequired from "@/components/AuthRequired";
 import EmptyState from "@/components/EmptyState";
 import UserAvatar from "@/components/UserAvatar";
@@ -21,50 +22,14 @@ export const dynamic = "force-dynamic";
  * - 列表按最后消息时间倒序
  * - 空态用 EmptyState
  */
-export default async function MessagesPage() {
+export default async function MessagesPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const me = await getCurrentUser();
   if (!me) return <AuthRequired title="请先登录查看私信" description="登录后可与站内用户一对一私信，支持 Markdown。" next="/messages" />;
-
-  // 拉最近 200 条相关私信，内存里按对方聚合（极简版无会话表）
-  const recent = await db.directMessage.findMany({
-    where: { OR: [{ senderId: me.id }, { receiverId: me.id }] },
-    orderBy: { createdAt: "desc" },
-    take: 200,
-    include: {
-      sender: { select: { username: true, avatarUrl: true } },
-      receiver: { select: { username: true, avatarUrl: true } },
-    },
-  });
-
-  // 聚合: counterpart -> { last, unread, total, avatarUrl }
-  const map = new Map<
-    string,
-    { username: string; avatarUrl: string | null; last: (typeof recent)[number]; unread: number; total: number }
-  >();
-
-  for (const m of recent) {
-    const isMeSender = m.senderId === me.id;
-    const otherUsername = isMeSender ? m.receiver.username : m.sender.username;
-    const otherAvatar = isMeSender ? m.receiver.avatarUrl : m.sender.avatarUrl;
-    const entry = map.get(otherUsername);
-    if (!entry) {
-      map.set(otherUsername, {
-        username: otherUsername,
-        avatarUrl: otherAvatar ?? null,
-        last: m,
-        unread: !isMeSender && !m.read ? 1 : 0,
-        total: 1,
-      });
-    } else {
-      entry.total += 1;
-      if (!isMeSender && !m.read) entry.unread += 1;
-    }
-  }
-
-  // 按最后消息时间倒序
-  const conversations = [...map.values()].sort(
-    (a, b) => b.last.createdAt.getTime() - a.last.createdAt.getTime(),
-  );
+  const rawPage = Number((await searchParams).page ?? "1");
+  const page = Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const { items: conversations, total } = await listConversations(me.id, page);
+  const pages = Math.max(1, Math.ceil(total / CONVERSATION_PAGE_SIZE));
+  if (page > pages) redirect(`/messages?page=${pages}`);
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -93,12 +58,12 @@ export default async function MessagesPage() {
         <div className="card" style={{ overflow: "hidden" }}>
           <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
             {conversations.map((c) => {
-              const last = c.last;
-              const isMeSender = last.senderId === me.id;
-              const preview = last.contentMd.replace(/\s+/g, " ").slice(0, 80);
+              const isMeSender = c.senderId === me.id;
+              const preview = c.contentMd.replace(/\s+/g, " ").slice(0, 80);
               return (
                 <li
                   key={c.username}
+                  className="conversation-row"
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -108,7 +73,7 @@ export default async function MessagesPage() {
                   }}
                 >
                   <UserAvatar username={c.username} avatarUrl={c.avatarUrl} size={40} radius={10} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="conversation-body" style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                       <Link
                         href={`/messages/${encodeURIComponent(c.username)}`}
@@ -136,9 +101,6 @@ export default async function MessagesPage() {
                           {c.unread}
                         </span>
                       )}
-                      <span style={{ color: "var(--text-subtle)", fontSize: 11, marginLeft: "auto" }}>
-                        {formatDate(last.createdAt)}
-                      </span>
                     </div>
                     <div
                       style={{
@@ -154,8 +116,10 @@ export default async function MessagesPage() {
                       {preview || "(空)"}
                     </div>
                   </div>
+                  <time className="conversation-date" dateTime={c.createdAt.toISOString()}>{formatDate(c.createdAt)}</time>
                   <Link
                     href={`/messages/${encodeURIComponent(c.username)}`}
+                    className="conversation-action"
                     style={{
                       flexShrink: 0,
                       height: 28,
@@ -176,6 +140,13 @@ export default async function MessagesPage() {
               );
             })}
           </ul>
+          {pages > 1 && (
+            <nav className="list-pagination" aria-label="私信会话分页">
+              {page > 1 ? <Link href={`/messages?page=${page - 1}`}>← 上一页</Link> : <span />}
+              <span>{page} / {pages}</span>
+              {page < pages ? <Link href={`/messages?page=${page + 1}`}>下一页 →</Link> : <span />}
+            </nav>
+          )}
         </div>
       )}
     </div>

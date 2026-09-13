@@ -5,7 +5,7 @@ import { createReport } from "@/lib/moderation";
 import { logger } from "@/lib/logger";
 
 const reportSchema = z.object({
-  targetType: z.enum(["thread", "post"]),
+  targetType: z.enum(["thread", "post", "message"]),
   targetId: z.string().min(1).max(64),
   reason: z.string().trim().min(1).max(500),
 });

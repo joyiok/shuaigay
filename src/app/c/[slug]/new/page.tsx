@@ -39,6 +39,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   sensitive: { title: "有敏感词", msg: "内容里有敏感词，已转待审而不是直接拦。", tip: "等版主过审，或改一下措辞" },
   daily_limit: { title: "今天发够了", msg: "今日发帖已达上限。", tip: "新手 3/日 正式 5/日，明天再来或升个级" },
   ratelimited: { title: "发帖太快了", msg: "已达到发帖频率限制，草稿已保留。", tip: "稍后再试" },
+  duplicate: { title: "这篇已经发过了", msg: "检测到 10 分钟内相同的主题，已阻止重复提交。", tip: "回到版块查看刚才的主题" },
 };
 
 export default async function NewThreadPage({

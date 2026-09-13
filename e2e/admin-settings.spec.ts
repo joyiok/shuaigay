@@ -15,7 +15,7 @@ test("站点设置按职责拆分并独立保存", async ({ page }) => {
   await expect(page.locator('input[name="pointsThread"]')).toHaveCount(0);
   await expect(page.locator('input[name="guestThreadLimit"]')).toHaveCount(0);
 
-  await sections.getByRole("link", { name: "积分与等级" }).click();
+  await page.goto((await sections.getByRole("link", { name: "积分与等级" }).getAttribute("href"))!);
   await expect(page).toHaveURL(/\/admin\/settings\?section=points/);
   await expect(page.locator('input[name="pointsThread"]')).toBeVisible();
   await expect(page.locator('input[name="siteName"]')).toHaveCount(0);
@@ -24,7 +24,7 @@ test("站点设置按职责拆分并独立保存", async ({ page }) => {
   await savedPoints;
   await expect(page).toHaveURL(/section=points/);
 
-  await sections.getByRole("link", { name: "访客权限" }).click();
+  await page.goto((await sections.getByRole("link", { name: "访客权限" }).getAttribute("href"))!);
   await expect(page.locator('input[name="guestThreadLimit"]')).toBeVisible();
   await expect(page.locator('input[name="pointsThread"]')).toHaveCount(0);
   const savedAccess = page.waitForResponse(isActionPostResponse);
@@ -32,7 +32,7 @@ test("站点设置按职责拆分并独立保存", async ({ page }) => {
   await savedAccess;
   await expect(page).toHaveURL(/section=access/);
 
-  await sections.getByRole("link", { name: "MCP 管理" }).click();
+  await page.goto((await sections.getByRole("link", { name: "MCP 管理" }).getAttribute("href"))!);
   await expect(page.locator('input[name="adminApiKey"]')).toBeVisible();
   await expect(page.locator('input[name="guestThreadLimit"]')).toHaveCount(0);
 

@@ -1176,6 +1176,7 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
     include: { reporter: { select: { username: true, avatarUrl: true } } },
   });
   if (boardScope && reports.length) {
+    reports = reports.filter((r) => r.targetType !== "message");
     const threadIdsAll = reports.filter((r) => r.targetType === "thread").map((r) => r.targetId);
     const postIdsAll = reports.filter((r) => r.targetType === "post").map((r) => r.targetId);
     const [scopeThreads, scopePosts] = await Promise.all([
@@ -1193,9 +1194,11 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
 
   const threadIds = reports.filter((r) => r.targetType === "thread").map((r) => r.targetId);
   const postIds = reports.filter((r) => r.targetType === "post").map((r) => r.targetId);
-  const [threads, posts] = await Promise.all([
+  const messageIds = reports.filter((r) => r.targetType === "message").map((r) => r.targetId);
+  const [threads, posts, messages] = await Promise.all([
     db.thread.findMany({ where: { id: { in: threadIds } }, select: { id: true, title: true } }),
     db.post.findMany({ where: { id: { in: postIds } }, select: { id: true, threadId: true } }),
+    db.directMessage.findMany({ where: { id: { in: messageIds } }, select: { id: true, contentMd: true, sender: { select: { username: true } } } }),
   ]);
   const threadMap = new Map(threads.map((t) => [t.id, t.title]));
   const postMap = new Map(posts.map((p) => [p.id, p.threadId]));
@@ -1204,6 +1207,7 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
     select: { id: true, title: true },
   });
   const threadTitleMap = new Map(parentThreads.map((t) => [t.id, t.title]));
+  const messageMap = new Map(messages.map((m) => [m.id, `${m.sender.username}：${m.contentMd.replace(/\s+/g, " ").slice(0, 60)}`]));
 
   return (
     <div className="card" style={{ overflow: "hidden" }}>
@@ -1211,15 +1215,16 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
       <ListCard>
         {reports.map((r, i) => {
           const isThread = r.targetType === "thread";
-          const targetTitle = isThread ? threadMap.get(r.targetId) : threadTitleMap.get(postMap.get(r.targetId) ?? "");
+          const isMessage = r.targetType === "message";
+          const targetTitle = isMessage ? messageMap.get(r.targetId) : isThread ? threadMap.get(r.targetId) : threadTitleMap.get(postMap.get(r.targetId) ?? "");
           return (
             <Row key={r.id} last={i === reports.length - 1} actions={<>
                 <ConfirmForm
                   action={reviewReportAction}
-                  message={`删除被举报的${isThread ? "主题" : "帖子"}并结案？\n• 目标内容会直接删掉，举报人会收到“已处理”通知\n• 删了就回不来了，确定吗？`}
+                  message={`删除被举报的${isMessage ? "私信" : isThread ? "主题" : "帖子"}并结案？\n• 目标内容会被删除，举报人会收到“已处理”通知${isMessage ? "" : "\n• 主题与帖子会进入回收站"}`}
                 >
                   <input type="hidden" name="reportId" value={r.id} />
-                  <input type="hidden" name="action" value={isThread ? "delete_thread" : "delete_post"} />
+                  <input type="hidden" name="action" value={isMessage ? "delete_message" : isThread ? "delete_thread" : "delete_post"} />
                   <button type="submit" style={paperDangerBtn}>
                     删除目标
                   </button>
@@ -1236,15 +1241,19 @@ async function ReportsTab({ boardScope }: { boardScope: Set<string> | null }) {
                 </form>
             </>}>
               <span className="topic-badge" style={{ background: "#FFF7A8", color: "var(--text)", border: "1.5px solid var(--line)", fontFamily: MONO, boxShadow: "1px 1px 0 var(--line)" }}>
-                {isThread ? "主题" : "帖子"}
+                {isMessage ? "私信" : isThread ? "主题" : "帖子"}
               </span>
               <div style={{ minWidth: 0, maxWidth: 360 }}>
-                <Link
-                  href={threadHref(isThread ? r.targetId : postMap.get(r.targetId) ?? "", targetTitle ?? "")}
-                  style={{ fontSize: 13, fontWeight: 700, fontFamily: GROTESK, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}
-                >
-                  {targetTitle ?? "（内容已不存在）"}
-                </Link>
+                {isMessage ? (
+                  <strong style={{ fontSize: 13, fontFamily: GROTESK, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}>{targetTitle ?? "（私信已不存在）"}</strong>
+                ) : (
+                  <Link
+                    href={threadHref(isThread ? r.targetId : postMap.get(r.targetId) ?? "", targetTitle ?? "")}
+                    style={{ fontSize: 13, fontWeight: 700, fontFamily: GROTESK, color: targetTitle ? "var(--text)" : "var(--text-subtle)" }}
+                  >
+                    {targetTitle ?? "（内容已不存在）"}
+                  </Link>
+                )}
                 <div style={{ color: "var(--text-muted)", fontSize: 12, fontFamily: MONO, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>
                   {r.reason}
                 </div>

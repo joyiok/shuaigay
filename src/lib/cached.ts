@@ -47,9 +47,9 @@ export const getCachedStats = unstable_cache(
   async () => {
     try {
       const [userCount, threadCount, postCount] = await Promise.all([
-        db.user.count(),
-        db.thread.count(),
-        db.post.count(),
+        db.user.count({ where: { deletedAt: null } }),
+        db.thread.count({ where: { status: "approved", board: { isHidden: false } } }),
+        db.post.count({ where: { status: "approved", thread: { status: "approved", board: { isHidden: false } } } }),
       ]);
       return { userCount, threadCount, postCount };
     } catch {
@@ -64,7 +64,7 @@ export const getCachedHotTopics = unstable_cache(
   async () => {
     try {
       return await db.thread.findMany({
-        where: { board: { isHidden: false } },
+        where: { board: { isHidden: false }, status: "approved" },
         orderBy: { lastPostAt: "desc" },
         take: 5,
         select: { id: true, title: true, board: { select: { name: true } }, _count: { select: { posts: true } } },
@@ -81,6 +81,7 @@ export const getCachedActiveUsers = unstable_cache(
   async () => {
     try {
       return await db.user.findMany({
+        where: { deletedAt: null },
         orderBy: { threads: { _count: "desc" } },
         take: 5,
         select: { username: true, avatarUrl: true },

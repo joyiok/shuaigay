@@ -86,6 +86,7 @@ test("注册 → 发帖 → 回复 → 退出", async ({ page }) => {
 });
 
 test("未登录不能看到回复框,Markdown 里的 script 被消毒", async ({ page }) => {
+  const title = `XSS 探测帖-${Date.now()}`;
   await page.goto("/login");
   await page.fill('input[name="email"]', "admin@example.com");
   await page.fill('input[name="password"]', "ReleaseAdmin123!");
@@ -93,13 +94,13 @@ test("未登录不能看到回复框,Markdown 里的 script 被消毒", async ({
   await expect(page.locator("header")).toContainText("admin");
 
   await page.goto("/c/general/new");
-  await page.fill('input[name="title"]', "XSS 探测帖");
+  await page.fill('input[name="title"]', title);
   await page.fill(
     'textarea[name="content"]',
     "<script>window.__pwned=1</script>正常内容",
   );
   await submitButton(page, "发布").click();
-  await expect(page.getByRole("heading", { name: "XSS 探测帖" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title })).toBeVisible();
   await expect(page.getByText("正常内容")).toBeVisible();
 
   const pwned = await page.evaluate(() => {

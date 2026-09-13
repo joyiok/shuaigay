@@ -68,6 +68,7 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
   board_locked: { title: "版块锁了", msg: "版块已锁定，普通用户不能回。", tip: "等开锁或去别的版" },
   daily_limit: { title: "今天回够了", msg: "今日回帖已达上限。", tip: "新手 10/日 正式 20/日，明天再来" },
   ratelimited: { title: "手速太快", msg: "操作太频繁，歇会。", tip: "等 1 分钟" },
+  duplicate: { title: "这条已经发过了", msg: "检测到两分钟内相同的回复，已阻止重复提交。", tip: "刷新页面查看刚才的回复" },
   file_too_large: { title: "附件太大了", msg: "新手 5MB，正式 20MB。", tip: "压一下图" },
   unsupported_type: { title: "格式不支持", msg: "只认常见图片。", tip: "换个格式" },
   too_many_files: { title: "附件太多了", msg: `最多 ${MAX_FILES_PER_POST} 个。`, tip: "分两次发" },
@@ -285,7 +286,7 @@ export default async function ThreadPage({
 
   const mentionCandidates = collectMentionCandidates(items.map((p) => p.contentMd));
   const mentionUsers = mentionCandidates.length
-    ? await db.user.findMany({ where: { username: { in: mentionCandidates } }, select: { username: true } })
+    ? await db.user.findMany({ where: { username: { in: mentionCandidates }, deletedAt: null }, select: { username: true } })
     : [];
   const existingMentions = new Set(mentionUsers.map((u) => u.username));
   // 移动主题的目标版块下拉:仅版主/管理员需要

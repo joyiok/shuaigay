@@ -54,7 +54,7 @@ export async function resolveDraftTargets(inputs: DraftTargetInput[]): Promise<D
       ? db.board.findMany({ where: { slug: { in: boardSlugs } }, select: { slug: true, name: true } }).catch(() => [])
       : Promise.resolve([]),
     usernames.length
-      ? db.user.findMany({ where: { username: { in: usernames } }, select: { username: true } }).catch(() => [])
+      ? db.user.findMany({ where: { username: { in: usernames }, deletedAt: null }, select: { username: true } }).catch(() => [])
       : Promise.resolve([]),
   ]);
 

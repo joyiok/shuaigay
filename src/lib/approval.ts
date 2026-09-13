@@ -13,6 +13,19 @@ export interface ApprovalBoard {
   requireApproval: boolean;
 }
 
+export function spamSignal(text: string): string | null {
+  const links = text.match(/https?:\/\/[^\s)\]}]+/gi) ?? [];
+  if (links.length >= 3) return "外链过多";
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line.length >= 5);
+  const counts = new Map<string, number>();
+  for (const line of lines) {
+    const count = (counts.get(line) ?? 0) + 1;
+    if (count >= 4) return "重复内容过多";
+    counts.set(line, count);
+  }
+  return null;
+}
+
 /**
  * 判断是否需要进入待审（A/B/C 全量）
  * A: 新人见习 — 积分 < 正式会员线（后台可配，默认 30）或 注册 24h 内
@@ -29,6 +42,8 @@ export async function needsApproval(
   // 版主/管理员在自己可管的版块发帖回帖免审（调用方已限定 boardScope）
   if (isStaff) return { pending: false, reason: null };
   if (!isStaff && board.requireApproval) return { pending: true, reason: "版块开启审核" };
+  const spam = spamSignal(`${title}\n${content}`);
+  if (!isStaff && spam) return { pending: true, reason: spam };
   const threshold = (await getPointsConfig().catch(() => DEFAULT_POINTS_CONFIG)).memberThreshold;
   // 等级不足发外链需审核
   const { hasLink } = await import("./levels");

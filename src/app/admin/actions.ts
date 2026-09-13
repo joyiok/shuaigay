@@ -473,7 +473,7 @@ export async function moveBoardAction(formData: FormData): Promise<void> {
 
 /* ---------------- 举报队列 ---------------- */
 
-const reviewActionSchema = z.enum(["delete_thread", "delete_post", "ignore", "reject"]);
+const reviewActionSchema = z.enum(["delete_thread", "delete_post", "delete_message", "ignore", "reject"]);
 
 export async function reviewReportAction(formData: FormData): Promise<void> {
   const staff = await requireStaff();
@@ -492,12 +492,15 @@ export async function reviewReportAction(formData: FormData): Promise<void> {
     if (report.targetType === "thread") {
       const t = await db.thread.findUnique({ where: { id: report.targetId }, select: { boardId: true } });
       boardId = t?.boardId ?? null;
-    } else {
+    } else if (report.targetType === "post") {
       const p = await db.post.findUnique({
         where: { id: report.targetId },
         select: { thread: { select: { boardId: true } } },
       });
       boardId = p?.thread.boardId ?? null;
+    } else {
+      // 私信不属于任何版块，仅全局管理员可处理。
+      redirect(ADMIN_TAB("reports") + "&error=not_found");
     }
     if (!boardId || !staff.boardScope.has(boardId)) redirect(ADMIN_TAB("reports") + "&error=not_found");
   }
@@ -897,7 +900,7 @@ export async function broadcastAnnouncementAction(formData: FormData): Promise<v
   const rawLink = parsed.data.link.trim();
   const link = rawLink.startsWith("/") && !rawLink.startsWith("//") ? rawLink : null;
 
-  const users = await db.user.findMany({ select: { id: true } });
+  const users = await db.user.findMany({ where: { deletedAt: null }, select: { id: true } });
   let sent = 0;
   for (const chunk of chunkIds(users.map((u) => u.id), 500)) {
     const rows = buildAnnouncementRows(chunk, { title: parsed.data.title, body: parsed.data.body || undefined, link });

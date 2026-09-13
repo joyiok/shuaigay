@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Metadata } from "next";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/auth";
@@ -23,7 +23,7 @@ import { levelForPoints, nextLevelForPoints, permsForPoints } from "@/lib/levels
 
 export async function generateMetadata({ params }: { params: Promise<{ username: string }> }): Promise<Metadata> {
   const { username } = await params;
-  const user = await db.user.findUnique({ where: { username }, select: { username: true, bio: true, createdAt: true } }).catch(() => null);
+  const user = await db.user.findFirst({ where: { username, deletedAt: null }, select: { username: true, bio: true, createdAt: true } }).catch(() => null);
   if (!user) return { title: "用户不存在" };
   const base = siteUrl().origin;
   const url = `${base}/u/${encodeURIComponent(username)}`;
@@ -38,6 +38,7 @@ export async function generateMetadata({ params }: { params: Promise<{ username:
 }
 
 type Tab = "topics" | "replies" | "favs" | "points";
+const PAGE_SIZE = 30;
 
 function excerpt(raw: string): string {
   return raw.replace(/[#*_`>[\]]/g, "").replace(/\s+/g, " ").trim().slice(0, 100);
@@ -53,27 +54,34 @@ export default async function UserPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string }>;
 }) {
   const { username } = await params;
-  const { tab: rawTab } = await searchParams;
+  const { tab: rawTab, page: rawPage } = await searchParams;
+  const requestedPage = Number(rawPage ?? "1");
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const _tab = rawTab === "replies" ? "replies" : rawTab === "favs" ? "favs" : rawTab === "points" ? "points" : "topics";
   // 收藏仅本人可见；积分明细仅本人与管理员可见
   const meEarly = await getCurrentUser();
-  const targetIdEarly = (await db.user.findUnique({ where: { username }, select: { id: true } }).then((u) => u?.id));
+  const targetIdEarly = (await db.user.findFirst({ where: { username, deletedAt: null }, select: { id: true } }).then((u) => u?.id));
   const canSeePointsEarly = !!meEarly && (meEarly.id === targetIdEarly || isAdmin(meEarly));
   const tab: Tab =
     (_tab === "favs" && meEarly?.id !== targetIdEarly) || (_tab === "points" && !canSeePointsEarly)
       ? "topics"
       : (_tab as Tab);
 
-  const user = await db.user.findUnique({
-    where: { username },
-    include: { _count: { select: { threads: true, posts: true, favorites: true } as unknown as { threads: true; posts: true } } },
+  const user = await db.user.findFirst({
+    where: { username, deletedAt: null },
   });
   if (!user) notFound();
-  // _count.favorites may be missing type-wise — fetch separately when needed
-  const favCount = await db.favorite.count({ where: { userId: user.id } }).catch(() => 0);
+  const visibleThreadWhere = { authorId: user.id, status: "approved", board: { isHidden: false } } as const;
+  const visiblePostWhere = { authorId: user.id, status: "approved", thread: { status: "approved", board: { isHidden: false } } } as const;
+  const visibleFavoriteWhere = { userId: user.id, thread: { status: "approved", board: { isHidden: false } } } as const;
+  const [publicThreadCount, publicPostCount, favCount] = await Promise.all([
+    db.thread.count({ where: visibleThreadWhere }),
+    db.post.count({ where: visiblePostWhere }),
+    db.favorite.count({ where: visibleFavoriteWhere }).catch(() => 0),
+  ]);
   const me = meEarly;
   const isSelf = me?.id === user.id;
   const canSeePoints = isSelf || (me ? isAdmin(me) : false);
@@ -82,7 +90,7 @@ export default async function UserPage({
   const pointTx =
     tab === "points" && canSeePoints
       ? await db.pointTransaction
-          .findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, take: 50 })
+          .findMany({ where: { userId: user.id }, orderBy: { createdAt: "desc" }, skip: (page - 1) * PAGE_SIZE, take: PAGE_SIZE })
           .catch(() => [])
       : [];
   // 等级 ladder 走后台配置（IIFE 展示闭包复用；LevelBadge 内部自读）
@@ -95,9 +103,10 @@ export default async function UserPage({
   const threads =
     tab === "topics"
       ? await db.thread.findMany({
-          where: { authorId: user.id },
+          where: visibleThreadWhere,
           orderBy: { lastPostAt: "desc" },
-          take: 30,
+          skip: (page - 1) * PAGE_SIZE,
+          take: PAGE_SIZE,
           include: {
             board: { select: { slug: true, name: true } },
             _count: { select: { posts: true } },
@@ -109,9 +118,10 @@ export default async function UserPage({
   const posts =
     tab === "replies"
       ? await db.post.findMany({
-          where: { authorId: user.id },
+          where: visiblePostWhere,
           orderBy: { createdAt: "desc" },
-          take: 30,
+          skip: (page - 1) * PAGE_SIZE,
+          take: PAGE_SIZE,
           include: {
             thread: {
               select: {
@@ -127,9 +137,10 @@ export default async function UserPage({
   const favorites =
     tab === "favs" && isSelf
       ? await db.favorite.findMany({
-          where: { userId: user.id },
+          where: visibleFavoriteWhere,
           orderBy: { createdAt: "desc" },
-          take: 30,
+          skip: (page - 1) * PAGE_SIZE,
+          take: PAGE_SIZE,
           include: {
             thread: {
               select: {
@@ -146,6 +157,18 @@ export default async function UserPage({
           },
         })
       : [];
+
+  const tabTotal = tab === "topics"
+    ? await db.thread.count({ where: visibleThreadWhere })
+    : tab === "replies"
+      ? await db.post.count({ where: visiblePostWhere })
+      : tab === "favs"
+        ? await db.favorite.count({ where: visibleFavoriteWhere })
+        : canSeePoints
+          ? await db.pointTransaction.count({ where: { userId: user.id } })
+          : 0;
+  const pages = Math.max(1, Math.ceil(tabTotal / PAGE_SIZE));
+  if (page > pages) redirect(`/u/${encodeURIComponent(user.username)}?tab=${tab}&page=${pages}`);
 
   // 我是否屏蔽了 TA（用于按钮态与回帖过滤）
   const blockedIds = await getBlockedIdSet(me?.id);
@@ -364,11 +387,11 @@ export default async function UserPage({
               )}
               <span>
                 <span style={{ color: "var(--text-subtle)" }}>主题 </span>
-                <strong>{user._count.threads}</strong>
+                <strong>{publicThreadCount}</strong>
               </span>
               <span>
                 <span style={{ color: "var(--text-subtle)" }}>回复 </span>
-                <strong>{Math.max(0, user._count.posts - user._count.threads)}</strong>
+                <strong>{Math.max(0, publicPostCount - publicThreadCount)}</strong>
               </span>
               <span style={{ color: "var(--text-subtle)" }}>注册于 {formatDate(user.createdAt)}</span>
               <Link href={`/u/${encodeURIComponent(user.username)}/followers?tab=following`} style={{ color: "inherit" }}>
@@ -533,10 +556,10 @@ export default async function UserPage({
       {/* Tab 切换 */}
       <div className="tab-bar" style={{ margin: 0 }}>
         <Link href={`/u/${encodeURIComponent(user.username)}`} className={`tab ${tab === "topics" ? "active" : ""}`}>
-          主题 <span style={{ marginLeft: 4, opacity: 0.75 }}>{user._count.threads}</span>
+          主题 <span style={{ marginLeft: 4, opacity: 0.75 }}>{publicThreadCount}</span>
         </Link>
         <Link href={`/u/${encodeURIComponent(user.username)}?tab=replies`} className={`tab ${tab === "replies" ? "active" : ""}`}>
-          回复 <span style={{ marginLeft: 4, opacity: 0.75 }}>{Math.max(0, user._count.posts - user._count.threads)}</span>
+          回复 <span style={{ marginLeft: 4, opacity: 0.75 }}>{Math.max(0, publicPostCount - publicThreadCount)}</span>
         </Link>
         {isSelf && (
           <Link href={`/u/${encodeURIComponent(user.username)}?tab=favs`} className={`tab ${tab === "favs" ? "active" : ""}`}>
@@ -712,6 +735,13 @@ export default async function UserPage({
             ))}
           </ul>
         )
+      )}
+      {pages > 1 && (
+        <nav className="list-pagination" aria-label="个人内容分页">
+          {page > 1 ? <Link href={`/u/${encodeURIComponent(user.username)}?tab=${tab}&page=${page - 1}`}>← 上一页</Link> : <span />}
+          <span>{page} / {pages}</span>
+          {page < pages ? <Link href={`/u/${encodeURIComponent(user.username)}?tab=${tab}&page=${page + 1}`}>下一页 →</Link> : <span />}
+        </nav>
       )}
     </div>
   );

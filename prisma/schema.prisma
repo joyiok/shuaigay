@@ -40,6 +40,7 @@ model User {
   lastLoginAt    DateTime?
   lastActiveIp   String?
   lastActiveAt   DateTime?
+  deletedAt      DateTime?
   createdAt    DateTime @default(now())
 
   threads           Thread[]           @relation("ThreadAuthor")
@@ -355,6 +356,9 @@ model DirectMessage {
   receiverId String
   contentMd  String
   read       Boolean  @default(false)
+  // 双方可分别从自己的记录中删除；发送者在 10 分钟内还可撤回（直接删行）
+  senderDeletedAt   DateTime?
+  receiverDeletedAt DateTime?
   createdAt  DateTime @default(now())
 
   sender   User @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
@@ -362,6 +366,8 @@ model DirectMessage {
 
   @@index([senderId, createdAt])
   @@index([receiverId, read, createdAt])
+  @@index([senderId, senderDeletedAt, createdAt])
+  @@index([receiverId, receiverDeletedAt, createdAt])
 }
 
 model Attachment {

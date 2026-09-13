@@ -19,12 +19,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const [boards, threads, users] = await Promise.all([
     db.board
       .findMany({
+        where: { isHidden: false },
         orderBy: { order: "asc" },
         select: { slug: true, createdAt: true },
       })
       .catch(() => [] as { slug: string; createdAt: Date }[]),
     db.thread
       .findMany({
+        where: { status: "approved", board: { isHidden: false } },
         orderBy: { lastPostAt: "desc" },
         take: 200,
         select: { id: true, title: true, lastPostAt: true },
@@ -32,6 +34,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .catch(() => [] as { id: string; title: string; lastPostAt: Date }[]),
     db.user
       .findMany({
+        where: { deletedAt: null },
         orderBy: { threads: { _count: "desc" } },
         take: 50,
         select: { username: true, createdAt: true },
@@ -43,6 +46,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/`, changeFrequency: "hourly", priority: 1 },
     { url: `${base}/members`, changeFrequency: "daily", priority: 0.5 },
     { url: `${base}/search`, changeFrequency: "weekly", priority: 0.3 },
+    { url: `${base}/privacy`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${base}/terms`, changeFrequency: "yearly", priority: 0.2 },
     ...boards.map((b) => ({
       url: `${base}/c/${b.slug}`,
       lastModified: b.createdAt,

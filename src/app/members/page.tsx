@@ -41,6 +41,7 @@ export default async function MembersPage({
   const onlineFilter = onlineOnly && onlineIds ? [...onlineIds] : null;
 
   const where = {
+    deletedAt: null,
     ...(q ? { username: { contains: q, mode: "insensitive" as const } } : {}),
     ...(onlineFilter ? { id: { in: onlineFilter } } : {}),
   };
@@ -79,7 +80,7 @@ export default async function MembersPage({
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const onlineCount = onlineIds
-    ? await db.user.count({ where: { id: { in: [...onlineIds] } } }).catch(() => 0)
+    ? await db.user.count({ where: { id: { in: [...onlineIds] }, deletedAt: null } }).catch(() => 0)
     : null;
 
   const buildHref = (patch: Record<string, string | null>) => {

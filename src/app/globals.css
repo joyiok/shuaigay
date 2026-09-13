@@ -1118,3 +1118,36 @@ mark.search-mark, .search-mark {
   border-color: var(--brand);
   color: var(--brand);
 }
+
+/* ——— 分页 / 私信操作 ——— */
+.list-pagination { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 12px 14px; border-top: 1px solid var(--line-soft); color: var(--text-subtle); font-size: 12px; font-variant-numeric: tabular-nums; }
+.list-pagination a { width: fit-content; min-height: 32px; display: inline-flex; align-items: center; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text-muted); background: var(--panel); }
+.list-pagination a:last-child { justify-self: end; }
+.message-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.message-actions button { border: 0; background: transparent; color: inherit; opacity: 0.72; padding: 2px 0; font-size: 11px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.message-actions button:hover { opacity: 1; }
+.conversation-date { flex-shrink: 0; color: var(--text-subtle); font-size: 11px; white-space: nowrap; }
+
+/* ——— 账号数据与法律文本 ——— */
+.settings-action-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13px; }
+.settings-action-row a { color: var(--brand); font-weight: 700; }
+.danger-button { min-height: 36px; padding: 0 16px; border: 1px solid var(--danger); border-radius: 8px; background: var(--danger); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; }
+.legal-page { max-width: 780px; display: grid; gap: 14px; }
+.legal-page > header { padding: 22px 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.legal-page h1 { margin: 0; font-size: clamp(24px, 4vw, 34px); letter-spacing: -0.03em; }
+.legal-page > header p { margin: 7px 0 0; color: var(--text-subtle); font-size: 12px; }
+.legal-copy { padding: 24px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); }
+.legal-copy section + section { margin-top: 26px; }
+.legal-copy h2 { margin: 0 0 8px; font-size: 16px; }
+.legal-copy p { max-width: 72ch; margin: 0; color: var(--text-muted); font-size: 14px; line-height: 1.9; overflow-wrap: anywhere; }
+
+@media (max-width: 640px) {
+  .list-pagination a { min-height: 44px; }
+  .message-actions button { min-width: 44px; min-height: 36px; }
+  .conversation-row { display: grid !important; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 4px 10px !important; }
+  .conversation-row > :first-child { grid-column: 1; grid-row: 1 / span 2; }
+  .conversation-body { grid-column: 2; grid-row: 1; }
+  .conversation-date { grid-column: 2; grid-row: 2; }
+  .conversation-action { grid-column: 3; grid-row: 1 / span 2; }
+  .legal-page > header, .legal-copy { padding: 18px 16px; }
+}

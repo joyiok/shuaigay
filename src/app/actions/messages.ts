@@ -11,6 +11,7 @@ import { logger } from "@/lib/logger";
 import { isBlockedBetween } from "@/lib/block";
 import { maybeEmailNotify } from "@/lib/email-notify";
 import { after } from "next/server";
+import { revalidatePath } from "next/cache";
 
 const contentSchema = z.string().trim().min(1).max(5000);
 
@@ -40,9 +41,9 @@ export async function sendMessageAction(formData: FormData): Promise<string> {
 
   const receiver = await db.user.findUnique({
     where: { username: receiverUsername },
-    select: { id: true, username: true },
+    select: { id: true, username: true, deletedAt: true },
   });
-  if (!receiver) {
+  if (!receiver || receiver.deletedAt) {
     logger.warn("message.receiver_not_found", { senderId: user.id, receiverUsername });
     return "/messages?error=user_not_found";
   }
@@ -88,4 +89,29 @@ export async function sendMessageAction(formData: FormData): Promise<string> {
   }
 
   return `/messages/${encodeURIComponent(receiverUsername)}`;
+}
+
+/** 从自己的记录删除；发送后 10 分钟内可撤回并让双方都不可见。 */
+export async function deleteMessageAction(formData: FormData): Promise<void> {
+  const user = await getCurrentUser();
+  if (!user) redirect("/login?next=/messages");
+  const messageId = String(formData.get("messageId") ?? "");
+  const other = String(formData.get("other") ?? "");
+  const mode = formData.get("mode") === "retract" ? "retract" : "hide";
+  const message = await db.directMessage.findUnique({ where: { id: messageId } });
+  if (!message || (message.senderId !== user.id && message.receiverId !== user.id)) redirect("/messages");
+
+  if (mode === "retract") {
+    const withinWindow = Date.now() - message.createdAt.getTime() <= 10 * 60_000;
+    if (message.senderId !== user.id || !withinWindow) redirect(`/messages/${encodeURIComponent(other)}?error=retract_expired`);
+    await db.directMessage.delete({ where: { id: message.id } });
+  } else if (message.senderId === user.id) {
+    await db.directMessage.update({ where: { id: message.id }, data: { senderDeletedAt: new Date() } });
+  } else {
+    await db.directMessage.update({ where: { id: message.id }, data: { receiverDeletedAt: new Date() } });
+  }
+  logger.info("message.deleted", { userId: user.id, messageId, mode });
+  revalidatePath("/messages");
+  revalidatePath(`/messages/${other}`);
+  redirect(`/messages/${encodeURIComponent(other)}`);
 }

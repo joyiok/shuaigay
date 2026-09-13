@@ -71,9 +71,9 @@ export async function toggleFollowAction(formData: FormData): Promise<boolean> {
   const username = String(formData.get("username") ?? "");
   const target = await db.user.findUnique({
     where: { username },
-    select: { id: true, username: true },
+    select: { id: true, username: true, deletedAt: true },
   });
-  if (!target || target.id === user.id) return false;
+  if (!target || target.deletedAt || target.id === user.id) return false;
 
   const existing = await db.follow.findUnique({
     where: { followerId_followingId: { followerId: user.id, followingId: target.id } },

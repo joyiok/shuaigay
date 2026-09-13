@@ -16,6 +16,8 @@ const mockThreadDelete = vi.hoisted(() => vi.fn());
 const mockThreadUpdate = vi.hoisted(() => vi.fn());
 const mockPostUpdate = vi.hoisted(() => vi.fn());
 const mockPostDelete = vi.hoisted(() => vi.fn());
+const mockMessageFindFirst = vi.hoisted(() => vi.fn());
+const mockMessageDeleteMany = vi.hoisted(() => vi.fn());
 const mockNotificationCreate = vi.hoisted(() => vi.fn());
 const mockStorageRemove = vi.hoisted(() => vi.fn());
 const mockCheckRateLimit = vi.hoisted(() => vi.fn());
@@ -31,6 +33,10 @@ vi.mock("@/lib/db", () => ({
       findUnique: mockFindUniquePost,
       delete: mockPostDelete,
       update: mockPostUpdate,
+    },
+    directMessage: {
+      findFirst: mockMessageFindFirst,
+      deleteMany: mockMessageDeleteMany,
     },
     report: {
       findFirst: mockReportFindFirst,
@@ -75,6 +81,8 @@ function resetMocks() {
   mockAttachmentFindMany.mockReset();
   mockThreadDelete.mockReset();
   mockPostDelete.mockReset();
+  mockMessageFindFirst.mockReset();
+  mockMessageDeleteMany.mockReset();
   mockNotificationCreate.mockReset();
   mockStorageRemove.mockReset();
   mockCheckRateLimit.mockReset();
@@ -165,6 +173,15 @@ describe("createReport 举报创建", () => {
     expect(r.ok).toBe(true);
     expect(mockFindUniquePost).toHaveBeenCalled();
     expect(mockFindUniqueThread).not.toHaveBeenCalled();
+  });
+
+  it("只有收件人能举报收到的私信", async () => {
+    mockMessageFindFirst.mockResolvedValue({ senderId: "sender" });
+    mockReportFindFirst.mockResolvedValue(null);
+    mockReportCreate.mockResolvedValue({ id: "r-message" });
+    const r = await createReport("receiver", "message", "m1", "这是一条违规私信");
+    expect(r.ok).toBe(true);
+    expect(mockMessageFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "m1", receiverId: "receiver" } }));
   });
 
   it("边界长度 5 刚好通过", async () => {
@@ -265,6 +282,16 @@ describe("reviewReport 审核", () => {
       expect.objectContaining({ where: { id: "p1" }, data: expect.objectContaining({ status: "deleted" }) }),
     );
     expect(mockPostDelete).not.toHaveBeenCalled();
+  });
+
+  it("delete_message 删除私信并结案", async () => {
+    mockReportFindUnique.mockResolvedValue({ id: "r1", status: "pending", targetType: "message", targetId: "m1", reporterId: "u1" });
+    mockMessageDeleteMany.mockResolvedValue({ count: 1 });
+    mockReportFindMany.mockResolvedValue([{ id: "r1", reporterId: "u1" }]);
+    mockReportUpdateMany.mockResolvedValue({});
+    mockNotificationCreate.mockResolvedValue({});
+    expect((await reviewReport("r1", "delete_message")).ok).toBe(true);
+    expect(mockMessageDeleteMany).toHaveBeenCalledWith({ where: { id: "m1" } });
   });
 
   it("delete_thread 目标已不存在时只结案并通知已不存在", async () => {

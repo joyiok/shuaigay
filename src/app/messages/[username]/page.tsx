@@ -9,6 +9,10 @@ import EmptyState from "@/components/EmptyState";
 import UserAvatar from "@/components/UserAvatar";
 import MessageComposer from "@/components/MessageComposer";
 import { isBlockedBetween } from "@/lib/block";
+import { listConversationMessages, MESSAGE_PAGE_SIZE } from "@/lib/messages";
+import { deleteMessageAction } from "@/app/actions/messages";
+import { ConfirmForm } from "@/app/admin/ConfirmForms";
+import ReportButton from "@/components/report-button";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +28,12 @@ export default async function ConversationPage({
   searchParams,
 }: {
   params: Promise<{ username: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; page?: string }>;
 }) {
   const { username } = await params;
-  const { error } = await searchParams;
+  const { error, page: rawPage } = await searchParams;
+  const requestedPage = Number(rawPage ?? "1");
+  const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const me = await getCurrentUser();
   if (!me)
     return (
@@ -40,9 +46,9 @@ export default async function ConversationPage({
 
   const other = await db.user.findUnique({
     where: { username },
-    select: { id: true, username: true, bio: true, avatarUrl: true },
+    select: { id: true, username: true, bio: true, avatarUrl: true, deletedAt: true },
   });
-  if (!other) notFound();
+  if (!other || other.deletedAt) notFound();
   if (other.id === me.id) redirect("/messages");
   const blocked = await isBlockedBetween(me.id, other.id);
 
@@ -54,16 +60,9 @@ export default async function ConversationPage({
     })
     .catch(() => {});
 
-  const messages = await db.directMessage.findMany({
-    where: {
-      OR: [
-        { senderId: me.id, receiverId: other.id },
-        { senderId: other.id, receiverId: me.id },
-      ],
-    },
-    orderBy: { createdAt: "asc" },
-    take: 200,
-  });
+  const { items: messages, total } = await listConversationMessages(me.id, other.id, page);
+  const pages = Math.max(1, Math.ceil(total / MESSAGE_PAGE_SIZE));
+  if (page > pages) redirect(`/messages/${encodeURIComponent(other.username)}?page=${pages}`);
 
   // @高亮：收集候选并查真实用户
   const candidates = collectMentionCandidates(messages.map((m) => m.contentMd));
@@ -79,6 +78,7 @@ export default async function ConversationPage({
     ratelimited: "发送太频繁，请稍后再试",
     self: "不能给自己发私信",
     user_not_found: "用户不存在",
+    retract_expired: "消息发送超过 10 分钟，不能撤回；你仍可从自己的记录删除",
   };
 
   return (
@@ -138,6 +138,13 @@ export default async function ConversationPage({
       )}
 
       <div className="card" style={{ padding: 14, display: "grid", gap: 12 }}>
+        {pages > 1 && (
+          <nav className="list-pagination" aria-label="对话分页">
+            {page < pages ? <Link href={`/messages/${encodeURIComponent(other.username)}?page=${page + 1}`}>← 更早消息</Link> : <span />}
+            <span>第 {page} / {pages} 页</span>
+            {page > 1 ? <Link href={`/messages/${encodeURIComponent(other.username)}?page=${page - 1}`}>较新消息 →</Link> : <span />}
+          </nav>
+        )}
         {messages.length === 0 ? (
           <EmptyState
             variant="default"
@@ -190,6 +197,22 @@ export default async function ConversationPage({
                     >
                       {formatDate(m.createdAt)}
                       {isMe && !m.read ? " · 未读" : ""}
+                    </div>
+                    <div className="message-actions">
+                      {isMe && Date.now() - m.createdAt.getTime() <= 10 * 60_000 && (
+                        <ConfirmForm action={deleteMessageAction} message="撤回这条消息？撤回后双方都看不到。">
+                          <input type="hidden" name="messageId" value={m.id} />
+                          <input type="hidden" name="other" value={other.username} />
+                          <input type="hidden" name="mode" value="retract" />
+                          <button type="submit">撤回</button>
+                        </ConfirmForm>
+                      )}
+                      <ConfirmForm action={deleteMessageAction} message="只从你的私信记录中删除这条消息？">
+                        <input type="hidden" name="messageId" value={m.id} />
+                        <input type="hidden" name="other" value={other.username} />
+                        <button type="submit">删除</button>
+                      </ConfirmForm>
+                      {!isMe && <ReportButton targetType="message" targetId={m.id} />}
                     </div>
                   </div>
                 </li>

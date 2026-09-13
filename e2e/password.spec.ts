@@ -13,8 +13,8 @@ test("改密码：验原密码、换后踢其它会话、新密码可登录", as
   await page.getByRole("button", { name: "注册 — 去吹水" }).click();
   await expect(page.locator("header")).toContainText(username);
 
-  // 设置页改密区可见（改密已从个人主页迁到 /settings）
-  await page.goto("/settings");
+  // 改密独立放在「安全与登录」栏目。
+  await page.goto("/settings?section=security");
   await expect(page.locator('input[name="currentPassword"]')).toBeVisible();
   await expect(page.locator('input[name="newPassword"]')).toBeVisible();
 

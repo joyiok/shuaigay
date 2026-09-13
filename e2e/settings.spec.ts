@@ -77,7 +77,7 @@ test("账号设置页:入口可达、简介可存、通知偏好可关可开", a
   await expect(page.getByText("设置页写的一句话简介")).toBeVisible({ timeout: 20000 });
 
   // 通知偏好:取消勾选后保存,刷新后仍是未勾选
-  await page.goto("/settings");
+  await page.goto("/settings?section=notifications");
   const followBox = page.locator('input[name="follow"]');
   await expect(followBox).toBeChecked();
   await followBox.uncheck();
@@ -98,7 +98,7 @@ test("通知偏好生效:关掉社交提醒后,新关注不再产生通知", asy
 
   // B 关闭「社交提醒」
   await loginAs(page, `${userB}@test.dev`, "ForumTest123!", userB);
-  await page.goto("/settings");
+  await page.goto("/settings?section=notifications");
   await page.locator('input[name="follow"]').uncheck();
   await submitSettings(page, page.getByRole("button", { name: "保存通知偏好" }));
   await expect(page.locator('input[name="follow"]')).not.toBeChecked();
@@ -113,7 +113,7 @@ test("通知偏好生效:关掉社交提醒后,新关注不再产生通知", asy
   await expect(page.getByText("还没有通知")).toBeVisible({ timeout: 15000 });
 
   // B 重新打开社交提醒后，取消关注再关注会产生通知
-  await page.goto("/settings");
+  await page.goto("/settings?section=notifications");
   await page.locator('input[name="follow"]').check();
   await submitSettings(page, page.getByRole("button", { name: "保存通知偏好" }));
 

@@ -23,7 +23,7 @@ export async function GET(req: Request): Promise<Response> {
 
   const users = await db.user
     .findMany({
-      where: { username: { contains: q, mode: "insensitive" } },
+      where: { username: { contains: q, mode: "insensitive" }, deletedAt: null },
       select: { username: true },
       orderBy: { username: "asc" },
       take: 8,

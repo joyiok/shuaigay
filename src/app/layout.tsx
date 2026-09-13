@@ -436,6 +436,10 @@ export default async function RootLayout({
             <span aria-hidden>·</span>
             <Link href="/search" prefetch={false}>搜索</Link>
             <span aria-hidden>·</span>
+            <Link href="/privacy" prefetch={false}>隐私</Link>
+            <span aria-hidden>·</span>
+            <Link href="/terms" prefetch={false}>协议</Link>
+            <span aria-hidden>·</span>
             <Link href="/sitemap.xml" prefetch={false}>Sitemap</Link>
             <span aria-hidden>·</span>
             <Link href="/robots.txt" prefetch={false}>Robots</Link>

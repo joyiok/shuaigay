@@ -151,10 +151,10 @@ export async function loginAction(formData: FormData): Promise<void> {
   }
 
   const user = await db.user.findUnique({ where: { email } });
-  const ok = user
+  const ok = user && !user.deletedAt
     ? await verifyPassword(password, user.passwordHash)
     : await verifyPassword(password, DUMMY_HASH);
-  if (!ok || !user) {
+  if (!ok || !user || user.deletedAt) {
     logger.info("auth.login_failed", { email, ip });
     redirect("/login?error=wrong");
   }
@@ -193,23 +193,24 @@ export async function changePasswordAction(formData: FormData): Promise<string> 
   // 改密表单在 /settings；保留 next 兜底以便旧入口(个人主页)继续可用
   const fallback = `/u/${encodeURIComponent(user.username)}`;
   const back = safeNext(formData.get("next"), fallback);
+  const feedback = (value: string) => `${back}${back.includes("?") ? "&" : "?"}${value}`;
   if (!(await checkRateLimit(`changepw:${user.id}`, 10, 3600))) {
-    return `${back}?error=ratelimited`;
+    return feedback("error=ratelimited");
   }
   const parsed = changePasswordSchema.safeParse({
     currentPassword: formData.get("currentPassword"),
     newPassword: formData.get("newPassword"),
   });
-  if (!parsed.success) return `${back}?error=invalid`;
+  if (!parsed.success) return feedback("error=invalid");
   const { currentPassword, newPassword } = parsed.data;
-  if (currentPassword === newPassword) return `${back}?error=same_password`;
+  if (currentPassword === newPassword) return feedback("error=same_password");
   const dbUser = await db.user.findUnique({
     where: { id: user.id },
     select: { passwordHash: true },
   });
   if (!dbUser || !(await verifyPassword(currentPassword, dbUser.passwordHash))) {
     logger.warn("auth.password_change_denied", { userId: user.id });
-    return `${back}?error=wrong_password`;
+    return feedback("error=wrong_password");
   }
   await db.user.update({
     where: { id: user.id },
@@ -217,7 +218,7 @@ export async function changePasswordAction(formData: FormData): Promise<string> 
   });
   const killed = await destroyOtherSessions(user.id);
   logger.info("auth.password_changed", { userId: user.id, killedSessions: killed });
-  return `${back}?ok=password_changed`;
+  return feedback("ok=password_changed");
 }
 
 /* -------- 找回密码 -------- */

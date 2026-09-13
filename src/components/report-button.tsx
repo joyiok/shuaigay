@@ -7,8 +7,18 @@ type UiState =
   | { kind: "busy" }
   | { kind: "done"; ok: boolean; text: string; needsAuth?: boolean };
 
-/** 帖子旁的「举报」按钮:原生 dialog 弹出简易表单,提交到 /api/reports */
-export default function ReportButton({ postId }: { postId: string }) {
+/** 内容旁的「举报」按钮:原生 dialog 弹出简易表单,提交到 /api/reports */
+export default function ReportButton({
+  postId,
+  targetId = postId,
+  targetType = "post",
+  label = "举报",
+}: {
+  postId?: string;
+  targetId?: string;
+  targetType?: "thread" | "post" | "message";
+  label?: string;
+}) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [state, setState] = useState<UiState>({ kind: "idle" });
 
@@ -32,7 +42,7 @@ export default function ReportButton({ postId }: { postId: string }) {
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetType: "post", targetId: postId, reason }),
+        body: JSON.stringify({ targetType, targetId, reason }),
       });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
       const needsAuth = res.status === 401;
@@ -54,13 +64,13 @@ export default function ReportButton({ postId }: { postId: string }) {
         onClick={openDialog}
         className="post-quote-btn"
       >
-        举报
+        {label}
       </button>
 
       <dialog
         ref={dialogRef}
         className="report-dialog"
-        aria-labelledby={`report-title-${postId}`}
+        aria-labelledby={`report-title-${targetId}`}
         style={{
           border: "1px solid var(--line)",
           borderRadius: 12,
@@ -76,11 +86,11 @@ export default function ReportButton({ postId }: { postId: string }) {
         }}
       >
         <form onSubmit={submit} style={{ display: "grid", gap: 10, padding: 14 }}>
-          <h2 id={`report-title-${postId}`} style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>举报这条内容</h2>
+          <h2 id={`report-title-${targetId}`} style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>举报这条内容</h2>
 
-          <label htmlFor={`report-reason-${postId}`} style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>违规原因</label>
+          <label htmlFor={`report-reason-${targetId}`} style={{ fontSize: 12, fontWeight: 600, color: "var(--text-muted)" }}>违规原因</label>
           <textarea
-            id={`report-reason-${postId}`}
+            id={`report-reason-${targetId}`}
             name="reason"
             rows={4}
             maxLength={500}

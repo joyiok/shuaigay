@@ -10,7 +10,7 @@ import { logger } from "./logger";
 
 export const REPORT_REASON_MIN = 5;
 export const REPORT_REASON_MAX = 500;
-export type ReportTargetType = "thread" | "post";
+export type ReportTargetType = "thread" | "post" | "message";
 
 export interface ReportResult {
   ok: boolean;
@@ -337,20 +337,18 @@ export async function createReport(
     logger.info("moderation.blocked_sensitive", { reporterId, targetType });
     return { ok: false, error: "举报理由包含敏感词，请修改后重试", status: 400 };
   }
-  if (targetType !== "thread" && targetType !== "post") {
+  if (targetType !== "thread" && targetType !== "post" && targetType !== "message") {
     return { ok: false, error: "不支持该举报类型", status: 400 };
   }
 
-  const target =
-    targetType === "thread"
-      ? await db.thread.findUnique({
-          where: { id: targetId },
-          select: { authorId: true },
-        })
-      : await db.post.findUnique({
-          where: { id: targetId },
-          select: { authorId: true },
-        });
+  const target = targetType === "thread"
+    ? await db.thread.findUnique({ where: { id: targetId }, select: { authorId: true } })
+    : targetType === "post"
+      ? await db.post.findUnique({ where: { id: targetId }, select: { authorId: true } })
+      : await db.directMessage.findFirst({
+          where: { id: targetId, receiverId: reporterId },
+          select: { senderId: true },
+        }).then((m) => m ? { authorId: m.senderId } : null);
   if (!target) {
     return { ok: false, error: "目标不存在或已被删除", status: 404 };
   }
@@ -401,7 +399,7 @@ async function notifyReportStaff(
       });
       boardId = (t as { boardId?: string } | null)?.boardId ?? null;
       boardName = (t as { board?: { name?: string } } | null)?.board?.name ?? null;
-    } else {
+    } else if (targetType === "post") {
       const p = await db.post.findUnique({
         where: { id: targetId },
         select: { thread: { select: { boardId: true, board: { select: { name: true } } } } },
@@ -441,7 +439,7 @@ async function notifyReportStaff(
   }
 }
 
-export type ReviewAction = "delete_thread" | "delete_post" | "ignore" | "reject";
+export type ReviewAction = "delete_thread" | "delete_post" | "delete_message" | "ignore" | "reject";
 
 /**
  * 管理员处理一条举报:
@@ -457,6 +455,16 @@ export async function reviewReport(
   if (!report) return { ok: false, error: "举报不存在", status: 404 };
   if (report.status !== "pending") {
     return { ok: false, error: "该举报已处理过", status: 409 };
+  }
+
+  if (action === "delete_message") {
+    const removed = await db.directMessage.deleteMany({ where: { id: report.targetId } });
+    if (removed.count) await settlePendingReports("message", report.targetId, true);
+    else {
+      await db.report.update({ where: { id: report.id }, data: { status: "resolved" } });
+      await notifyReporter(report.reporterId, "举报已处理", "你举报的私信已不存在，无需处理。");
+    }
+    return { ok: true };
   }
 
   if (action === "delete_thread" || action === "delete_post") {

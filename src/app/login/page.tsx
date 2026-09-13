@@ -24,9 +24,9 @@ const ERRORS: Record<string, { title: string; msg: string; tip: string }> = {
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; next?: string; reset?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; reset?: string; deleted?: string }>;
 }) {
-  const { error, next, reset } = await searchParams;
+  const { error, next, reset, deleted } = await searchParams;
   const settings = await getCachedSiteSettings();
 
   return (
@@ -38,6 +38,7 @@ export default async function LoginPage({
           <div style={{ marginBottom: 12 }}><HumanizedFeedback type="error" title={ERRORS[error].title} message={ERRORS[error].msg} suggestion={ERRORS[error].tip} /></div>
         )}
         {reset && <div style={{ marginBottom: 12 }}><HumanizedFeedback type="success" title="密码已重置" message="用新密码登录就行。" suggestion="别再忘了，加个密码管理器？" /></div>}
+        {deleted && <div style={{ marginBottom: 12 }}><HumanizedFeedback type="success" title="账号已注销" message="私人数据已清除，公开讨论已匿名保留。" /></div>}
 
         <form action={loginAction} style={{ display: "grid", gap: 18 }}>
           {next && <input type="hidden" name="next" value={next} />}

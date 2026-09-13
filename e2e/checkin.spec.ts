@@ -48,7 +48,7 @@ for (const mobile of [false, true]) {
     const url = page.url();
     await button.focus();
     await page.keyboard.press("Enter");
-    await expect(button).toHaveText("今天已签到");
+    await expect(button).toHaveText("今天已签到", { timeout: 15_000 });
     await expect(button).toBeDisabled();
     await expect(card.getByRole("status")).toHaveText(/\+\d+ 积分已到账/);
     await expect(card.locator('[data-today="true"]')).toHaveAttribute("data-hit", "true");

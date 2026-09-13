@@ -52,8 +52,8 @@ export default async function FollowersPage({
   const tab: Tab = sp.tab === "following" ? "following" : "followers";
   const page = Math.max(1, Number(sp.page) || 1);
 
-  const user = await db.user.findUnique({
-    where: { username },
+  const user = await db.user.findFirst({
+    where: { username, deletedAt: null },
     select: { id: true, username: true, avatarUrl: true },
   });
   if (!user) notFound();

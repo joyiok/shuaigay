@@ -22,7 +22,7 @@ export async function GET() {
   const base = siteUrl().origin;
   const threads = await db.thread
     .findMany({
-      where: { board: { isHidden: false } },
+      where: { board: { isHidden: false }, status: "approved" },
       orderBy: { lastPostAt: "desc" },
       take: 30,
       include: {
