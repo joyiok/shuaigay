@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   const url = new URL(req.url);
-  const rawLimit = Number(url.searchParams.get("limit"));
+  const rawLimit = Number(url.searchParams.get("limit") ?? 20);
   const limit = Number.isFinite(rawLimit)
     ? Math.min(50, Math.max(1, Math.trunc(rawLimit)))
     : 20;

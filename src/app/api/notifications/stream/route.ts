@@ -37,6 +37,10 @@ export async function GET(request: Request) {
   let timer: ReturnType<typeof setTimeout> | undefined;
   let closed = false;
   let last = -1;
+  const stop = () => {
+    closed = true;
+    if (timer) clearTimeout(timer);
+  };
 
   const stream = new ReadableStream({
     start(controller) {
@@ -44,6 +48,7 @@ export async function GET(request: Request) {
         if (closed) return;
         try {
           const unread = await getUnreadCached(user.id);
+          if (closed) return;
           if (unread !== last) {
             last = unread;
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ unread })}\n\n`));
@@ -51,21 +56,19 @@ export async function GET(request: Request) {
             controller.enqueue(encoder.encode(": keepalive\n\n"));
           }
         } catch {
+          if (closed) return;
           controller.enqueue(encoder.encode(": retry\n\n"));
         }
-        timer = setTimeout(tick, 3_000);
+        if (!closed) timer = setTimeout(tick, 3_000);
       };
       void tick();
       request.signal.addEventListener("abort", () => {
-        closed = true;
-        if (timer) clearTimeout(timer);
+        if (closed) return;
+        stop();
         controller.close();
       }, { once: true });
     },
-    cancel() {
-      closed = true;
-      if (timer) clearTimeout(timer);
-    },
+    cancel: stop,
   });
 
   return new Response(stream, {
